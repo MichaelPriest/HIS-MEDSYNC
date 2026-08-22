@@ -8,6 +8,8 @@ const MIME_EXT: Record<string, string> = {
   "image/webp": "webp",
 };
 
+type ModuloFoto = "pacientes" | "profissionais" | "convenios" | "usuarios";
+
 export async function uploadFotoCadastro({
   supabase,
   empresaId,
@@ -16,7 +18,7 @@ export async function uploadFotoCadastro({
 }: {
   supabase: SupabaseClient;
   empresaId: string;
-  modulo: "pacientes" | "profissionais";
+  modulo: ModuloFoto;
   file: FormDataEntryValue | null;
 }) {
   if (!(file instanceof File) || file.size === 0) return null;
