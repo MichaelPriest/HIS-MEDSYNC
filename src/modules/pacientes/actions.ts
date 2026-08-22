@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { uploadFotoCadastro } from "@/modules/cadastros/fotos";
+import { parseAddresses, parseEmails, parsePhones, validateRequiredContacts } from "@/modules/cadastros/parse-contact-sections";
 
 function digits(value: FormDataEntryValue | null) {
   return String(value ?? "").replace(/\D/g, "");
@@ -18,19 +19,15 @@ export async function criarPaciente(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: vinculo, error: vinculoError } = await supabase
-    .from("usuario_empresas")
-    .select("empresa_id")
-    .eq("usuario_id", user.id)
-    .eq("ativo", true)
-    .limit(1)
-    .maybeSingle();
-
+  const { data: vinculo, error: vinculoError } = await supabase.from("usuario_empresas").select("empresa_id").eq("usuario_id", user.id).eq("ativo", true).limit(1).maybeSingle();
   if (vinculoError || !vinculo) redirect("/pacientes/novo?erro=sem-empresa");
 
   const nomeCompleto = String(formData.get("nome_completo") ?? "").trim();
   const dataNascimento = String(formData.get("data_nascimento") ?? "");
-  if (nomeCompleto.length < 2 || !dataNascimento) redirect("/pacientes/novo?erro=campos-obrigatorios");
+  const emails = parseEmails(formData);
+  const phones = parsePhones(formData);
+  const addresses = parseAddresses(formData);
+  if (nomeCompleto.length < 2 || !dataNascimento || !validateRequiredContacts(emails, phones, addresses)) redirect("/pacientes/novo?erro=campos-obrigatorios");
 
   let fotoPath: string | null = null;
   try {
@@ -40,35 +37,40 @@ export async function criarPaciente(formData: FormData) {
     redirect(`/pacientes/novo?erro=${code}`);
   }
 
-  const { error } = await supabase.from("pacientes").insert({
+  const { data: paciente, error } = await supabase.from("pacientes").insert({
     empresa_id: vinculo.empresa_id,
     nome_completo: nomeCompleto,
-    nome_social: optional(formData.get("nome_social")),
     cpf: digits(formData.get("cpf")) || null,
-    cns: digits(formData.get("cns")) || null,
+    rg: optional(formData.get("rg")),
     data_nascimento: dataNascimento,
-    sexo: String(formData.get("sexo") ?? "nao_informado"),
-    telefone: optional(formData.get("telefone")),
-    email: optional(formData.get("email")),
-    cep: digits(formData.get("cep")) || null,
-    logradouro: optional(formData.get("logradouro")),
-    numero: optional(formData.get("numero")),
-    complemento: optional(formData.get("complemento")),
-    bairro: optional(formData.get("bairro")),
-    cidade: optional(formData.get("cidade")),
-    uf: optional(formData.get("uf"))?.toUpperCase() ?? null,
-    contato_emergencia_nome: optional(formData.get("contato_emergencia_nome")),
-    contato_emergencia_telefone: optional(formData.get("contato_emergencia_telefone")),
+    nacionalidade: optional(formData.get("nacionalidade")),
+    estado_civil: optional(formData.get("estado_civil")),
+    sexo: optional(formData.get("sexo")) || "nao_informado",
+    email: emails[0]?.email ?? null,
+    telefone: phones[0]?.telefone ?? null,
+    cep: addresses[0]?.cep ?? null,
+    logradouro: addresses[0]?.endereco ?? null,
+    numero: addresses[0]?.numero ?? null,
+    complemento: addresses[0]?.complemento ?? null,
+    bairro: addresses[0]?.bairro ?? null,
+    cidade: addresses[0]?.cidade ?? null,
+    uf: addresses[0]?.estado ?? null,
     foto_path: fotoPath,
     created_by: user.id,
     updated_by: user.id,
-  });
+  }).select("id").single();
 
-  if (error) {
+  if (error || !paciente) {
     if (fotoPath) await supabase.storage.from("cadastros-fotos").remove([fotoPath]);
-    const code = error.code === "23505" ? "documento-duplicado" : "falha-cadastro";
-    redirect(`/pacientes/novo?erro=${code}`);
+    redirect(`/pacientes/novo?erro=${error?.code === "23505" ? "documento-duplicado" : "falha-cadastro"}`);
   }
 
+  const [emailResult, phoneResult, addressResult] = await Promise.all([
+    supabase.from("paciente_emails").insert(emails.map((item) => ({ paciente_id: paciente.id, ...item }))),
+    supabase.from("paciente_telefones").insert(phones.map((item) => ({ paciente_id: paciente.id, ...item }))),
+    supabase.from("paciente_enderecos").insert(addresses.map((item) => ({ paciente_id: paciente.id, ...item }))),
+  ]);
+
+  if (emailResult.error || phoneResult.error || addressResult.error) redirect("/pacientes?sucesso=parcial");
   redirect("/pacientes?sucesso=cadastrado");
 }
