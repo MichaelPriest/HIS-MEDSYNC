@@ -29,7 +29,7 @@ export default async function NovoConvenioPage({ searchParams }: { searchParams:
         </div>
       </section>
 
-      <ContactSections defaultAddressType="comercial" />
+      <ContactSections defaultAddressType="comercial" defaultPhoneType="comercial" />
 
       <div className="mt-8 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5"><Link href="/convenios" className="btn-secondary">Cancelar</Link><button className="ui-button-primary">Salvar convênio</button></div>
     </form>
