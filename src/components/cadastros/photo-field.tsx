@@ -1,0 +1,48 @@
+"use client";
+
+import { Camera, ImagePlus, X } from "lucide-react";
+import { useEffect, useState } from "react";
+
+export function PhotoField({ label = "Foto", name = "foto" }: { label?: string; name?: string }) {
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview);
+  }, [preview]);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white text-slate-400">
+          {preview ? <img src={preview} alt="Pré-visualização" className="h-full w-full object-cover" /> : <Camera className="size-8" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-800">{label}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">JPG, PNG ou WEBP, com até 5 MB. A imagem será armazenada em bucket privado.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand-950 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-900">
+              <ImagePlus className="size-4" />
+              Selecionar foto
+              <input
+                className="sr-only"
+                type="file"
+                name={name}
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (preview) URL.revokeObjectURL(preview);
+                  setPreview(file ? URL.createObjectURL(file) : null);
+                }}
+              />
+            </label>
+            {preview ? (
+              <button type="button" onClick={() => setPreview(null)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                <X className="size-4" /> Remover preview
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
