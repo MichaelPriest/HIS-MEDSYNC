@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { getCadastroContext, optional } from "@/modules/cadastros/context";
 
-const tiposPermitidos = new Set(["especialidade", "cbo", "cid10", "tuss", "tipo_atendimento", "motivo_classificacao"]);
+const tiposPermitidos = new Set(["especialidade", "cbo", "cid10", "tuss", "tipo_atendimento", "motivo_classificacao", "tipo_profissional"]);
 
 export async function criarCatalogo(formData: FormData) {
   const { supabase, user, empresaId } = await getCadastroContext();
