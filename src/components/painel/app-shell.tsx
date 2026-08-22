@@ -41,7 +41,7 @@ const roadmap = [
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const cadastrosAtivo = cadastroNav.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
-  const [cadastrosOpen, setCadastrosOpen] = useState(cadastrosAtivo || true);
+  const [cadastrosOpen, setCadastrosOpen] = useState<boolean>(cadastrosAtivo || true);
 
   return (
     <div className="flex h-full flex-col">
@@ -92,7 +92,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppShell({ children, email, logoutAction }: { children: React.ReactNode; email?: string | null; logoutAction: (formData: FormData) => void | Promise<void> }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState<boolean>(false);
 
   return (
     <div className="min-h-screen bg-slate-50 lg:grid lg:grid-cols-[17.5rem_1fr]">
