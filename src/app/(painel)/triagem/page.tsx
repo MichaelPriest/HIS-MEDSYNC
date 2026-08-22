@@ -1,21 +1,26 @@
 import { HeartPulse } from "lucide-react";
+import { AtendimentoPicker } from "@/components/atendimentos/atendimento-picker";
 import { SectionPage } from "@/components/painel/section-page";
 import { createClient } from "@/lib/supabase/server";
 import { registrarTriagem } from "@/modules/triagem/actions";
 
-function relNome(rel: { nome_completo?: string } | { nome_completo?: string }[] | null) { return Array.isArray(rel) ? rel[0]?.nome_completo : rel?.nome_completo; }
+function relPaciente(rel: { nome_completo?: string; cpf?: string | null; ra?: string; numero_registro?: number } | { nome_completo?: string; cpf?: string | null; ra?: string; numero_registro?: number }[] | null) {
+  return Array.isArray(rel) ? rel[0] ?? null : rel;
+}
 
 export default async function TriagemPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const { data: atendimentos } = await supabase.from("atendimentos").select("id,data_abertura,paciente:pacientes(nome_completo)").in("status", ["aberto","em_espera","em_atendimento"]).order("data_abertura", { ascending: false }).limit(100);
-  return <SectionPage eyebrow="Assistencial / Triagem" title="Triagem" description="Registro inicial de sinais vitais, queixa principal e classificação de risco, vinculado ao atendimento.">
+  const { data: atendimentos } = await supabase.from("atendimentos").select("id,numero_atendimento,data_abertura,paciente:pacientes(nome_completo,cpf,ra,numero_registro)").in("status", ["aberto","em_espera","em_atendimento"]).order("data_abertura", { ascending: false }).limit(200);
+  const atendimentoOptions = (atendimentos ?? []).map((item) => ({ id: item.id, numero_atendimento: item.numero_atendimento ?? null, data_abertura: item.data_abertura, paciente: relPaciente(item.paciente) ? { nome_completo: relPaciente(item.paciente)?.nome_completo ?? "Paciente", cpf: relPaciente(item.paciente)?.cpf ?? null, ra: relPaciente(item.paciente)?.ra ?? "—", numero_registro: relPaciente(item.paciente)?.numero_registro ?? 0 } : null }));
+
+  return <SectionPage eyebrow="Assistencial / Triagem" title="Triagem" description="Localize o paciente por nº do atendimento, nome, CPF, RA ou registro e registre os sinais vitais.">
     {params.sucesso ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Triagem registrada com sucesso.</div> : null}
     {params.erro ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Não foi possível registrar a triagem.</div> : null}
     <form action={registrarTriagem} className="ui-card p-6">
       <div className="mb-6 flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-700"><HeartPulse className="size-5" /></span><div><h2 className="font-semibold text-slate-900">Dados da triagem</h2><p className="text-sm text-slate-500">Valores devem refletir a aferição realizada no atendimento.</p></div></div>
+      <div className="mb-6"><AtendimentoPicker atendimentos={atendimentoOptions} /></div>
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2 xl:col-span-4"><span>Atendimento *</span><select name="atendimento_id" required defaultValue="" className="ui-input"><option value="">Selecione o atendimento</option>{atendimentos?.map((item) => <option key={item.id} value={item.id}>{relNome(item.paciente) ?? "Paciente"} · {new Date(item.data_abertura).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</option>)}</select></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Peso (kg)</span><input name="peso_kg" inputMode="decimal" className="ui-input" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Altura (cm)</span><input name="altura_cm" inputMode="decimal" className="ui-input" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Pressão arterial</span><input name="pressao_arterial" placeholder="120/80" className="ui-input" /></label>
