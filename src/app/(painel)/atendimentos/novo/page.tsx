@@ -3,6 +3,7 @@ import { SectionPage } from "@/components/painel/section-page";
 import { createClient } from "@/lib/supabase/server";
 import { abrirAtendimento } from "@/modules/atendimentos/actions";
 
+// Mantém a consulta alinhada ao tipo Patient usado pelo formulário de admissão.
 export default async function NovoAtendimentoPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
   const { erro } = await searchParams;
   const supabase = await createClient();
