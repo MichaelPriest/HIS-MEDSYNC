@@ -3,14 +3,48 @@
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
+function optional(formData: FormData, name: string) {
+  const value = String(formData.get(name) ?? "").trim();
+  return value || null;
+}
+
+function digits(value: string | null) {
+  return value?.replace(/\D/g, "") || null;
+}
+
 export async function abrirAtendimento(formData: FormData) {
   const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
   const pacienteId = String(formData.get("paciente_id") ?? "").trim();
-  const profissionalId = String(formData.get("profissional_id") ?? "").trim() || null;
+  const profissionalId = optional(formData, "profissional_id");
   const tipoAtendimento = String(formData.get("tipo_atendimento") ?? "").trim();
-  const origem = String(formData.get("origem") ?? "").trim() || null;
-  const observacoes = String(formData.get("observacoes") ?? "").trim() || null;
-  if (!pacienteId || !tipoAtendimento) redirect("/atendimentos/novo?erro=campos-obrigatorios");
+  const cobertura = String(formData.get("cobertura") ?? "particular").trim();
+  const convenioId = cobertura === "convenio" ? optional(formData, "convenio_id") : null;
+  const planoId = cobertura === "convenio" ? optional(formData, "plano_id") : null;
+  const carteirinha = cobertura === "convenio" ? optional(formData, "numero_carteirinha") : null;
+
+  const pacienteNome = String(formData.get("paciente_nome") ?? "").trim();
+  const pacienteNascimento = String(formData.get("paciente_data_nascimento") ?? "").trim();
+  const pacienteTelefone = String(formData.get("paciente_telefone") ?? "").trim();
+  const pacienteEndereco = String(formData.get("paciente_endereco") ?? "").trim();
+  const pacienteNumero = String(formData.get("paciente_numero") ?? "").trim();
+  const pacienteBairro = String(formData.get("paciente_bairro") ?? "").trim();
+  const pacienteCidade = String(formData.get("paciente_cidade") ?? "").trim();
+  const pacienteEstado = String(formData.get("paciente_estado") ?? "").trim().toUpperCase();
+
+  if (!pacienteId || !tipoAtendimento || !pacienteNome || !pacienteNascimento || !pacienteTelefone || !pacienteEndereco || !pacienteNumero || !pacienteBairro || !pacienteCidade || pacienteEstado.length !== 2) {
+    redirect("/atendimentos/novo?erro=campos-obrigatorios");
+  }
+
+  if (cobertura !== "particular" && cobertura !== "convenio") redirect("/atendimentos/novo?erro=cobertura");
+  if (cobertura === "convenio" && (!convenioId || !planoId || !carteirinha)) redirect("/atendimentos/novo?erro=cobertura");
+
+  const { data: paciente } = await supabase.from("pacientes").select("id").eq("id", pacienteId).eq("ativo", true).maybeSingle();
+  if (!paciente) redirect("/atendimentos/novo?erro=paciente");
+
+  if (cobertura === "convenio") {
+    const { data: plano } = await supabase.from("convenio_planos").select("id").eq("id", planoId).eq("convenio_id", convenioId).eq("ativo", true).maybeSingle();
+    if (!plano) redirect("/atendimentos/novo?erro=plano");
+  }
 
   const { error } = await supabase.from("atendimentos").insert({
     empresa_id: empresaId,
@@ -18,8 +52,29 @@ export async function abrirAtendimento(formData: FormData) {
     paciente_id: pacienteId,
     profissional_id: profissionalId,
     tipo_atendimento: tipoAtendimento,
-    origem,
-    observacoes,
+    origem: optional(formData, "origem"),
+    observacoes: optional(formData, "observacoes"),
+    cobertura,
+    convenio_id: convenioId,
+    plano_id: planoId,
+    numero_carteirinha: carteirinha,
+    validade_carteirinha: cobertura === "convenio" ? optional(formData, "validade_carteirinha") : null,
+    numero_autorizacao: cobertura === "convenio" ? optional(formData, "numero_autorizacao") : null,
+    senha_autorizacao: cobertura === "convenio" ? optional(formData, "senha_autorizacao") : null,
+    paciente_nome: pacienteNome,
+    paciente_cpf: digits(optional(formData, "paciente_cpf")),
+    paciente_rg: optional(formData, "paciente_rg"),
+    paciente_data_nascimento: pacienteNascimento,
+    paciente_sexo: optional(formData, "paciente_sexo"),
+    paciente_telefone: pacienteTelefone,
+    paciente_email: optional(formData, "paciente_email"),
+    paciente_cep: digits(optional(formData, "paciente_cep")),
+    paciente_endereco: pacienteEndereco,
+    paciente_numero: pacienteNumero,
+    paciente_complemento: optional(formData, "paciente_complemento"),
+    paciente_bairro: pacienteBairro,
+    paciente_cidade: pacienteCidade,
+    paciente_estado: pacienteEstado,
     created_by: user.id,
     updated_by: user.id,
   });
