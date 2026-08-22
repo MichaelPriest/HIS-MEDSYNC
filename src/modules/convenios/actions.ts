@@ -8,16 +8,18 @@ import { parseAddresses, parseEmails, parsePhones, validateRequiredContacts } fr
 type PlanoInput = { nome: string; codigo: string | null; acomodacao: string | null };
 
 function parsePlanos(formData: FormData): PlanoInput[] {
-  const rows = new Map<string, Partial<PlanoInput>>();
+  const rows = new Map<string, Record<string, string>>();
   for (const [key, rawValue] of formData.entries()) {
     const match = key.match(/^planos\[(.+?)\]\.(nome|codigo|acomodacao)$/);
     if (!match) continue;
     const [, id, field] = match;
     const row = rows.get(id) ?? {};
-    row[field as keyof PlanoInput] = String(rawValue).trim() || null as never;
+    row[field] = String(rawValue).trim();
     rows.set(id, row);
   }
-  return [...rows.values()].filter((row) => row.nome).map((row) => ({ nome: String(row.nome), codigo: row.codigo ? String(row.codigo) : null, acomodacao: row.acomodacao ? String(row.acomodacao) : null }));
+  return [...rows.values()]
+    .filter((row) => row.nome)
+    .map((row) => ({ nome: row.nome, codigo: row.codigo || null, acomodacao: row.acomodacao || null }));
 }
 
 export async function criarConvenio(formData: FormData) {
@@ -56,7 +58,7 @@ export async function criarConvenio(formData: FormData) {
     redirect(`/convenios/novo?erro=${error?.code === "23505" ? "duplicado" : "falha-cadastro"}`);
   }
 
-  const inserts: PromiseLike<{ error: unknown }>[] = [
+  const inserts = [
     supabase.from("convenio_emails").insert(emails.map((item) => ({ convenio_id: convenio.id, ...item }))),
     supabase.from("convenio_telefones").insert(phones.map((item) => ({ convenio_id: convenio.id, ...item }))),
     supabase.from("convenio_enderecos").insert(addresses.map((item) => ({ convenio_id: convenio.id, ...item }))),
