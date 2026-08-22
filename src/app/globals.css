@@ -1,3 +1,18 @@
-@tailwind base; @tailwind components; @tailwind utilities;
-:root { color-scheme: light; } html { background: #f8fafc; } body { @apply min-h-screen text-slate-900 antialiased; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html { background: #f8fafc; scroll-behavior: smooth; }
+body { @apply min-h-screen bg-slate-50 text-slate-900 antialiased; }
+::selection { @apply bg-brand-200 text-brand-950; }
 :focus-visible { @apply outline-none ring-2 ring-brand-600 ring-offset-2; }
+summary::-webkit-details-marker { display: none; }
+
+@layer components {
+  .panel-card { @apply rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/[0.03]; }
+  .panel-input { @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-brand-300 focus:ring-4 focus:ring-brand-100; }
+  .panel-button { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition; }
+}
+
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
