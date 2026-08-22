@@ -16,14 +16,14 @@ const cadastroNav: Array<{ href: Route; label: string; icon: typeof UsersRound }
 const assistencialNav: Array<{ href: Route; label: string; icon: typeof ClipboardList }> = [
   { href: "/atendimentos", label: "Atendimento / ADT", icon: ClipboardList },
   { href: "/agenda", label: "Agenda e recepção", icon: CalendarDays },
+  { href: "/triagem", label: "Triagem", icon: HeartPulse },
+  { href: "/prontuario", label: "Prontuário", icon: ShieldCheck },
 ];
-const roadmap = [{ label: "Triagem", icon: HeartPulse }, { label: "Prontuário", icon: ShieldCheck }];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const cadastrosAtivo = cadastroNav.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
   const [cadastrosOpen, setCadastrosOpen] = useState<boolean>(true);
-
   return <div className="flex h-full flex-col">
     <div className="border-b border-white/10 px-5 py-5"><Link href="/painel" onClick={onNavigate} className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-white text-brand-950 shadow-lg shadow-black/10"><HeartPulse className="size-5" /></span><span><strong className="block text-base font-semibold tracking-tight">{brand.shortName}</strong><span className="block text-[11px] uppercase tracking-[0.18em] text-white/45">Hospital Information System</span></span></Link></div>
     <div className="flex-1 overflow-y-auto px-3 py-5">
@@ -32,7 +32,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <Link href="/painel" onClick={onNavigate} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname === "/painel" ? "bg-white text-brand-950 shadow-sm" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><LayoutDashboard className={`size-4.5 ${pathname === "/painel" ? "text-brand-700" : "text-white/45"}`} /><span>Visão geral</span></Link>
         <div className="pt-1"><button type="button" onClick={() => setCadastrosOpen((value) => !value)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${cadastrosAtivo ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><FolderCog className="size-4.5 text-white/55" /><span>Cadastros</span>{cadastrosOpen ? <ChevronDown className="ml-auto size-4 text-white/40" /> : <ChevronRight className="ml-auto size-4 text-white/40" />}</button>{cadastrosOpen ? <div className="ml-5 mt-1 space-y-1 border-l border-white/10 pl-3">{cadastroNav.map((item) => { const active = pathname === item.href || pathname.startsWith(`${item.href}/`); const Icon = item.icon; return <Link key={item.href} href={item.href} onClick={onNavigate} className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${active ? "bg-white text-brand-950 shadow-sm" : "text-white/60 hover:bg-white/10 hover:text-white"}`}><Icon className={`size-4 ${active ? "text-brand-700" : "text-white/40"}`} /><span>{item.label}</span></Link>; })}</div> : null}</div>
       </nav>
-      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Assistencial</p><div className="mt-3 space-y-1">{assistencialNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4" /><span>{label}</span></Link>; })}{roadmap.map(({ label, icon: Icon }) => <div key={label} className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-white/35"><Icon className="size-4" /><span>{label}</span><span className="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide">breve</span></div>)}</div></div>
+      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Assistencial</p><div className="mt-3 space-y-1">{assistencialNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4" /><span>{label}</span></Link>; })}</div></div>
     </div>
     <div className="border-t border-white/10 p-4"><div className="rounded-2xl border border-white/10 bg-white/5 p-3"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-full bg-white/10 text-xs font-semibold">HS</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">Ambiente hospitalar</p><p className="truncate text-xs text-white/45">Acesso seguro</p></div></div></div></div>
   </div>;
