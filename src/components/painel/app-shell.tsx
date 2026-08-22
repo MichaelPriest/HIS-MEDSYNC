@@ -66,7 +66,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 href={item.href}
                 onClick={onNavigate}
                 className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                  active ? "bg-white text-brand-950 shadow-sm" : "text-white/70 hover:bg-white/8 hover:text-white"
+                  active ? "bg-white text-brand-950 shadow-sm" : "text-white/70 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 <Icon className={`size-4.5 ${active ? "text-brand-700" : "text-white/45 group-hover:text-white/80"}`} />
