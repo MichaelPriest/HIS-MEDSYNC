@@ -1,10 +1,11 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/modules/auth/actions";
 import { brand } from "@/config/brand";
 
-const navigation = [
+const navigation: Array<{ href: Route; label: string }> = [
   { href: "/painel", label: "Visão geral" },
   { href: "/pacientes", label: "Pacientes" },
   { href: "/profissionais", label: "Profissionais" },
