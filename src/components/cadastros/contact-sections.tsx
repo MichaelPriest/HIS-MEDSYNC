@@ -2,26 +2,29 @@
 
 import { Mail, MapPin, Phone, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 
 type Item = { id: number };
+type PhoneType = "celular" | "residencial" | "comercial";
+type AddressType = "residencial" | "comercial" | "outro";
 
 function SectionTitle({ icon: Icon, title, required }: { icon: typeof Mail; title: string; required?: boolean }) {
   return <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-brand-50 text-brand-700"><Icon className="size-4" /></span><div><h3 className="font-semibold text-slate-900">{title}{required ? " *" : ""}</h3><p className="text-xs text-slate-500">Você pode adicionar mais de um registro.</p></div></div>;
 }
 
-export function ContactSections({ defaultAddressType = "residencial" }: { defaultAddressType?: "residencial" | "comercial" | "outro" }) {
+export function ContactSections({ defaultAddressType = "residencial", defaultPhoneType = "celular" }: { defaultAddressType?: AddressType; defaultPhoneType?: PhoneType }) {
   const [emails, setEmails] = useState<Item[]>([{ id: 0 }]);
   const [phones, setPhones] = useState<Item[]>([{ id: 0 }]);
   const [addresses, setAddresses] = useState<Item[]>([{ id: 0 }]);
   const [nextId, setNextId] = useState(1);
 
-  function add(setter: React.Dispatch<React.SetStateAction<Item[]>>) {
+  function add(setter: Dispatch<SetStateAction<Item[]>>) {
     const id = nextId;
     setNextId((value) => value + 1);
     setter((items) => [...items, { id }]);
   }
 
-  function remove(setter: React.Dispatch<React.SetStateAction<Item[]>>, id: number) {
+  function remove(setter: Dispatch<SetStateAction<Item[]>>, id: number) {
     setter((items) => items.length > 1 ? items.filter((item) => item.id !== id) : items);
   }
 
@@ -45,7 +48,7 @@ export function ContactSections({ defaultAddressType = "residencial" }: { defaul
         {phones.map((item, index) => <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
           <div className="grid gap-3 md:grid-cols-[1fr_13rem_auto_auto] md:items-end">
             <label className="space-y-2 text-sm font-medium text-slate-700"><span>Telefone *</span><input name={`telefones[${item.id}].telefone`} required={index === 0} className="field" placeholder="(00) 00000-0000" /></label>
-            <label className="space-y-2 text-sm font-medium text-slate-700"><span>Tipo</span><select name={`telefones[${item.id}].tipo`} defaultValue="celular" className="field"><option value="celular">Celular</option><option value="residencial">Residencial</option><option value="comercial">Comercial</option></select></label>
+            <label className="space-y-2 text-sm font-medium text-slate-700"><span>Tipo</span><select name={`telefones[${item.id}].tipo`} defaultValue={defaultPhoneType} className="field"><option value="celular">Celular</option><option value="residencial">Residencial</option><option value="comercial">Comercial</option></select></label>
             <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700"><input type="checkbox" name={`telefones[${item.id}].whatsapp`} value="1" className="size-4 accent-brand-700" /> WhatsApp</label>
             <button type="button" disabled={phones.length === 1} onClick={() => remove(setPhones, item.id)} className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"><Trash2 className="size-4" /></button>
           </div>
