@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { digits, getCadastroContext } from "@/modules/cadastros/context";
+import { uploadFotoCadastro } from "@/modules/cadastros/fotos";
 import { parseAddresses, parseEmails, parsePhones, validateRequiredContacts } from "@/modules/cadastros/parse-contact-sections";
 
 export async function criarConvenio(formData: FormData) {
@@ -13,6 +14,14 @@ export async function criarConvenio(formData: FormData) {
   const addresses = parseAddresses(formData);
   if (!razaoSocial || !nomeFantasia || !validateRequiredContacts(emails, phones, addresses)) redirect("/convenios/novo?erro=campos-obrigatorios");
 
+  let logoPath: string | null = null;
+  try {
+    logoPath = await uploadFotoCadastro({ supabase, empresaId, modulo: "convenios", file: formData.get("logo") });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "foto-upload";
+    redirect(`/convenios/novo?erro=${code}`);
+  }
+
   const { data: convenio, error } = await supabase.from("convenios").insert({
     empresa_id: empresaId,
     registro_ans: digits(formData.get("registro_ans")) || null,
@@ -21,11 +30,15 @@ export async function criarConvenio(formData: FormData) {
     cnpj: digits(formData.get("cnpj")) || null,
     telefone: phones[0]?.telefone ?? null,
     email: emails[0]?.email ?? null,
+    logo_path: logoPath,
     created_by: user.id,
     updated_by: user.id,
   }).select("id").single();
 
-  if (error || !convenio) redirect(`/convenios/novo?erro=${error?.code === "23505" ? "duplicado" : "falha-cadastro"}`);
+  if (error || !convenio) {
+    if (logoPath) await supabase.storage.from("cadastros-fotos").remove([logoPath]);
+    redirect(`/convenios/novo?erro=${error?.code === "23505" ? "duplicado" : "falha-cadastro"}`);
+  }
 
   const [emailResult, phoneResult, addressResult] = await Promise.all([
     supabase.from("convenio_emails").insert(emails.map((item) => ({ convenio_id: convenio.id, ...item }))),
