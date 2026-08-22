@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { uploadFotoCadastro } from "@/modules/cadastros/fotos";
 
 function digits(value: FormDataEntryValue | null) {
   return String(value ?? "").replace(/\D/g, "");
@@ -31,6 +32,14 @@ export async function criarPaciente(formData: FormData) {
   const dataNascimento = String(formData.get("data_nascimento") ?? "");
   if (nomeCompleto.length < 2 || !dataNascimento) redirect("/pacientes/novo?erro=campos-obrigatorios");
 
+  let fotoPath: string | null = null;
+  try {
+    fotoPath = await uploadFotoCadastro({ supabase, empresaId: vinculo.empresa_id, modulo: "pacientes", file: formData.get("foto") });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "foto-upload";
+    redirect(`/pacientes/novo?erro=${code}`);
+  }
+
   const { error } = await supabase.from("pacientes").insert({
     empresa_id: vinculo.empresa_id,
     nome_completo: nomeCompleto,
@@ -50,11 +59,13 @@ export async function criarPaciente(formData: FormData) {
     uf: optional(formData.get("uf"))?.toUpperCase() ?? null,
     contato_emergencia_nome: optional(formData.get("contato_emergencia_nome")),
     contato_emergencia_telefone: optional(formData.get("contato_emergencia_telefone")),
+    foto_path: fotoPath,
     created_by: user.id,
     updated_by: user.id,
   });
 
   if (error) {
+    if (fotoPath) await supabase.storage.from("cadastros-fotos").remove([fotoPath]);
     const code = error.code === "23505" ? "documento-duplicado" : "falha-cadastro";
     redirect(`/pacientes/novo?erro=${code}`);
   }
