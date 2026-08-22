@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 
 type SectionPageProps = {
@@ -5,7 +6,7 @@ type SectionPageProps = {
   title: string;
   description: string;
   primaryActionLabel?: string;
-  primaryActionHref?: string;
+  primaryActionHref?: Route;
   children?: React.ReactNode;
 };
 
