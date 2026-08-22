@@ -9,7 +9,12 @@ export async function updateSession(request: NextRequest) {
 
   if (!env) {
     if (request.nextUrl.pathname === CONFIGURATION_ROUTE) {
-      return NextResponse.next();
+      const unavailableResponse = NextResponse.next();
+      unavailableResponse.headers.set(
+        "Cache-Control",
+        "no-store, max-age=0, must-revalidate",
+      );
+      return unavailableResponse;
     }
 
     return NextResponse.redirect(new URL(CONFIGURATION_ROUTE, request.url), 307);

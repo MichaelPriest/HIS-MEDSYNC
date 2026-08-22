@@ -46,3 +46,18 @@ produzir `MIDDLEWARE_INVOCATION_FAILED`. Configure, para o ambiente correto:
 
 Após alterar variáveis na Vercel, faça um novo deploy. Não reutilize o projeto de
 produção em previews e nunca transforme a chave secreta em `NEXT_PUBLIC_*`.
+
+### Nomes aceitos pela integração Supabase/Vercel
+
+A configuração preferencial é `NEXT_PUBLIC_SUPABASE_URL` com
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Para projetos existentes, a aplicação
+também reconhece `NEXT_PUBLIC_SUPABASE_PROJECT_URL`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` e o nome legado
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`. Valores são normalizados para remover espaços
+acidentais, mas continuam sendo validados.
+
+As variáveis precisam estar habilitadas especificamente para o ambiente do deploy
+(`Production`, `Preview` ou `Development`). Um deploy já construído não recebe uma
+variável `NEXT_PUBLIC_*` retroativamente: depois de salvar as variáveis, execute
+**Redeploy** sem reaproveitar o build anterior. Se a página já estava aberta,
+recarregue-a sem cache.

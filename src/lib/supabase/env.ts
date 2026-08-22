@@ -1,11 +1,12 @@
 import { z } from "zod";
 
-const publicEnvSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.url(),
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(10),
-});
+const supabaseUrlSchema = z.string().trim().url();
+const supabaseKeySchema = z.string().trim().min(10);
 
-type SupabasePublicEnv = z.infer<typeof publicEnvSchema>;
+type SupabasePublicEnv = {
+  NEXT_PUBLIC_SUPABASE_URL: string;
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string;
+};
 
 export class SupabaseConfigurationError extends Error {
   constructor() {
@@ -14,14 +15,33 @@ export class SupabaseConfigurationError extends Error {
   }
 }
 
-export function readSupabasePublicEnv(): SupabasePublicEnv | null {
-  const result = publicEnvSchema.safeParse({
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  });
+function firstConfigured(...values: Array<string | undefined>) {
+  return values.find((value) => value?.trim());
+}
 
-  return result.success ? result.data : null;
+export function readSupabasePublicEnv(): SupabasePublicEnv | null {
+  const url = supabaseUrlSchema.safeParse(
+    firstConfigured(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_PROJECT_URL,
+    ),
+  );
+  const key = supabaseKeySchema.safeParse(
+    firstConfigured(
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    ),
+  );
+
+  if (!url.success || !key.success) {
+    return null;
+  }
+
+  return {
+    NEXT_PUBLIC_SUPABASE_URL: url.data,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: key.data,
+  };
 }
 
 export function getSupabasePublicEnv(): SupabasePublicEnv {
