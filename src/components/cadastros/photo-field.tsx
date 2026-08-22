@@ -1,14 +1,21 @@
 "use client";
 
 import { Camera, ImagePlus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function PhotoField({ label = "Foto", name = "foto" }: { label?: string; name?: string }) {
   const [preview, setPreview] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => {
     if (preview) URL.revokeObjectURL(preview);
   }, [preview]);
+
+  function clearPhoto() {
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(null);
+    if (inputRef.current) inputRef.current.value = "";
+  }
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
@@ -24,6 +31,7 @@ export function PhotoField({ label = "Foto", name = "foto" }: { label?: string; 
               <ImagePlus className="size-4" />
               Selecionar foto
               <input
+                ref={inputRef}
                 className="sr-only"
                 type="file"
                 name={name}
@@ -36,8 +44,8 @@ export function PhotoField({ label = "Foto", name = "foto" }: { label?: string; 
               />
             </label>
             {preview ? (
-              <button type="button" onClick={() => setPreview(null)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                <X className="size-4" /> Remover preview
+              <button type="button" onClick={clearPhoto} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                <X className="size-4" /> Remover foto
               </button>
             ) : null}
           </div>
