@@ -20,8 +20,12 @@ export function PhotoField({ label = "Foto", name = "foto" }: { label?: string; 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white text-slate-400">
-          {preview ? <img src={preview} alt="Pré-visualização" className="h-full w-full object-cover" /> : <Camera className="size-8" />}
+        <div
+          className="relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white text-slate-400"
+          style={preview ? { backgroundImage: `url(${preview})`, backgroundPosition: "center", backgroundSize: "cover" } : undefined}
+          aria-label={preview ? "Pré-visualização da foto" : "Sem foto selecionada"}
+        >
+          {preview ? null : <Camera className="size-8" />}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-slate-800">{label}</p>
