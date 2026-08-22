@@ -12,7 +12,9 @@ export async function criarProfissional(formData: FormData) {
   const emails = parseEmails(formData);
   const phones = parsePhones(formData);
   const addresses = parseAddresses(formData);
-  if (nomeCompleto.length < 2 || !tipoProfissionalId || !validateRequiredContacts(emails, phones, addresses)) redirect("/profissionais/novo?erro=campos-obrigatorios");
+  const tipoContrato = String(formData.get("tipo_contrato") ?? "").trim();
+  const dataInicio = String(formData.get("data_inicio_contrato") ?? "").trim();
+  if (nomeCompleto.length < 2 || !tipoProfissionalId || !validateRequiredContacts(emails, phones, addresses) || !tipoContrato || !dataInicio) redirect("/profissionais/novo?erro=campos-obrigatorios");
 
   let fotoPath: string | null = null;
   try {
@@ -49,11 +51,28 @@ export async function criarProfissional(formData: FormData) {
     redirect(`/profissionais/novo?erro=${error?.code === "23505" ? "duplicado" : "falha-cadastro"}`);
   }
 
-  const [emailResult, phoneResult, addressResult] = await Promise.all([
+  const valorRaw = String(formData.get("valor_remuneracao") ?? "").replace(/\./g, "").replace(",", ".");
+  const cargaRaw = String(formData.get("carga_horaria_semanal") ?? "").replace(",", ".");
+
+  const [emailResult, phoneResult, addressResult, contractResult] = await Promise.all([
     supabase.from("profissional_emails").insert(emails.map((item) => ({ profissional_id: profissional.id, ...item }))),
     supabase.from("profissional_telefones").insert(phones.map((item) => ({ profissional_id: profissional.id, ...item }))),
     supabase.from("profissional_enderecos").insert(addresses.map((item) => ({ profissional_id: profissional.id, ...item }))),
+    supabase.from("profissional_contratos").insert({
+      empresa_id: empresaId,
+      profissional_id: profissional.id,
+      tipo_contrato: tipoContrato,
+      matricula: optional(formData.get("matricula")),
+      data_inicio: dataInicio,
+      data_fim: optional(formData.get("data_fim_contrato")),
+      carga_horaria_semanal: cargaRaw ? Number(cargaRaw) : null,
+      tipo_remuneracao: optional(formData.get("tipo_remuneracao")),
+      valor_remuneracao: valorRaw ? Number(valorRaw) : null,
+      observacoes: optional(formData.get("observacoes_contrato")),
+      created_by: user.id,
+      updated_by: user.id,
+    }),
   ]);
-  if (emailResult.error || phoneResult.error || addressResult.error) redirect("/profissionais?sucesso=parcial");
+  if (emailResult.error || phoneResult.error || addressResult.error || contractResult.error) redirect("/profissionais?sucesso=parcial");
   redirect("/profissionais?sucesso=cadastrado");
 }
