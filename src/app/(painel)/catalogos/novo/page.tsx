@@ -5,7 +5,12 @@ import { criarCatalogo } from "@/modules/catalogos/actions";
 const mensagens: Record<string, string> = {
   "campos-obrigatorios": "Informe tipo, código e descrição.",
   duplicado: "Já existe item ativo com este tipo e código nesta empresa.",
-  "falha-cadastro": "Não foi possível cadastrar o item. Verifique os dados e sua permissão.",
+  "vigencia-invalida": "A vigência final não pode ser anterior à vigência inicial.",
+  "sem-permissao": "Seu perfil não possui a permissão catalogos.criar para esta empresa.",
+  "erro-permissao": "Não foi possível validar as permissões do seu usuário. Verifique se as migrations mais recentes foram aplicadas.",
+  "schema-desatualizado": "O banco está desatualizado para este tipo de catálogo. Aplique as migrations mais recentes do Supabase.",
+  "dados-invalidos": "O banco recusou um dos dados informados. Revise tipo, código, descrição e vigência.",
+  "falha-cadastro": "Não foi possível cadastrar o item. O erro técnico foi registrado para diagnóstico.",
 };
 
 export default async function NovoCatalogoPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
