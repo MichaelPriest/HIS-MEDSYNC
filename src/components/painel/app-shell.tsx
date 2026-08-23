@@ -1,19 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Activity, Bell, BedDouble, BookOpenCheck, Boxes, Building2, Cable, CalendarDays, ChevronDown, ChevronRight, ClipboardCheck, ClipboardList, FlaskConical, FolderCog, Handshake, HeartPulse, HelpCircle, Landmark, LayoutDashboard, Menu, MonitorCog, Pill, ReceiptText, ScanLine, Search, ShieldCheck, ShoppingCart, Stethoscope, TicketCheck, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { brand } from "@/config/brand";
 
-const cadastroNav: Array<{ href: Route; label: string; icon: typeof UsersRound }> = [
+type NavItem = { href: string; label: string; icon: typeof UsersRound };
+
+const cadastroNav: NavItem[] = [
   { href: "/pacientes", label: "Pacientes", icon: UsersRound },
   { href: "/profissionais", label: "Profissionais", icon: Stethoscope },
   { href: "/convenios", label: "Convênios", icon: Building2 },
   { href: "/catalogos", label: "Catálogos", icon: BookOpenCheck },
 ];
-const assistencialNav: Array<{ href: Route; label: string; icon: typeof ClipboardList }> = [
+const assistencialNav: NavItem[] = [
   { href: "/senhas", label: "Senhas / Recepção", icon: TicketCheck },
   { href: "/atendimentos", label: "Atendimento / ADT", icon: ClipboardList },
   { href: "/central-guias", label: "Central de Guias", icon: ClipboardCheck },
@@ -25,20 +26,20 @@ const assistencialNav: Array<{ href: Route; label: string; icon: typeof Clipboar
   { href: "/prescricao", label: "Prescrição", icon: Pill },
   { href: "/internacao", label: "Internação", icon: BedDouble },
 ];
-const setoresNav: Array<{ href: Route; label: string; icon: typeof Activity }> = [
+const setoresNav: NavItem[] = [
   { href: "/setores/enfermagem", label: "Enfermagem", icon: Activity },
   { href: "/setores/farmacia", label: "Farmácia", icon: Pill },
   { href: "/setores/laboratorio", label: "Laboratório", icon: FlaskConical },
   { href: "/setores/imagem", label: "Imagem", icon: ScanLine },
   { href: "/setores/internacao", label: "Fila de internação", icon: BedDouble },
 ];
-const corporativoNav: Array<{ href: Route; label: string; icon: typeof ShoppingCart }> = [
+const corporativoNav: NavItem[] = [
   { href: "/compras", label: "Compras", icon: ShoppingCart },
   { href: "/almoxarifado", label: "Almoxarifado / Estoque", icon: Boxes },
   { href: "/auditoria", label: "Auditoria de contas", icon: ShieldCheck },
   { href: "/comercial", label: "Comercial / Credenciamento", icon: Handshake },
 ];
-const financeiroNav: Array<{ href: Route; label: string; icon: typeof ReceiptText }> = [
+const financeiroNav: NavItem[] = [
   { href: "/faturamento", label: "Pré-faturamento", icon: ReceiptText },
   { href: "/faturamento/lotes", label: "Lotes TISS", icon: ReceiptText },
   { href: "/faturamento/glosas", label: "Glosas e recursos", icon: ReceiptText },
@@ -50,6 +51,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const cadastrosAtivo = cadastroNav.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
   const [cadastrosOpen, setCadastrosOpen] = useState<boolean>(true);
+  const navLink = (item: NavItem) => {
+    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    const Icon = item.icon;
+    return <Link key={item.href} href={item.href as any} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4"/><span>{item.label}</span></Link>;
+  };
   return <div className="flex h-full flex-col">
     <div className="border-b border-white/10 px-5 py-5"><Link href="/painel" onClick={onNavigate} className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-white text-brand-950 shadow-lg shadow-black/10"><HeartPulse className="size-5" /></span><span><strong className="block text-base font-semibold tracking-tight">{brand.shortName}</strong><span className="block text-[11px] uppercase tracking-[0.18em] text-white/45">Hospital Information System</span></span></Link></div>
     <div className="flex-1 overflow-y-auto px-3 py-5">
@@ -57,12 +63,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <nav className="mt-3 space-y-1" aria-label="Principal">
         <Link href="/painel" onClick={onNavigate} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname === "/painel" ? "bg-white text-brand-950 shadow-sm" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><LayoutDashboard className={`size-4.5 ${pathname === "/painel" ? "text-brand-700" : "text-white/45"}`} /><span>Visão geral</span></Link>
         <Link href="/manual" onClick={onNavigate} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/manual") ? "bg-white text-brand-950 shadow-sm" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><HelpCircle className={`size-4.5 ${pathname.startsWith("/manual") ? "text-brand-700" : "text-white/45"}`} /><span>Manual do sistema</span></Link>
-        <div className="pt-1"><button type="button" onClick={() => setCadastrosOpen((value) => !value)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${cadastrosAtivo ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><FolderCog className="size-4.5 text-white/55" /><span>Cadastros</span>{cadastrosOpen ? <ChevronDown className="ml-auto size-4 text-white/40" /> : <ChevronRight className="ml-auto size-4 text-white/40" />}</button>{cadastrosOpen ? <div className="ml-5 mt-1 space-y-1 border-l border-white/10 pl-3">{cadastroNav.map((item) => { const active = pathname === item.href || pathname.startsWith(`${item.href}/`); const Icon = item.icon; return <Link key={item.href} href={item.href} onClick={onNavigate} className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${active ? "bg-white text-brand-950 shadow-sm" : "text-white/60 hover:bg-white/10 hover:text-white"}`}><Icon className={`size-4 ${active ? "text-brand-700" : "text-white/40"}`} /><span>{item.label}</span></Link>; })}</div> : null}</div>
+        <div className="pt-1"><button type="button" onClick={() => setCadastrosOpen((value) => !value)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${cadastrosAtivo ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"}`}><FolderCog className="size-4.5 text-white/55" /><span>Cadastros</span>{cadastrosOpen ? <ChevronDown className="ml-auto size-4 text-white/40" /> : <ChevronRight className="ml-auto size-4 text-white/40" />}</button>{cadastrosOpen ? <div className="ml-5 mt-1 space-y-1 border-l border-white/10 pl-3">{cadastroNav.map((item) => { const active = pathname === item.href || pathname.startsWith(`${item.href}/`); const Icon = item.icon; return <Link key={item.href} href={item.href as any} onClick={onNavigate} className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${active ? "bg-white text-brand-950 shadow-sm" : "text-white/60 hover:bg-white/10 hover:text-white"}`}><Icon className={`size-4 ${active ? "text-brand-700" : "text-white/40"}`} /><span>{item.label}</span></Link>; })}</div> : null}</div>
       </nav>
-      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Assistencial</p><div className="mt-3 space-y-1">{assistencialNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4" /><span>{label}</span></Link>; })}</div></div>
-      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Filas por setor</p><div className="mt-3 space-y-1">{setoresNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4"/><span>{label}</span></Link>; })}</div></div>
-      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Corporativo</p><div className="mt-3 space-y-1">{corporativoNav.map(({href,label,icon:Icon})=>{const active=pathname===href||pathname.startsWith(`${href}/`);return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active?"bg-white text-brand-950":"text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4"/><span>{label}</span></Link>})}</div></div>
-      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Financeiro</p><div className="mt-3 space-y-1">{financeiroNav.map(({href,label,icon:Icon})=>{const active=pathname===href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4"/><span>{label}</span></Link>})}</div></div>
+      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Assistencial</p><div className="mt-3 space-y-1">{assistencialNav.map(navLink)}</div></div>
+      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Filas por setor</p><div className="mt-3 space-y-1">{setoresNav.map(navLink)}</div></div>
+      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Corporativo</p><div className="mt-3 space-y-1">{corporativoNav.map(navLink)}</div></div>
+      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Financeiro</p><div className="mt-3 space-y-1">{financeiroNav.map(navLink)}</div></div>
       <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Configurações</p><div className="mt-3 space-y-1"><Link href="/configuracoes/paineis" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/configuracoes/paineis") ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><MonitorCog className="size-4"/><span>Painéis e chamadas</span></Link><Link href="/configuracoes/tiss-webservices" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/configuracoes/tiss-webservices") ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Cable className="size-4"/><span>Webservices TISS</span></Link><Link href="/configuracoes/nfse" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/configuracoes/nfse") ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Landmark className="size-4"/><span>Prefeituras / NFS-e</span></Link></div></div>
     </div>
     <div className="border-t border-white/10 p-4"><div className="rounded-2xl border border-white/10 bg-white/5 p-3"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-full bg-white/10 text-xs font-semibold">HS</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">Ambiente hospitalar</p><p className="truncate text-xs text-white/45">Acesso seguro</p></div></div></div></div>
