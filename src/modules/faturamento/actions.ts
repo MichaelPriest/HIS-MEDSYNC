@@ -17,8 +17,10 @@ export async function criarContaAtendimento(formData: FormData) {
   if (!atendimento) redirect("/faturamento?erro=atendimento");
   const { data: existente } = await supabase.from("contas_faturamento").select("id").eq("atendimento_id", atendimentoId).maybeSingle();
   if (existente) redirect(`/faturamento/${existente.id}`);
-  const { data: conta, error } = await supabase.from("contas_faturamento").insert({ empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimento.id, paciente_id: atendimento.paciente_id, convenio_id: atendimento.convenio_id, plano_id: atendimento.plano_id, competencia: competenciaAtual(), tipo_cobranca: atendimento.cobertura === "convenio" ? "convenio" : "particular", created_by: user.id, updated_by: user.id }).select("id").single();
+  const { data: conta, error } = await supabase.from("contas_faturamento").insert({ empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimento.id, paciente_id: atendimento.paciente_id, convenio_id: atendimento.convenio_id, plano_id: atendimento.plano_id, competencia: competenciaAtual(), tipo_cobranca: atendimento.cobertura === "convenio" ? "convenio" : "particular", auditoria_liberada:false, created_by: user.id, updated_by: user.id }).select("id").single();
   if (error || !conta) redirect("/faturamento?erro=criar-conta");
+  const {data:auditoriaId}=await supabase.rpc("encaminhar_conta_para_auditoria",{p_atendimento_id:atendimentoId});
+  if(auditoriaId) await supabase.from("contas_faturamento").update({auditoria_id:auditoriaId}).eq("id",conta.id);
   redirect(`/faturamento/${conta.id}`);
 }
 
@@ -46,13 +48,14 @@ async function recalcularConta(contaId: string) {
 
 export async function validarContaTiss(contaId: string) {
   const { supabase, user } = await getAssistencialContext();
-  const { data: conta } = await supabase.from("contas_faturamento").select("id,tipo_cobranca,atendimento_id,convenio_id,paciente_id,atendimento:atendimentos(numero_carteirinha,profissional_id),convenio:convenios(registro_ans),paciente:pacientes(cns),itens:conta_faturamento_itens(id,codigo,tabela,descricao,valor_total)").eq("id", contaId).maybeSingle();
+  const { data: conta } = await supabase.from("contas_faturamento").select("id,tipo_cobranca,auditoria_liberada,atendimento_id,convenio_id,paciente_id,atendimento:atendimentos(numero_carteirinha,profissional_id),convenio:convenios(registro_ans),paciente:pacientes(cns),itens:conta_faturamento_itens(id,codigo,tabela,descricao,valor_total)").eq("id", contaId).maybeSingle();
   if (!conta) redirect("/faturamento?erro=conta");
   await supabase.from("conta_faturamento_criticas").delete().eq("conta_id", contaId).eq("resolvida", false);
   const criticas: Array<{ conta_id: string; item_id?: string | null; codigo: string; severidade: "erro" | "alerta"; campo?: string; mensagem: string }> = [];
   const atendimento = one(conta.atendimento);
   const convenio = one(conta.convenio);
   const paciente = one(conta.paciente);
+  if (!conta.auditoria_liberada) criticas.push({ conta_id: contaId, codigo: "AUD-001", severidade: "erro", campo: "auditoria_liberada", mensagem: "Conta ainda não liberada pela Auditoria pós-alta." });
   if (conta.tipo_cobranca === "convenio" && !convenio?.registro_ans) criticas.push({ conta_id: contaId, codigo: "TISS-CONV-001", severidade: "erro", campo: "registro_ans", mensagem: "Convênio sem Registro ANS válido." });
   if (conta.tipo_cobranca === "convenio" && !atendimento?.numero_carteirinha) criticas.push({ conta_id: contaId, codigo: "TISS-BEN-001", severidade: "erro", campo: "numero_carteirinha", mensagem: "Número da carteirinha não informado no atendimento." });
   if (!paciente?.cns) criticas.push({ conta_id: contaId, codigo: "TISS-BEN-002", severidade: "alerta", campo: "cns", mensagem: "CNS do beneficiário não informado; confirme exigência da guia aplicável." });
@@ -71,8 +74,8 @@ export async function validarContaTiss(contaId: string) {
 
 export async function gerarGuiaTiss(contaId: string) {
   const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
-  const { data: conta } = await supabase.from("contas_faturamento").select("id,status,tipo_cobranca,valor_liquido,atendimento_id,paciente_id,convenio_id,plano_id,atendimento:atendimentos(numero_atendimento,data_abertura,tipo_atendimento,numero_carteirinha,validade_carteirinha,senha_autorizacao,numero_autorizacao,profissional_id,paciente_cns),convenio:convenios(registro_ans),itens:conta_faturamento_itens(id,data_execucao,tabela,codigo,descricao,quantidade,valor_unitario,valor_total)").eq("id", contaId).maybeSingle();
-  if (!conta || conta.status !== "pronta" || conta.tipo_cobranca !== "convenio" || !conta.convenio_id) redirect(`/faturamento/${contaId}?erro=guia-nao-pronta`);
+  const { data: conta } = await supabase.from("contas_faturamento").select("id,status,auditoria_liberada,tipo_cobranca,valor_liquido,atendimento_id,paciente_id,convenio_id,plano_id,atendimento:atendimentos(numero_atendimento,data_abertura,tipo_atendimento,numero_carteirinha,validade_carteirinha,senha_autorizacao,numero_autorizacao,profissional_id,paciente_cns),convenio:convenios(registro_ans),itens:conta_faturamento_itens(id,data_execucao,tabela,codigo,descricao,quantidade,valor_unitario,valor_total)").eq("id", contaId).maybeSingle();
+  if (!conta || !conta.auditoria_liberada || conta.status !== "pronta" || conta.tipo_cobranca !== "convenio" || !conta.convenio_id) redirect(`/faturamento/${contaId}?erro=auditoria-ou-guia-nao-pronta`);
   const { count: erros } = await supabase.from("conta_faturamento_criticas").select("id", { count: "exact", head: true }).eq("conta_id", contaId).eq("resolvida", false).eq("severidade", "erro");
   if ((erros ?? 0) > 0) redirect(`/faturamento/${contaId}?erro=criticas`);
   const { data: existente } = await supabase.from("tiss_guias").select("id").eq("conta_id", contaId).neq("status", "cancelada").limit(1).maybeSingle();
