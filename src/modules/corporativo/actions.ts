@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 const text=(fd:FormData,k:string)=>String(fd.get(k)??"").trim();
+const money=(v:string)=>{const n=Number(v.replace(/\./g,"").replace(",","."));return Number.isFinite(n)?n:0};
 
 export async function iniciarAuditoria(formData:FormData){
   const {supabase,user}=await getAssistencialContext();
@@ -30,12 +31,14 @@ export async function criarGuiaCentral(formData:FormData){
   if(!convenioId) redirect("/central-guias?erro=campos");
   let pacienteId:string|null=null,planoId:string|null=null;
   if(atendimentoId){const {data:a}=await supabase.from("atendimentos").select("paciente_id,plano_id").eq("id",atendimentoId).maybeSingle();pacienteId=a?.paciente_id??null;planoId=a?.plano_id??null;}
-  const {error}=await supabase.from("central_guias").insert({empresa_id:empresaId,unidade_id:unidadeId,atendimento_id:atendimentoId||null,paciente_id:pacienteId,convenio_id:convenioId,plano_id:planoId,tipo:text(formData,"tipo")||"consulta",numero_guia_prestador:text(formData,"numero_guia_prestador")||null,status:"solicitada",quantidade_solicitada:Number(text(formData,"quantidade")||1),observacoes:text(formData,"observacoes")||null,created_by:user.id,updated_by:user.id});
-  if(error) redirect("/central-guias?erro=salvar"); revalidatePath("/central-guias");
+  const {data:guia,error}=await supabase.from("central_guias").insert({empresa_id:empresaId,unidade_id:unidadeId,atendimento_id:atendimentoId||null,paciente_id:pacienteId,convenio_id:convenioId,plano_id:planoId,tipo:text(formData,"tipo")||"consulta",numero_guia_prestador:text(formData,"numero_guia_prestador")||null,codigo_procedimento:text(formData,"codigo_procedimento")||null,descricao_procedimento:text(formData,"descricao_procedimento")||null,categoria_preco:text(formData,"categoria_preco")||"procedimentos",valor_solicitado:money(text(formData,"valor_solicitado")||"0")||null,status:"solicitada",quantidade_solicitada:Number(text(formData,"quantidade")||1),observacoes:text(formData,"observacoes")||null,created_by:user.id,updated_by:user.id}).select("id").single();
+  if(error||!guia) redirect("/central-guias?erro=salvar");
+  if(text(formData,"codigo_procedimento")) await supabase.rpc("calcular_preco_central_guia",{p_guia_id:guia.id});
+  revalidatePath("/central-guias");
 }
 export async function atualizarGuiaCentral(formData:FormData){
   const {supabase,user}=await getAssistencialContext(); const id=text(formData,"guia_id"); if(!id)return;
-  await supabase.from("central_guias").update({status:text(formData,"status")||"em_analise",numero_guia_operadora:text(formData,"numero_guia_operadora")||null,senha:text(formData,"senha")||null,validade_senha:text(formData,"validade_senha")||null,protocolo:text(formData,"protocolo")||null,quantidade_autorizada:Number(text(formData,"quantidade_autorizada")||0)||null,data_retorno:new Date().toISOString(),updated_by:user.id,updated_at:new Date().toISOString()}).eq("id",id); revalidatePath("/central-guias");
+  await supabase.from("central_guias").update({status:text(formData,"status")||"em_analise",numero_guia_operadora:text(formData,"numero_guia_operadora")||null,senha:text(formData,"senha")||null,validade_senha:text(formData,"validade_senha")||null,protocolo:text(formData,"protocolo")||null,quantidade_autorizada:Number(text(formData,"quantidade_autorizada")||0)||null,valor_autorizado:money(text(formData,"valor_autorizado")||"0")||null,data_retorno:new Date().toISOString(),updated_by:user.id,updated_at:new Date().toISOString()}).eq("id",id); revalidatePath("/central-guias");
 }
 export async function criarSolicitacaoCompra(formData:FormData){
   const {supabase,user,empresaId,unidadeId}=await getAssistencialContext();
@@ -55,8 +58,7 @@ export async function criarCotacaoCompra(formData:FormData){
 export async function adicionarFornecedorCotacao(formData:FormData){
   const {supabase}=await getAssistencialContext(); const cotacaoId=text(formData,"cotacao_id"); const fornecedorId=text(formData,"fornecedor_id");
   if(!cotacaoId||!fornecedorId) redirect("/compras?erro=fornecedor-cotacao");
-  const valor=Number(text(formData,"valor_total").replace(/\./g,"").replace(",","."))||0;
-  const frete=Number(text(formData,"frete").replace(/\./g,"").replace(",","."))||0;
+  const valor=money(text(formData,"valor_total")); const frete=money(text(formData,"frete"));
   const {error}=await supabase.from("compras_cotacao_fornecedores").upsert({cotacao_id:cotacaoId,fornecedor_id:fornecedorId,valor_total:valor,prazo_entrega_dias:Number(text(formData,"prazo_entrega_dias")||0)||null,condicao_pagamento:text(formData,"condicao_pagamento")||null,frete,observacoes:text(formData,"observacoes")||null},{onConflict:"cotacao_id,fornecedor_id"});
   if(error) redirect("/compras?erro=fornecedor-cotacao"); revalidatePath("/compras");
 }
@@ -83,6 +85,11 @@ export async function gerarChecklistContaMedica(formData:FormData){
   const {error}=await supabase.rpc("gerar_checklist_conta_medica",{p_processo_id:processoId});
   if(error) redirect(`/contas-medicas/${processoId}?erro=checklist`); revalidatePath(`/contas-medicas/${processoId}`);
 }
+export async function auditarPrecosContaMedica(formData:FormData){
+  const {supabase}=await getAssistencialContext(); const processoId=text(formData,"processo_id"); if(!processoId)return;
+  const {error}=await supabase.rpc("auditar_precos_conta_medica",{p_processo_id:processoId});
+  if(error) redirect(`/contas-medicas/${processoId}?erro=precos`); revalidatePath(`/contas-medicas/${processoId}`);
+}
 export async function atualizarChecklistContaMedica(formData:FormData){
   const {supabase,user}=await getAssistencialContext(); const itemId=text(formData,"item_id"); const processoId=text(formData,"processo_id"); if(!itemId||!processoId)return;
   await supabase.from("contas_medicas_checklist_itens").update({status:text(formData,"status")||"pendente",ged_documento_id:text(formData,"ged_documento_id")||null,observacoes:text(formData,"observacoes")||null,conferido_em:new Date().toISOString(),conferido_por:user.id}).eq("id",itemId);
@@ -93,6 +100,7 @@ export async function liberarContaMedica(formData:FormData){
   const {supabase,user}=await getAssistencialContext(); const processoId=text(formData,"processo_id"); if(!processoId)return;
   const {data:processo}=await supabase.from("contas_medicas_processos").select("id,conta_id").eq("id",processoId).maybeSingle();
   if(!processo) redirect("/contas-medicas?erro=processo");
+  await supabase.rpc("auditar_precos_conta_medica",{p_processo_id:processoId});
   const {data:checkOk}=await supabase.rpc("validar_checklist_conta_medica",{p_processo_id:processoId});
   const {count:pendencias}=await supabase.from("contas_medicas_pendencias").select("id",{count:"exact",head:true}).eq("processo_id",processoId).eq("resolvida",false).in("severidade",["erro","bloqueio"]);
   if(!checkOk || (pendencias??0)>0) redirect(`/contas-medicas/${processoId}?erro=pendencias`);
