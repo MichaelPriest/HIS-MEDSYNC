@@ -2,13 +2,22 @@ begin;
 
 -- ============================================================================
 -- MedSync HIS - reconciliacao final do schema (2026-08-23)
--- Objetivo: tornar o historico atual tolerante a bancos parcialmente migrados,
--- sem apagar dados e sem recriar objetos que ja existem.
+-- Objetivo: reconciliar bancos que ja receberam parte das migrations sem apagar
+-- dados, sem recriar objetos existentes e sem depender de ordem ambigua.
+-- Esta migration pressupoe que a fundacao (empresas/unidades/permissoes) exista.
 -- ============================================================================
 
 create extension if not exists pgcrypto;
 
--- Permissoes introduzidas pelos modulos mais recentes.
+do $$
+begin
+  if to_regclass('public.empresas') is null
+     or to_regclass('public.unidades') is null
+     or to_regclass('public.permissoes') is null then
+    raise exception 'Fundacao do MedSync HIS ausente. Aplique primeiro as migrations 202608220001+ antes da reconciliacao final.';
+  end if;
+end $$;
+
 insert into public.permissoes(codigo,descricao) values
 ('autorizacoes.visualizar','Visualizar autorizações assistenciais'),
 ('autorizacoes.editar','Solicitar e atualizar autorizações'),
@@ -38,24 +47,26 @@ insert into public.permissoes(codigo,descricao) values
 ('tabelas_procedimentos.gerenciar','Gerenciar tabelas de procedimentos e regras contratuais')
 on conflict (codigo) do update set descricao=excluded.descricao;
 
--- Identificacao e roteamento assistencial.
 alter table if exists public.profissionais add column if not exists usuario_id uuid references auth.users(id);
-create unique index if not exists profissionais_usuario_unique on public.profissionais(usuario_id) where usuario_id is not null;
 alter table if exists public.atendimentos add column if not exists especialidade_destino text;
 alter table if exists public.atendimentos add column if not exists triagem_concluida_em timestamptz;
 
--- Auditoria / Contas Medicas.
+do $$ begin
+  if to_regclass('public.profissionais') is not null then
+    create unique index if not exists profissionais_usuario_unique on public.profissionais(usuario_id) where usuario_id is not null;
+  end if;
+end $$;
+
 alter table if exists public.contas_faturamento add column if not exists auditoria_liberada boolean not null default false;
 alter table if exists public.contas_faturamento add column if not exists contas_medicas_liberada boolean not null default false;
 alter table if exists public.contas_faturamento add column if not exists contas_medicas_liberada_em timestamptz;
 
 do $$ begin
-  if to_regclass('public.auditoria_contas') is not null then
+  if to_regclass('public.contas_faturamento') is not null and to_regclass('public.auditoria_contas') is not null then
     alter table public.contas_faturamento add column if not exists auditoria_id uuid references public.auditoria_contas(id);
   end if;
 end $$;
 
--- Central de Guias - snapshot comercial/autorizacao.
 alter table if exists public.central_guias add column if not exists codigo_procedimento text;
 alter table if exists public.central_guias add column if not exists descricao_procedimento text;
 alter table if exists public.central_guias add column if not exists categoria_preco text default 'procedimentos';
@@ -71,7 +82,6 @@ do $$ begin
   end if;
 end $$;
 
--- Conta hospitalar - precificacao, grupos de ato e memoria historica.
 alter table if exists public.conta_faturamento_itens add column if not exists metodologia_preco text;
 alter table if exists public.conta_faturamento_itens add column if not exists valor_referencia numeric(14,4);
 alter table if exists public.conta_faturamento_itens add column if not exists valor_referencia_contrato numeric(14,4);
@@ -118,28 +128,31 @@ do $$ begin
   end if;
 end $$;
 
--- Financeiro/TISS manual.
 alter table if exists public.tiss_lotes add column if not exists previsao_pagamento date;
 alter table if exists public.tiss_lotes add column if not exists data_envio_manual timestamptz;
 alter table if exists public.tiss_lotes add column if not exists protocolo_envio_operadora text;
 alter table if exists public.tiss_lotes add column if not exists origem_protocolo text;
 alter table if exists public.tiss_lotes add column if not exists observacoes_envio text;
 
--- Indices usados nas telas atuais.
-create index if not exists central_guias_atendimento_idx on public.central_guias(atendimento_id,status);
-create index if not exists contas_medicas_status_idx on public.contas_medicas_processos(empresa_id,unidade_id,status,created_at desc);
-create index if not exists ged_atendimento_idx on public.ged_documentos(atendimento_id,categoria,created_at desc);
-create index if not exists ged_conta_idx on public.ged_documentos(conta_faturamento_id,categoria,created_at desc);
-create index if not exists financeiro_pagar_vencimento_idx on public.financeiro_contas_pagar(empresa_id,unidade_id,status,vencimento);
-create index if not exists idx_encaminhamentos_especialidade_status on public.encaminhamentos_assistenciais(unidade_id,especialidade,status,created_at);
+do $$ begin
+  if to_regclass('public.central_guias') is not null then execute 'create index if not exists central_guias_atendimento_idx on public.central_guias(atendimento_id,status)'; end if;
+  if to_regclass('public.contas_medicas_processos') is not null then execute 'create index if not exists contas_medicas_status_idx on public.contas_medicas_processos(empresa_id,unidade_id,status,created_at desc)'; end if;
+  if to_regclass('public.ged_documentos') is not null then
+    execute 'create index if not exists ged_atendimento_idx on public.ged_documentos(atendimento_id,categoria,created_at desc)';
+    execute 'create index if not exists ged_conta_idx on public.ged_documentos(conta_faturamento_id,categoria,created_at desc)';
+  end if;
+  if to_regclass('public.financeiro_contas_pagar') is not null then execute 'create index if not exists financeiro_pagar_vencimento_idx on public.financeiro_contas_pagar(empresa_id,unidade_id,status,vencimento)'; end if;
+  if to_regclass('public.encaminhamentos_assistenciais') is not null then execute 'create index if not exists idx_encaminhamentos_especialidade_status on public.encaminhamentos_assistenciais(unidade_id,especialidade,status,created_at)'; end if;
+end $$;
 
--- Corrige a visao executiva para os status realmente aceitos pela Auditoria.
 do $$ begin
   if to_regclass('public.financeiro_recebiveis') is not null
      and to_regclass('public.financeiro_contas_pagar') is not null
      and to_regclass('public.tiss_glosas') is not null
      and to_regclass('public.auditoria_contas') is not null
-     and to_regclass('public.contas_medicas_processos') is not null then
+     and to_regclass('public.contas_medicas_processos') is not null
+     and to_regclass('public.internacoes') is not null
+     and to_regclass('public.contas_faturamento') is not null then
     execute $view$
       create or replace view public.vw_diretoria_indicadores
       with (security_invoker=true)
@@ -161,11 +174,11 @@ do $$ begin
   end if;
 end $$;
 
--- Recria os calculos finais somente quando todas as dependencias existem.
 do $$ begin
   if to_regprocedure('public.obter_valor_procedimento_contratual(uuid,text,date,text,boolean,boolean)') is not null
      and to_regclass('public.contrato_regras_faturamento') is not null
-     and to_regclass('public.conta_faturamento_grupos_ato') is not null then
+     and to_regclass('public.conta_faturamento_grupos_ato') is not null
+     and to_regclass('public.conta_faturamento_itens') is not null then
     execute $fn$
       create or replace function public.recalcular_item_contratual_avancado(p_item_id uuid)
       returns jsonb
@@ -174,7 +187,8 @@ do $$ begin
       set search_path=public
       as $body$
       declare
-        v_item record; v_preco record; v_contrato_id uuid; v_regra record;
+        v_item record; v_preco record; v_contrato_id uuid;
+        v_regra_id uuid:=null; v_regra_codigo text:=null; v_regra_percentual numeric:=null; v_regra_valor_fixo numeric:=null;
         v_base numeric:=0; v_final numeric:=0; v_percentual numeric:=100; v_valor_fixo numeric:=0;
         v_categoria text:='procedimentos'; v_memoria jsonb:='{}'::jsonb;
         v_grupo_codigo text:=null; v_via_acesso text:=null; v_acomodacao text:=null; v_urgencia boolean:=false;
@@ -190,14 +204,19 @@ do $$ begin
         v_base:=v_preco.valor; v_final:=v_base;
         select c.id into v_contrato_id from public.credenciamento_contratos c where c.convenio_id=v_item.convenio_id and c.status='ativo' and (c.data_inicio is null or c.data_inicio<=coalesce(v_item.data_execucao::date,current_date)) and (c.data_fim is null or c.data_fim>=coalesce(v_item.data_execucao::date,current_date)) order by c.data_inicio desc nulls last,c.created_at desc limit 1;
         if v_contrato_id is not null and coalesce(v_item.sequencia_ato,1)>1 then
-          select * into v_regra from public.contrato_regras_faturamento r where r.contrato_id=v_contrato_id and r.ativo=true and r.codigo_regra in ('MULTIPLO_'||v_item.sequencia_ato::text,'MULTIPLO_N') and (r.vigencia_inicio is null or r.vigencia_inicio<=coalesce(v_item.data_execucao::date,current_date)) and (r.vigencia_fim is null or r.vigencia_fim>=coalesce(v_item.data_execucao::date,current_date)) order by case when r.codigo_regra='MULTIPLO_'||v_item.sequencia_ato::text then 0 else 1 end,r.prioridade limit 1;
-          if v_regra.id is not null then
-            if v_regra.percentual is not null then v_percentual:=v_regra.percentual; v_final:=v_final*(v_percentual/100.0); end if;
-            if v_regra.valor_fixo is not null then v_valor_fixo:=v_regra.valor_fixo; v_final:=v_final+v_valor_fixo; end if;
+          select r.id,r.codigo_regra,r.percentual,r.valor_fixo into v_regra_id,v_regra_codigo,v_regra_percentual,v_regra_valor_fixo
+          from public.contrato_regras_faturamento r
+          where r.contrato_id=v_contrato_id and r.ativo=true and r.codigo_regra in ('MULTIPLO_'||v_item.sequencia_ato::text,'MULTIPLO_N')
+            and (r.vigencia_inicio is null or r.vigencia_inicio<=coalesce(v_item.data_execucao::date,current_date))
+            and (r.vigencia_fim is null or r.vigencia_fim>=coalesce(v_item.data_execucao::date,current_date))
+          order by case when r.codigo_regra='MULTIPLO_'||v_item.sequencia_ato::text then 0 else 1 end,r.prioridade limit 1;
+          if v_regra_id is not null then
+            if v_regra_percentual is not null then v_percentual:=v_regra_percentual; v_final:=v_final*(v_percentual/100.0); end if;
+            if v_regra_valor_fixo is not null then v_valor_fixo:=v_regra_valor_fixo; v_final:=v_final+v_valor_fixo; end if;
           end if;
         end if;
-        v_memoria:=coalesce(v_preco.memoria,'{}'::jsonb)||jsonb_build_object('valor_base',round(v_base,2),'sequencia_ato',coalesce(v_item.sequencia_ato,1),'grupo_ato',v_grupo_codigo,'via_acesso',v_via_acesso,'acomodacao',v_acomodacao,'urgencia',v_urgencia,'regra_multiplo',case when v_regra.id is null then null else v_regra.codigo_regra end,'percentual_sequencia',v_percentual,'adicional_fixo',v_valor_fixo,'valor_final',round(v_final,2));
-        update public.conta_faturamento_itens set metodologia_preco=v_preco.metodologia,tabela_procedimento_edicao_id=v_preco.edicao_id,tabela_procedimento_item_id=v_preco.item_id,valor_referencia=v_base,valor_contratual_calculado=round(v_final,2),percentual_aplicado=v_percentual,regra_contratual_id=case when v_regra.id is null then null else v_regra.id end,memoria_calculo=v_memoria where id=p_item_id;
+        v_memoria:=coalesce(v_preco.memoria,'{}'::jsonb)||jsonb_build_object('valor_base',round(v_base,2),'sequencia_ato',coalesce(v_item.sequencia_ato,1),'grupo_ato',v_grupo_codigo,'via_acesso',v_via_acesso,'acomodacao',v_acomodacao,'urgencia',v_urgencia,'regra_multiplo',v_regra_codigo,'percentual_sequencia',v_percentual,'adicional_fixo',v_valor_fixo,'valor_final',round(v_final,2));
+        update public.conta_faturamento_itens set metodologia_preco=v_preco.metodologia,tabela_procedimento_edicao_id=v_preco.edicao_id,tabela_procedimento_item_id=v_preco.item_id,valor_referencia=v_base,valor_contratual_calculado=round(v_final,2),percentual_aplicado=v_percentual,regra_contratual_id=v_regra_id,memoria_calculo=v_memoria where id=p_item_id;
         return v_memoria;
       end;
       $body$
@@ -206,7 +225,6 @@ do $$ begin
   end if;
 end $$;
 
--- Diagnostico pos-migration. Retorna somente objetos/colunas ausentes ou OK.
 create or replace function public.validar_schema_his()
 returns table(grupo text,objeto text,status text,detalhe text)
 language plpgsql
@@ -223,11 +241,10 @@ begin
     ('faturamento','contas_faturamento','public.contas_faturamento'),('faturamento','conta_faturamento_itens','public.conta_faturamento_itens'),('faturamento','tabelas_comerciais_fontes','public.tabelas_comerciais_fontes'),('faturamento','tabelas_procedimentos_fontes','public.tabelas_procedimentos_fontes'),('faturamento','contrato_regras_faturamento','public.contrato_regras_faturamento'),
     ('tiss','tiss_guias','public.tiss_guias'),('tiss','tiss_lotes','public.tiss_lotes'),('tiss','tiss_glosas','public.tiss_glosas'),
     ('financeiro','financeiro_recebiveis','public.financeiro_recebiveis'),('financeiro','financeiro_contas_pagar','public.financeiro_contas_pagar'),('financeiro','notas_fiscais_servico','public.notas_fiscais_servico')
-  ) v(grupo,objeto,relacao)
+  ) v(grupo_nome,objeto_nome,relacao)
   loop
-    grupo:=r.grupo; objeto:=r.objeto;
-    if to_regclass(r.relacao) is null then status:='AUSENTE'; detalhe:='Tabela/view não encontrada';
-    else status:='OK'; detalhe:='Objeto disponível'; end if;
+    grupo:=r.grupo_nome; objeto:=r.objeto_nome;
+    if to_regclass(r.relacao) is null then status:='AUSENTE'; detalhe:='Tabela/view não encontrada'; else status:='OK'; detalhe:='Objeto disponível'; end if;
     return next;
   end loop;
 
@@ -239,15 +256,13 @@ begin
   ) c(tabela,coluna)
   loop
     grupo:='coluna'; objeto:=c.tabela||'.'||c.coluna;
-    if exists(select 1 from information_schema.columns x where x.table_schema='public' and x.table_name=c.tabela and x.column_name=c.coluna) then status:='OK'; detalhe:='Coluna disponível';
-    else status:='AUSENTE'; detalhe:='Coluna não encontrada'; end if;
+    if exists(select 1 from information_schema.columns x where x.table_schema='public' and x.table_name=c.tabela and x.column_name=c.coluna) then status:='OK'; detalhe:='Coluna disponível'; else status:='AUSENTE'; detalhe:='Coluna não encontrada'; end if;
     return next;
   end loop;
 end;$$;
 
 revoke all on function public.validar_schema_his() from public;
 grant execute on function public.validar_schema_his() to authenticated,service_role;
-
 comment on function public.validar_schema_his is 'Diagnóstico não destrutivo do schema MedSync HIS após aplicação das migrations.';
 
 commit;
