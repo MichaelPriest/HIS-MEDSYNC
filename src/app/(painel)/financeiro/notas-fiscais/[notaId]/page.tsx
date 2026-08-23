@@ -1,0 +1,25 @@
+import { notFound } from "next/navigation";
+import { Building2, FileCheck2, Send } from "lucide-react";
+import { SectionPage } from "@/components/painel/section-page";
+import { createClient } from "@/lib/supabase/server";
+import { emitirNfseIntegracao, registrarEmissaoManualNfse } from "@/modules/nfse/actions";
+
+function one<T>(rel:T|T[]|null){return Array.isArray(rel)?rel[0]??null:rel;}
+export default async function NotaFiscalPage({params,searchParams}:{params:Promise<{notaId:string}>;searchParams:Promise<{erro?:string}>}){
+  const {notaId}=await params; const qs=await searchParams; const supabase=await createClient();
+  const [{data:nota},{data:txs}]=await Promise.all([
+    supabase.from("notas_fiscais_servico").select("id,competencia,tomador_cnpj,tomador_razao_social,valor_servicos,valor_deducoes,valor_iss,aliquota_iss,valor_liquido,numero_rps,serie_rps,numero_nfse,codigo_verificacao,protocolo_prefeitura,status,data_emissao,lote:tiss_lotes(numero_lote),config:nfse_configuracoes(municipio_nome,uf,provedor,modo,ambiente)").eq("id",notaId).maybeSingle(),
+    supabase.from("nfse_transacoes").select("id,tipo_operacao,status,http_status,protocolo,mensagem_erro,created_at").eq("nota_id",notaId).order("created_at",{ascending:false}).limit(20)
+  ]);
+  if(!nota) notFound(); const lote=one(nota.lote); const cfg=one(nota.config); const manual=registrarEmissaoManualNfse.bind(null,notaId); const integrar=emitirNfseIntegracao.bind(null,notaId);
+  return <SectionPage eyebrow="Financeiro / NFS-e" title={nota.numero_nfse?`NFS-e ${nota.numero_nfse}`:`RPS ${nota.numero_rps??"sem número"}`} description={`${nota.tomador_razao_social??"Tomador"} · Lote ${lote?.numero_lote??"—"} · Competência ${nota.competencia}`}>
+    {qs.erro?<div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">Operação não concluída: {qs.erro}.</div>:null}
+    <div className="grid gap-4 md:grid-cols-4"><Card label="Status" value={nota.status}/><Card label="Serviços" value={`R$ ${Number(nota.valor_servicos||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`}/><Card label="ISS" value={`R$ ${Number(nota.valor_iss||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`}/><Card label="Líquido" value={`R$ ${Number(nota.valor_liquido||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`}/></div>
+    <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <section className="ui-card p-5"><div className="flex items-center gap-3"><Building2 className="size-5 text-brand-700"/><div><h2 className="font-semibold text-slate-900">Configuração municipal</h2><p className="text-sm text-slate-500">{cfg?`${cfg.municipio_nome}/${cfg.uf} · ${cfg.provedor||"provedor não informado"} · ${cfg.modo} · ${cfg.ambiente}`:"Nenhuma configuração municipal vinculada."}</p></div></div><form action={integrar} className="mt-5"><button disabled={!cfg||cfg.modo==="manual"} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><Send className="mr-2 inline size-4"/>Emitir via integração</button></form><p className="mt-3 text-xs text-slate-400">Integrações municipais só são liberadas quando existir adapter específico para o provedor/prefeitura configurado.</p></section>
+      <form action={manual} className="ui-card p-5"><div className="flex items-center gap-3"><FileCheck2 className="size-5 text-emerald-600"/><div><h2 className="font-semibold text-slate-900">Emissão manual pelo portal</h2><p className="text-sm text-slate-500">Após emitir no portal da prefeitura, registre os dados oficiais abaixo.</p></div></div><div className="mt-4 grid gap-3 md:grid-cols-2"><input name="numero_nfse" defaultValue={nota.numero_nfse??""} required placeholder="Número NFS-e" className="ui-input"/><input name="codigo_verificacao" defaultValue={nota.codigo_verificacao??""} placeholder="Código de verificação" className="ui-input"/><input name="protocolo_prefeitura" defaultValue={nota.protocolo_prefeitura??""} placeholder="Protocolo prefeitura" className="ui-input"/><input name="data_emissao" type="datetime-local" className="ui-input"/></div><button className="ui-button-primary mt-4">Registrar NFS-e emitida</button></form>
+    </div>
+    {txs?.length?<section className="ui-card mt-6 p-5"><h2 className="font-semibold text-slate-900">Histórico de integração</h2><div className="mt-4 space-y-2">{txs.map(tx=><div key={tx.id} className="rounded-xl border border-slate-200 p-3 text-sm"><div className="flex justify-between"><strong>{tx.tipo_operacao}</strong><span>{tx.status}</span></div><p className="mt-1 text-xs text-slate-500">HTTP {tx.http_status??"—"} · Protocolo {tx.protocolo??"—"}</p>{tx.mensagem_erro?<p className="mt-1 text-xs text-rose-600">{tx.mensagem_erro}</p>:null}</div>)}</div></section>:null}
+  </SectionPage>;
+}
+function Card({label,value}:{label:string;value:string}){return <div className="ui-card p-4"><p className="text-xs uppercase tracking-wide text-slate-400">{label}</p><p className="mt-2 font-semibold capitalize text-slate-900">{value}</p></div>}
