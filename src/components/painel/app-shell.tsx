@@ -31,6 +31,11 @@ const setoresNav: Array<{ href: Route; label: string; icon: typeof Activity }> =
   { href: "/setores/imagem", label: "Imagem", icon: ScanLine },
   { href: "/setores/internacao", label: "Fila de internação", icon: BedDouble },
 ];
+const financeiroNav: Array<{ href: Route; label: string }> = [
+  { href: "/faturamento", label: "Pré-faturamento" },
+  { href: "/faturamento/lotes", label: "Lotes TISS" },
+  { href: "/faturamento/glosas", label: "Glosas e recursos" },
+];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -46,7 +51,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
       <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Assistencial</p><div className="mt-3 space-y-1">{assistencialNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4" /><span>{label}</span></Link>; })}</div></div>
       <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Filas por setor</p><div className="mt-3 space-y-1">{setoresNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4"/><span>{label}</span></Link>; })}</div></div>
-      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Financeiro</p><div className="mt-3"><Link href="/faturamento" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/faturamento") ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><ReceiptText className="size-4"/><span>Faturamento / TISS</span></Link></div></div>
+      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Financeiro</p><div className="mt-3 space-y-1">{financeiroNav.map(item=>{const active=pathname===item.href || (item.href!=="/faturamento" && pathname.startsWith(`${item.href}/`)); return <Link key={item.href} href={item.href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><ReceiptText className="size-4"/><span>{item.label}</span></Link>})}</div></div>
       <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Configurações</p><div className="mt-3"><Link href="/configuracoes/paineis" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/configuracoes/paineis") ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><MonitorCog className="size-4"/><span>Painéis e chamadas</span></Link></div></div>
     </div>
     <div className="border-t border-white/10 p-4"><div className="rounded-2xl border border-white/10 bg-white/5 p-3"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-full bg-white/10 text-xs font-semibold">HS</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-white">Ambiente hospitalar</p><p className="truncate text-xs text-white/45">Acesso seguro</p></div></div></div></div>
