@@ -89,3 +89,15 @@ export async function atualizarChecklistContaMedica(formData:FormData){
   await supabase.rpc("validar_checklist_conta_medica",{p_processo_id:processoId});
   revalidatePath(`/contas-medicas/${processoId}`);
 }
+export async function liberarContaMedica(formData:FormData){
+  const {supabase,user}=await getAssistencialContext(); const processoId=text(formData,"processo_id"); if(!processoId)return;
+  const {data:processo}=await supabase.from("contas_medicas_processos").select("id,conta_id").eq("id",processoId).maybeSingle();
+  if(!processo) redirect("/contas-medicas?erro=processo");
+  const {data:checkOk}=await supabase.rpc("validar_checklist_conta_medica",{p_processo_id:processoId});
+  const {count:pendencias}=await supabase.from("contas_medicas_pendencias").select("id",{count:"exact",head:true}).eq("processo_id",processoId).eq("resolvida",false).in("severidade",["erro","bloqueio"]);
+  if(!checkOk || (pendencias??0)>0) redirect(`/contas-medicas/${processoId}?erro=pendencias`);
+  const now=new Date().toISOString();
+  await supabase.from("contas_medicas_processos").update({status:"liberada_tiss",concluido_em:now,analisado_por:user.id,updated_at:now}).eq("id",processoId);
+  await supabase.from("contas_faturamento").update({contas_medicas_liberada:true,contas_medicas_liberada_em:now}).eq("id",processo.conta_id);
+  revalidatePath("/contas-medicas"); redirect(`/faturamento/${processo.conta_id}?contas-medicas=liberada`);
+}
