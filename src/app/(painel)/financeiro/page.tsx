@@ -1,0 +1,17 @@
+import Link from "next/link";
+import { Banknote, CalendarClock, FileText } from "lucide-react";
+import { SectionPage } from "@/components/painel/section-page";
+import { createClient } from "@/lib/supabase/server";
+
+function one<T>(rel:T|T[]|null){return Array.isArray(rel)?rel[0]??null:rel;}
+export default async function FinanceiroPage(){
+  const supabase=await createClient();
+  const {data:recebiveis}=await supabase.from("financeiro_recebiveis").select("id,competencia,previsao_pagamento,data_pagamento,valor_bruto,valor_glosa,valor_liquido_previsto,valor_recebido,status,lote:tiss_lotes(id,numero_lote,protocolo_envio_operadora),convenio:convenios(nome_fantasia)").order("previsao_pagamento",{ascending:true}).limit(300);
+  const totalPrev=(recebiveis??[]).reduce((s,r)=>s+Number(r.valor_liquido_previsto||0),0); const recebido=(recebiveis??[]).reduce((s,r)=>s+Number(r.valor_recebido||0),0); const glosa=(recebiveis??[]).reduce((s,r)=>s+Number(r.valor_glosa||0),0);
+  return <SectionPage eyebrow="Financeiro" title="Contas a receber" description="Previsão de pagamento dos lotes faturados, glosas, recebimentos e vínculo com NFS-e.">
+    <div className="grid gap-4 md:grid-cols-3"><Card icon={CalendarClock} label="Previsto" value={totalPrev}/><Card icon={Banknote} label="Recebido" value={recebido}/><Card icon={FileText} label="Glosas" value={glosa}/></div>
+    <section className="ui-card mt-6 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Lote</th><th className="px-4 py-3">Convênio</th><th className="px-4 py-3">Competência</th><th className="px-4 py-3">Previsão</th><th className="px-4 py-3 text-right">Previsto</th><th className="px-4 py-3 text-right">Recebido</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{recebiveis?.length?recebiveis.map(r=>{const lote=one(r.lote);const conv=one(r.convenio);return <tr key={r.id}><td className="px-4 py-3">{lote?<Link className="font-semibold text-brand-700" href={`/faturamento/lotes/${lote.id}`}>Lote {lote.numero_lote}</Link>:"—"}<div className="text-xs text-slate-400">Prot. {lote?.protocolo_envio_operadora??"—"}</div></td><td className="px-4 py-3">{conv?.nome_fantasia??"—"}</td><td className="px-4 py-3">{r.competencia}</td><td className="px-4 py-3">{r.previsao_pagamento?new Date(`${r.previsao_pagamento}T12:00:00`).toLocaleDateString("pt-BR"):"—"}</td><td className="px-4 py-3 text-right">R$ {Number(r.valor_liquido_previsto||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}</td><td className="px-4 py-3 text-right">R$ {Number(r.valor_recebido||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}</td><td className="px-4 py-3 capitalize">{String(r.status).replaceAll("_"," ")}</td></tr>}):<tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Nenhum recebível.</td></tr>}</tbody></table></div></section>
+    <div className="mt-5"><Link href="/financeiro/notas-fiscais" className="ui-button-primary">Notas fiscais de serviço</Link></div>
+  </SectionPage>;
+}
+function Card({icon:Icon,label,value}:{icon:typeof Banknote;label:string;value:number}){return <div className="ui-card p-5"><Icon className="size-5 text-brand-700"/><p className="mt-3 text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-slate-950">R$ {value.toLocaleString("pt-BR",{minimumFractionDigits:2})}</p></div>}
