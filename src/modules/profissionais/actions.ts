@@ -8,13 +8,63 @@ import { parseAddresses, parseEmails, parsePhones, validateRequiredContacts } fr
 export async function criarProfissional(formData: FormData) {
   const { supabase, user, empresaId } = await getCadastroContext();
   const nomeCompleto = String(formData.get("nome_completo") ?? "").trim();
-  const tipoProfissionalId = String(formData.get("tipo_profissional_id") ?? "").trim();
+  const tipoProfissionalRef = String(formData.get("tipo_profissional_ref") ?? "").trim();
   const emails = parseEmails(formData);
   const phones = parsePhones(formData);
   const addresses = parseAddresses(formData);
   const tipoContrato = String(formData.get("tipo_contrato") ?? "").trim();
   const dataInicio = String(formData.get("data_inicio_contrato") ?? "").trim();
-  if (nomeCompleto.length < 2 || !tipoProfissionalId || !validateRequiredContacts(emails, phones, addresses) || !tipoContrato || !dataInicio) redirect("/profissionais/novo?erro=campos-obrigatorios");
+
+  if (nomeCompleto.length < 2 || !tipoProfissionalRef || !validateRequiredContacts(emails, phones, addresses) || !tipoContrato || !dataInicio) {
+    redirect("/profissionais/novo?erro=campos-obrigatorios");
+  }
+
+  const { data: podeCriar, error: permissaoError } = await supabase.rpc("tem_permissao", {
+    p_empresa: empresaId,
+    p_unidade: null,
+    p_codigo: "profissionais.criar",
+  });
+  if (permissaoError || !podeCriar) redirect("/profissionais/novo?erro=sem-permissao");
+
+  let tipoProfissionalCatalogoId: string | null = null;
+  let tipoProfissionalLegadoId: string | null = null;
+
+  if (tipoProfissionalRef.startsWith("catalogo:")) {
+    const catalogoId = tipoProfissionalRef.slice("catalogo:".length);
+    const { data: tipoCatalogo, error: tipoError } = await supabase
+      .from("catalogos")
+      .select("id,codigo")
+      .eq("id", catalogoId)
+      .eq("empresa_id", empresaId)
+      .eq("tipo", "tipo_profissional")
+      .eq("ativo", true)
+      .maybeSingle();
+
+    if (tipoError || !tipoCatalogo) redirect("/profissionais/novo?erro=tipo-invalido");
+    tipoProfissionalCatalogoId = tipoCatalogo.id;
+
+    // Mantém a coluna legada preenchida quando o código empresarial coincide com
+    // um tipo global antigo. Tipos personalizados continuam válidos apenas pelo catálogo.
+    const { data: legado } = await supabase
+      .from("tipos_profissional")
+      .select("id")
+      .eq("codigo", tipoCatalogo.codigo)
+      .eq("ativo", true)
+      .maybeSingle();
+    tipoProfissionalLegadoId = legado?.id ?? null;
+  } else if (tipoProfissionalRef.startsWith("legado:")) {
+    const legadoId = tipoProfissionalRef.slice("legado:".length);
+    const { data: legado, error: legadoError } = await supabase
+      .from("tipos_profissional")
+      .select("id")
+      .eq("id", legadoId)
+      .eq("ativo", true)
+      .maybeSingle();
+    if (legadoError || !legado) redirect("/profissionais/novo?erro=tipo-invalido");
+    tipoProfissionalLegadoId = legado.id;
+  } else {
+    redirect("/profissionais/novo?erro=tipo-invalido");
+  }
 
   let fotoPath: string | null = null;
   try {
@@ -33,7 +83,8 @@ export async function criarProfissional(formData: FormData) {
     nacionalidade: optional(formData.get("nacionalidade")),
     estado_civil: optional(formData.get("estado_civil")),
     sexo: optional(formData.get("sexo")),
-    tipo_profissional_id: tipoProfissionalId,
+    tipo_profissional_id: tipoProfissionalLegadoId,
+    tipo_profissional_catalogo_id: tipoProfissionalCatalogoId,
     conselho: optional(formData.get("conselho"))?.toUpperCase() ?? null,
     numero_conselho: optional(formData.get("numero_conselho")),
     uf_conselho: optional(formData.get("uf_conselho"))?.toUpperCase() ?? null,
@@ -47,8 +98,16 @@ export async function criarProfissional(formData: FormData) {
   }).select("id").single();
 
   if (error || !profissional) {
+    console.error("[profissionais.criar] Falha no INSERT", {
+      userId: user.id,
+      empresaId,
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+    });
     if (fotoPath) await supabase.storage.from("cadastros-fotos").remove([fotoPath]);
-    redirect(`/profissionais/novo?erro=${error?.code === "23505" ? "duplicado" : "falha-cadastro"}`);
+    redirect(`/profissionais/novo?erro=${error?.code === "23505" ? "duplicado" : error?.code === "42501" ? "sem-permissao" : "falha-cadastro"}`);
   }
 
   const valorRaw = String(formData.get("valor_remuneracao") ?? "").replace(/\./g, "").replace(",", ".");
@@ -73,6 +132,7 @@ export async function criarProfissional(formData: FormData) {
       updated_by: user.id,
     }),
   ]);
+
   if (emailResult.error || phoneResult.error || addressResult.error || contractResult.error) redirect("/profissionais?sucesso=parcial");
   redirect("/profissionais?sucesso=cadastrado");
 }
