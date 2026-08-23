@@ -2,19 +2,144 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  --motion-fast: 140ms;
+  --motion-normal: 220ms;
+  --motion-slow: 360ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 html { background: #f8fafc; scroll-behavior: smooth; }
 body { @apply min-h-screen bg-slate-50 text-slate-900 antialiased; }
 ::selection { @apply bg-brand-200 text-brand-950; }
 :focus-visible { @apply outline-none ring-2 ring-brand-600 ring-offset-2; }
 summary::-webkit-details-marker { display: none; }
 
-@layer components {
-  .panel-card, .ui-card, .card-surface { @apply rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/[0.03]; }
-  .panel-input, .ui-input, .field { @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-brand-300 focus:ring-4 focus:ring-brand-100; }
-  .panel-button { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition; }
-  .ui-button-primary, .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-900; }
-  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50; }
+@keyframes ui-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
+@keyframes ui-fade-up {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes ui-scale-in {
+  from { opacity: 0; transform: scale(.975); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ui-slide-in-right {
+  from { opacity: .75; transform: translate3d(24px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes ui-slide-in-left {
+  from { opacity: .75; transform: translate3d(-24px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes ui-soft-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .62; transform: scale(.92); }
+}
+
+@keyframes ui-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@layer components {
+  .panel-card, .ui-card, .card-surface {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/[0.03];
+    transition: transform var(--motion-normal) var(--motion-ease), box-shadow var(--motion-normal) var(--motion-ease), border-color var(--motion-normal) ease;
+  }
+
+  .panel-card:hover, .ui-card:hover, .card-surface:hover {
+    @apply border-slate-300 shadow-md shadow-slate-900/[0.05];
+    transform: translateY(-1px);
+  }
+
+  .panel-input, .ui-input, .field {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-brand-300 focus:ring-4 focus:ring-brand-100;
+    transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background-color var(--motion-fast) ease, transform var(--motion-fast) ease;
+  }
+
+  .panel-input:hover, .ui-input:hover, .field:hover { @apply border-slate-300; }
+  .panel-input:focus, .ui-input:focus, .field:focus { transform: translateY(-1px); }
+
+  .panel-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold;
+    transition: transform var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) ease, background-color var(--motion-fast) ease;
+  }
+
+  .ui-button-primary, .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-900;
+    transition: transform var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) ease, background-color var(--motion-fast) ease;
+  }
+
+  .ui-button-primary:hover, .btn-primary:hover, .panel-button:hover { transform: translateY(-1px); }
+  .ui-button-primary:active, .btn-primary:active, .panel-button:active { transform: translateY(0) scale(.985); }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50;
+    transition: transform var(--motion-fast) var(--motion-ease), box-shadow var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+  }
+
+  .btn-secondary:hover { @apply shadow-sm; transform: translateY(-1px); }
+  .btn-secondary:active { transform: translateY(0) scale(.985); }
+
+  .ui-page-enter { animation: ui-fade-up var(--motion-slow) var(--motion-ease) both; }
+  .ui-fade-in { animation: ui-fade-in var(--motion-normal) ease both; }
+  .ui-fade-up { animation: ui-fade-up var(--motion-slow) var(--motion-ease) both; }
+  .ui-scale-in { animation: ui-scale-in var(--motion-normal) var(--motion-ease) both; }
+  .ui-slide-in-right { animation: ui-slide-in-right var(--motion-slow) var(--motion-ease) both; }
+  .ui-slide-in-left { animation: ui-slide-in-left var(--motion-slow) var(--motion-ease) both; }
+  .ui-backdrop-enter { animation: ui-fade-in var(--motion-normal) ease both; }
+  .ui-notification-dot { animation: ui-soft-pulse 1.8s ease-in-out infinite; }
+
+  .ui-stagger > * { animation: ui-fade-up var(--motion-slow) var(--motion-ease) both; }
+  .ui-stagger > *:nth-child(2) { animation-delay: 35ms; }
+  .ui-stagger > *:nth-child(3) { animation-delay: 70ms; }
+  .ui-stagger > *:nth-child(4) { animation-delay: 105ms; }
+  .ui-stagger > *:nth-child(5) { animation-delay: 140ms; }
+  .ui-stagger > *:nth-child(n+6) { animation-delay: 175ms; }
+
+  .ui-skeleton {
+    @apply rounded-xl bg-slate-100;
+    background-image: linear-gradient(90deg, transparent, rgba(255,255,255,.72), transparent);
+    background-size: 200% 100%;
+    animation: ui-shimmer 1.5s linear infinite;
+  }
+}
+
+button, a, summary, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled), a[href], summary { transition-property: color, background-color, border-color, opacity, transform, box-shadow; transition-duration: var(--motion-fast); transition-timing-function: var(--motion-ease); }
+button:disabled { cursor: not-allowed; opacity: .6; }
+
+tbody tr { transition: background-color var(--motion-fast) ease, transform var(--motion-fast) var(--motion-ease); }
+tbody tr:hover { transform: translateX(1px); }
+
+details[open] > :not(summary) { animation: ui-scale-in var(--motion-normal) var(--motion-ease) both; transform-origin: top right; }
+details[open] > summary svg { transition: transform var(--motion-normal) var(--motion-ease); }
+
 * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .panel-card:hover, .ui-card:hover, .card-surface:hover,
+  .panel-input:focus, .ui-input:focus, .field:focus,
+  .ui-button-primary:hover, .btn-primary:hover, .panel-button:hover,
+  .btn-secondary:hover, tbody tr:hover { transform: none !important; }
+}
