@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Activity, Bell, BedDouble, BookOpenCheck, Building2, Cable, CalendarDays, ChevronDown, ChevronRight, ClipboardList, FlaskConical, FolderCog, HeartPulse, Landmark, LayoutDashboard, Menu, MonitorCog, Pill, ReceiptText, ScanLine, Search, ShieldCheck, Stethoscope, TicketCheck, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Activity, Bell, BedDouble, BookOpenCheck, Boxes, Building2, Cable, CalendarDays, ChevronDown, ChevronRight, ClipboardCheck, ClipboardList, FlaskConical, FolderCog, Handshake, HeartPulse, Landmark, LayoutDashboard, Menu, MonitorCog, Pill, ReceiptText, ScanLine, Search, ShieldCheck, ShoppingCart, Stethoscope, TicketCheck, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { brand } from "@/config/brand";
 
 const cadastroNav: Array<{ href: Route; label: string; icon: typeof UsersRound }> = [
@@ -16,6 +16,7 @@ const cadastroNav: Array<{ href: Route; label: string; icon: typeof UsersRound }
 const assistencialNav: Array<{ href: Route; label: string; icon: typeof ClipboardList }> = [
   { href: "/senhas", label: "Senhas / Recepção", icon: TicketCheck },
   { href: "/atendimentos", label: "Atendimento / ADT", icon: ClipboardList },
+  { href: "/central-guias", label: "Central de Guias", icon: ClipboardCheck },
   { href: "/autorizacoes", label: "Autorizações", icon: ShieldCheck },
   { href: "/agenda", label: "Agenda e recepção", icon: CalendarDays },
   { href: "/triagem", label: "Triagem", icon: HeartPulse },
@@ -30,6 +31,12 @@ const setoresNav: Array<{ href: Route; label: string; icon: typeof Activity }> =
   { href: "/setores/laboratorio", label: "Laboratório", icon: FlaskConical },
   { href: "/setores/imagem", label: "Imagem", icon: ScanLine },
   { href: "/setores/internacao", label: "Fila de internação", icon: BedDouble },
+];
+const corporativoNav: Array<{ href: Route; label: string; icon: typeof ShoppingCart }> = [
+  { href: "/compras", label: "Compras", icon: ShoppingCart },
+  { href: "/almoxarifado", label: "Almoxarifado / Estoque", icon: Boxes },
+  { href: "/auditoria", label: "Auditoria de contas", icon: ShieldCheck },
+  { href: "/comercial", label: "Comercial / Credenciamento", icon: Handshake },
 ];
 const financeiroNav: Array<{ href: Route; label: string; icon: typeof ReceiptText }> = [
   { href: "/faturamento", label: "Pré-faturamento", icon: ReceiptText },
@@ -53,6 +60,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
       <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Assistencial</p><div className="mt-3 space-y-1">{assistencialNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4" /><span>{label}</span></Link>; })}</div></div>
       <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Filas por setor</p><div className="mt-3 space-y-1">{setoresNav.map(({ href, label, icon: Icon }) => { const active = pathname === href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4"/><span>{label}</span></Link>; })}</div></div>
+      <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Corporativo</p><div className="mt-3 space-y-1">{corporativoNav.map(({href,label,icon:Icon})=>{const active=pathname===href||pathname.startsWith(`${href}/`);return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active?"bg-white text-brand-950":"text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4"/><span>{label}</span></Link>})}</div></div>
       <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Financeiro</p><div className="mt-3 space-y-1">{financeiroNav.map(({href,label,icon:Icon})=>{const active=pathname===href || pathname.startsWith(`${href}/`); return <Link key={href} href={href} onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Icon className="size-4"/><span>{label}</span></Link>})}</div></div>
       <div className="mt-7 border-t border-white/10 pt-5"><p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Configurações</p><div className="mt-3 space-y-1"><Link href="/configuracoes/paineis" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/configuracoes/paineis") ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><MonitorCog className="size-4"/><span>Painéis e chamadas</span></Link><Link href="/configuracoes/tiss-webservices" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/configuracoes/tiss-webservices") ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Cable className="size-4"/><span>Webservices TISS</span></Link><Link href="/configuracoes/nfse" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname.startsWith("/configuracoes/nfse") ? "bg-white text-brand-950" : "text-white/65 hover:bg-white/10 hover:text-white"}`}><Landmark className="size-4"/><span>Prefeituras / NFS-e</span></Link></div></div>
     </div>
