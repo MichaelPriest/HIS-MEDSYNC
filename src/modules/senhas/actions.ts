@@ -7,29 +7,54 @@ import { getAssistencialContext } from "@/modules/assistencial/context";
 
 const somenteDigitos = (valor: string) => valor.replace(/\D/g, "");
 
+function erroTotem(message?: string | null) {
+  const msg = String(message ?? "");
+  if (msg.includes("TOTEM_UNIDADE_INDISPONIVEL")) return "unidade-indisponivel";
+  if (msg.includes("TOTEM_SETOR_INDISPONIVEL")) return "setor-indisponivel";
+  if (msg.includes("TOTEM_PRIORIDADE_INVALIDA")) return "prioridade-invalida";
+  if (msg.includes("TOTEM_CPF_INVALIDO")) return "cpf-invalido";
+  if (msg.includes("TOTEM_CPF_NAO_LOCALIZADO")) return "cpf-nao-localizado";
+  return "falha-emissao";
+}
+
 export async function emitirSenhaTotem(formData: FormData) {
   const supabase = await createClient();
   const unidadeId = String(formData.get("unidade_id") ?? "").trim();
-  const setorCodigo = String(formData.get("setor_codigo") ?? "recepcao").trim();
-  const prioridade = String(formData.get("prioridade") ?? "normal").trim();
-  const cpf = somenteDigitos(String(formData.get("cpf") ?? ""));
+  const setorCodigo = String(formData.get("setor_codigo") ?? "recepcao").trim() || "recepcao";
+  const prioridade = String(formData.get("prioridade") ?? "normal").trim() || "normal";
+  const cpfInformado = String(formData.get("cpf") ?? "").trim();
+  const cpf = somenteDigitos(cpfInformado);
   const acao = String(formData.get("acao") ?? "emitir");
-  if (!unidadeId) redirect(`/totem/invalido?erro=1`);
 
-  let pacienteId: string | null = null;
-  if (cpf.length === 11) {
-    const { data: paciente } = await supabase.from("pacientes").select("id").eq("cpf", cpf).maybeSingle();
-    pacienteId = paciente?.id ? String(paciente.id) : null;
-    if (acao === "identificar" && !pacienteId) redirect(`/totem/${unidadeId}?erro=cpf-nao-localizado`);
-  } else if (acao === "identificar") redirect(`/totem/${unidadeId}?erro=cpf-invalido`);
+  if (!unidadeId) redirect("/totem/invalido?erro=unidade-indisponivel");
+  if (acao === "identificar" && cpf.length !== 11) redirect(`/totem/${unidadeId}?erro=cpf-invalido`);
 
-  const { data, error } = await supabase.rpc("emitir_senha_totem", { p_unidade_id: unidadeId, p_setor_codigo: setorCodigo, p_prioridade: prioridade });
-  const emitida = Array.isArray(data) ? data[0] : null;
-  const senha = emitida?.senha ?? null;
-  const senhaId = emitida?.id ?? emitida?.senha_id ?? null;
-  if (error || !senha) redirect(`/totem/${unidadeId}?erro=1`);
-  if (pacienteId && senhaId) await supabase.from("senhas_atendimento").update({ paciente_id: pacienteId }).eq("id", senhaId).eq("unidade_id", unidadeId);
-  redirect(`/totem/${unidadeId}?senha=${encodeURIComponent(senha)}${pacienteId ? "&identificado=1" : ""}`);
+  const { data, error } = await supabase.rpc("emitir_senha_totem_v2", {
+    p_unidade_id: unidadeId,
+    p_setor_codigo: setorCodigo,
+    p_prioridade: prioridade,
+    p_cpf: acao === "identificar" ? cpf : null,
+  });
+
+  const emitida = Array.isArray(data) ? data[0] : data;
+  const senha = emitida?.senha ? String(emitida.senha) : null;
+  const identificado = Boolean(emitida?.identificado);
+
+  if (error || !senha) {
+    console.error("[totem] falha ao emitir senha", {
+      unidadeId,
+      setorCodigo,
+      prioridade,
+      acao,
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+    });
+    redirect(`/totem/${unidadeId}?erro=${erroTotem(error?.message)}`);
+  }
+
+  redirect(`/totem/${unidadeId}?senha=${encodeURIComponent(senha)}${identificado ? "&identificado=1" : ""}`);
 }
 
 async function efetivarChamada(senhaId: string, ponto: string) {
