@@ -12,7 +12,7 @@ function digits(value: string | null) { return value?.replace(/\D/g, "") || null
 export async function abrirAtendimento(senhaId: string, formData: FormData) {
   const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
   if (!senhaId) redirect("/senhas?erro=senha-obrigatoria");
-  const { data: senha } = await supabase.from("senhas_atendimento").select("id,status,atendimento_id").eq("id", senhaId).eq("unidade_id", unidadeId).maybeSingle();
+  const { data: senha } = await supabase.from("senhas_atendimento").select("id,status,atendimento_id,paciente_id").eq("id", senhaId).eq("unidade_id", unidadeId).maybeSingle();
   if (!senha || senha.atendimento_id || senha.status !== "em_atendimento") redirect("/senhas?erro=senha-invalida");
 
   const pacienteId = String(formData.get("paciente_id") ?? "").trim();
@@ -59,7 +59,17 @@ export async function abrirAtendimento(senhaId: string, formData: FormData) {
   }).select("id").single();
   if (error || !atendimento) redirect(`/atendimentos/novo?senha=${senhaId}&erro=falha-cadastro`);
 
+  if (cobertura === "convenio") {
+    const { error: autorizacaoError } = await supabase.from("autorizacoes_atendimento").insert({
+      empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimento.id, paciente_id: pacienteId,
+      convenio_id: convenioId, plano_id: planoId, numero_guia_operadora: optional(formData, "numero_autorizacao"),
+      senha_autorizacao: optional(formData, "senha_autorizacao"), status: optional(formData, "numero_autorizacao") ? "solicitada" : "pendente",
+      created_by: user.id, updated_by: user.id,
+    });
+    if (autorizacaoError) redirect(`/autorizacoes?atendimento=${atendimento.id}&erro=criar`);
+  }
+
   const { error: senhaError } = await supabase.from("senhas_atendimento").update({ paciente_id: pacienteId, atendimento_id: atendimento.id, status: "finalizada", finalizado_em: new Date().toISOString(), updated_by: user.id }).eq("id", senhaId);
   if (senhaError) redirect(`/atendimentos?sucesso=aberto&alerta=senha`);
-  redirect("/atendimentos?sucesso=aberto");
+  redirect(cobertura === "convenio" ? `/autorizacoes?atendimento=${atendimento.id}` : "/triagem?sucesso=admissao");
 }
