@@ -14,7 +14,7 @@ select
   p.nome_completo as paciente_nome,
   p.cpf as paciente_cpf,
   p.cns as paciente_cns,
-  a.modalidade_cobranca,
+  a.cobertura,
   a.convenio_id,
   a.plano_id,
   a.numero_carteirinha,
@@ -27,12 +27,9 @@ select
   ) t) as ultima_triagem,
   (select count(*) from public.prontuario_evolucoes pe where pe.atendimento_id=a.id) as total_evolucoes,
   (select count(*) from public.prescricoes pr where pr.atendimento_id=a.id) as total_prescricoes,
-  (select count(*) from public.internacoes i where i.atendimento_id=a.id and i.status='internado') as internacoes_ativas,
-  (select count(*) from public.solicitacoes_exames se where se.atendimento_id=a.id and se.status not in ('liberado','cancelado')) as exames_pendentes,
-  (select count(*) from public.solicitacoes_exames se where se.atendimento_id=a.id and se.status='liberado') as exames_liberados
+  (select count(*) from public.internacoes i where i.atendimento_id=a.id and i.status in ('aguardando_leito','internado','transferido')) as internacoes_ativas
 from public.atendimentos a
 join public.pacientes p on p.id=a.paciente_id;
 
 grant select on public.vw_atendimento_contexto_clinico to authenticated;
-
 comment on view public.vw_atendimento_contexto_clinico is 'Contexto unificado do episodio assistencial para prontuario/atendimento medico. Respeita RLS das tabelas base via security_invoker.';
