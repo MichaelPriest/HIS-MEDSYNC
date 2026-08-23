@@ -43,6 +43,31 @@ export async function criarSolicitacaoCompra(formData:FormData){
   const {error}=await supabase.from("compras_solicitacoes").insert({empresa_id:empresaId,unidade_id:unidadeId,numero,solicitante_id:user.id,setor:text(formData,"setor")||null,justificativa:text(formData,"justificativa")||null,prioridade:text(formData,"prioridade")||"normal",status:"solicitada"});
   if(error) redirect("/compras?erro=salvar"); revalidatePath("/compras");
 }
+export async function criarCotacaoCompra(formData:FormData){
+  const {supabase,user,empresaId,unidadeId}=await getAssistencialContext();
+  const solicitacaoId=text(formData,"solicitacao_id"); if(!solicitacaoId) redirect("/compras?erro=solicitacao");
+  const numero=`CT${new Date().toISOString().slice(2,10).replaceAll("-","")}${String(Date.now()).slice(-4)}`;
+  const {error}=await supabase.from("compras_cotacoes").insert({empresa_id:empresaId,unidade_id:unidadeId,solicitacao_id:solicitacaoId,numero,status:"aberta",validade:text(formData,"validade")||null,observacoes:text(formData,"observacoes")||null,created_by:user.id});
+  if(error) redirect("/compras?erro=cotacao");
+  await supabase.from("compras_solicitacoes").update({status:"em_cotacao"}).eq("id",solicitacaoId);
+  revalidatePath("/compras");
+}
+export async function adicionarFornecedorCotacao(formData:FormData){
+  const {supabase}=await getAssistencialContext(); const cotacaoId=text(formData,"cotacao_id"); const fornecedorId=text(formData,"fornecedor_id");
+  if(!cotacaoId||!fornecedorId) redirect("/compras?erro=fornecedor-cotacao");
+  const valor=Number(text(formData,"valor_total").replace(/\./g,"").replace(",","."))||0;
+  const frete=Number(text(formData,"frete").replace(/\./g,"").replace(",","."))||0;
+  const {error}=await supabase.from("compras_cotacao_fornecedores").upsert({cotacao_id:cotacaoId,fornecedor_id:fornecedorId,valor_total:valor,prazo_entrega_dias:Number(text(formData,"prazo_entrega_dias")||0)||null,condicao_pagamento:text(formData,"condicao_pagamento")||null,frete,observacoes:text(formData,"observacoes")||null},{onConflict:"cotacao_id,fornecedor_id"});
+  if(error) redirect("/compras?erro=fornecedor-cotacao"); revalidatePath("/compras");
+}
+export async function aprovarFornecedorCotacao(formData:FormData){
+  const {supabase}=await getAssistencialContext(); const cotacaoId=text(formData,"cotacao_id"); const fornecedorId=text(formData,"fornecedor_id");
+  if(!cotacaoId||!fornecedorId)return;
+  await supabase.from("compras_cotacao_fornecedores").update({selecionado:false}).eq("cotacao_id",cotacaoId);
+  await supabase.from("compras_cotacao_fornecedores").update({selecionado:true}).eq("cotacao_id",cotacaoId).eq("fornecedor_id",fornecedorId);
+  await supabase.from("compras_cotacoes").update({status:"aprovada"}).eq("id",cotacaoId);
+  revalidatePath("/compras");
+}
 export async function criarMovimentoEstoque(formData:FormData){
   const {supabase,user,empresaId,unidadeId}=await getAssistencialContext();
   const quantidade=Number(text(formData,"quantidade")); if(!text(formData,"produto_id")||!quantidade) redirect("/almoxarifado?erro=campos");
@@ -52,4 +77,15 @@ export async function criarMovimentoEstoque(formData:FormData){
 export async function criarContratoCredenciamento(formData:FormData){
   const {supabase,user,empresaId}=await getAssistencialContext(); const convenioId=text(formData,"convenio_id"); if(!convenioId) return;
   await supabase.from("credenciamento_contratos").insert({empresa_id:empresaId,convenio_id:convenioId,numero_contrato:text(formData,"numero_contrato")||null,data_inicio:text(formData,"data_inicio")||null,data_fim:text(formData,"data_fim")||null,status:text(formData,"status")||"negociacao",prazo_pagamento_dias:Number(text(formData,"prazo_pagamento_dias")||0)||null,reajuste_indice:text(formData,"reajuste_indice")||null,contato_comercial:text(formData,"contato_comercial")||null,email_comercial:text(formData,"email_comercial")||null,created_by:user.id,updated_by:user.id}); revalidatePath("/comercial");
+}
+export async function gerarChecklistContaMedica(formData:FormData){
+  const {supabase}=await getAssistencialContext(); const processoId=text(formData,"processo_id"); if(!processoId)return;
+  const {error}=await supabase.rpc("gerar_checklist_conta_medica",{p_processo_id:processoId});
+  if(error) redirect(`/contas-medicas/${processoId}?erro=checklist`); revalidatePath(`/contas-medicas/${processoId}`);
+}
+export async function atualizarChecklistContaMedica(formData:FormData){
+  const {supabase,user}=await getAssistencialContext(); const itemId=text(formData,"item_id"); const processoId=text(formData,"processo_id"); if(!itemId||!processoId)return;
+  await supabase.from("contas_medicas_checklist_itens").update({status:text(formData,"status")||"pendente",ged_documento_id:text(formData,"ged_documento_id")||null,observacoes:text(formData,"observacoes")||null,conferido_em:new Date().toISOString(),conferido_por:user.id}).eq("id",itemId);
+  await supabase.rpc("validar_checklist_conta_medica",{p_processo_id:processoId});
+  revalidatePath(`/contas-medicas/${processoId}`);
 }
