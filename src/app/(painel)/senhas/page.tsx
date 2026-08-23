@@ -1,0 +1,22 @@
+import { BellRing, PlayCircle, TicketCheck } from "lucide-react";
+import { SectionPage } from "@/components/painel/section-page";
+import { createClient } from "@/lib/supabase/server";
+import { chamarProximaSenha, chamarSenha, iniciarAtendimentoSenha } from "@/modules/senhas/actions";
+import { getAssistencialContext } from "@/modules/assistencial/context";
+
+export default async function SenhasPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
+  const { erro } = await searchParams;
+  const { unidadeId } = await getAssistencialContext();
+  const supabase = await createClient();
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const [{ data: setores }, { data: senhas }] = await Promise.all([
+    supabase.from("setores_chamada").select("id,nome,codigo").eq("unidade_id", unidadeId).eq("ativo", true).order("ordem"),
+    supabase.from("senhas_atendimento").select("id,senha,prioridade,status,emitida_em,ponto_atendimento,setor:setores_chamada(nome,codigo)").eq("unidade_id", unidadeId).eq("data_referencia", hoje).in("status", ["aguardando","chamada","em_atendimento"]).order("sequencial"),
+  ]);
+  const recepcao = setores?.find((item) => item.codigo === "recepcao");
+  return <SectionPage eyebrow="Recepção / Senhas" title="Fila de Senhas" description="Chamada obrigatória antes da admissão. A senha acompanha o paciente até a abertura do atendimento.">
+    {erro ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">Não foi possível concluir a ação da fila.</div> : null}
+    <section className="ui-card p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="flex items-center gap-2 font-semibold text-slate-900"><TicketCheck className="size-5 text-brand-700"/>Recepção</h2><p className="mt-1 text-sm text-slate-500">Informe o guichê e chame a próxima senha pela ordem de prioridade.</p></div>{recepcao ? <form action={chamarProximaSenha} className="flex flex-col gap-2 sm:flex-row"><input type="hidden" name="setor_id" value={recepcao.id}/><input name="ponto_atendimento" placeholder="Ex.: Guichê 03" required className="ui-input min-w-44"/><button className="ui-button-primary"><BellRing className="size-4"/> Chamar próxima</button></form> : null}</div></section>
+    <section className="ui-card mt-5 overflow-hidden"><div className="border-b border-slate-100 p-5"><h2 className="font-semibold text-slate-900">Fila atual</h2><p className="text-sm text-slate-500">Emergência, preferencial e normal são priorizadas automaticamente no botão “Chamar próxima”.</p></div>{senhas?.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Senha</th><th className="px-5 py-3">Prioridade</th><th className="px-5 py-3">Setor</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Destino</th><th className="px-5 py-3 text-right">Ações</th></tr></thead><tbody className="divide-y divide-slate-100">{senhas.map((item) => { const setor = Array.isArray(item.setor) ? item.setor[0] : item.setor; return <tr key={item.id} className="hover:bg-slate-50"><td className="px-5 py-4 text-xl font-black text-brand-950">{item.senha}</td><td className="px-5 py-4 capitalize text-slate-600">{item.prioridade}</td><td className="px-5 py-4 text-slate-600">{setor?.nome ?? "—"}</td><td className="px-5 py-4"><span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">{String(item.status).replaceAll("_"," ")}</span></td><td className="px-5 py-4 text-slate-600">{item.ponto_atendimento || "—"}</td><td className="px-5 py-4"><div className="flex justify-end gap-2">{item.status === "aguardando" ? <form action={chamarSenha} className="flex gap-2"><input type="hidden" name="senha_id" value={item.id}/><input name="ponto_atendimento" placeholder="Guichê" required className="ui-input h-9 w-28"/><button className="btn-secondary"><BellRing className="size-4"/> Chamar</button></form> : null}{item.status === "chamada" ? <form action={iniciarAtendimentoSenha}><input type="hidden" name="senha_id" value={item.id}/><button className="ui-button-primary"><PlayCircle className="size-4"/> Iniciar admissão</button></form> : null}</div></td></tr>; })}</tbody></table></div> : <div className="p-10 text-center text-sm text-slate-500">Nenhuma senha aguardando.</div>}</section>
+  </SectionPage>;
+}
