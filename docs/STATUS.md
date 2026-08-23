@@ -1,24 +1,61 @@
 # Estado real da implementação
 
-Atualizado em 2026-08-22.
+Atualizado em 2026-08-23.
 
-| Marco | Estado | Evidência / pendência |
+Este documento separa **estrutura criada**, **funcionalidade inicial** e **módulo ainda não homologado**. O MedSync HIS continua em desenvolvimento e não deve ser considerado pronto para produção hospitalar apenas porque determinado menu/tabela existe.
+
+| Área | Estado atual | Próximos pontos críticos |
 |---|---|---|
-| 1 — Fundação | Em andamento | Implementação local entregue: Auth SSR, layout, estrutura/RBAC/auditoria, buckets privados e RLS. Validação automatizada bloqueada neste ambiente pelo acesso HTTP 403 ao npm; integração RLS requer Supabase local/externo. |
-| 2–14 | Não iniciados | Planejados em `PLAN.md`; não disponíveis na aplicação. |
+| Fundação / Auth / multiempresa | Funcional em evolução | permissões granulares, auditoria e testes RLS completos |
+| Interface / navegação | Funcional | refinamento por perfil e acessibilidade |
+| Pacientes / Profissionais / Convênios | Funcional em evolução | validações, documentos, contratos e fluxos especializados |
+| Totem / Senhas / Recepção | Base funcional | regras operacionais, impressão e homologação de painéis |
+| Atendimento / ADT | Base funcional | completar regras de episódios e documentos |
+| Central de Guias | Base funcional | integração automática com solicitações e operadoras |
+| Triagem / Fila médica | Base funcional | protocolos/escalas e regras clínicas |
+| Prontuário | Parcial | aprofundamento clínico completo |
+| Enfermagem | Parcial | SAE, checagem, evolução, balanço, escalas |
+| Farmácia | Parcial | dispensação, devolução, estoque e rastreabilidade |
+| Laboratório / Imagem | Parcial | execução, resultados/laudos e liberação |
+| Internação | Parcial | mapa de leitos, movimentações, diárias e alta |
+| Compras | Base funcional | alçadas, pedido automático, recebimento parcial/divergência |
+| Almoxarifado | Base funcional | inventário, requisições, reposição, rastreabilidade |
+| Comercial / Credenciamento | Base avançada | alimentar contratos reais e regras específicas |
+| Tabelas comerciais | Base avançada | importar/gerenciar dados reais licenciados e versões |
+| Auditoria pós-alta | Base funcional | regras automáticas e auditoria clínica/administrativa |
+| Contas Médicas | Base funcional | checklist por convênio e automações de conferência |
+| GED | Base funcional | upload/visualização/versionamento/assinaturas completos |
+| Conta hospitalar | Base funcional | pacotes, consumo automático e fechamento operacional |
+| Motor contratual | Base avançada | ampliar regras reais por contrato e homologar cálculos |
+| TISS | Estrutura funcional, não homologada | XSD ANS, XML definitivo, adapters de operadoras |
+| Glosas / Recursos | Base funcional | importação automática de demonstrativos e XML definitivo |
+| Financeiro | Parcial | baixas, retenções, conciliação, contas a pagar e caixa |
+| NFS-e | Estrutura | adapters reais das prefeituras/provedores utilizados |
+| Diretoria | Base | KPIs, filtros, metas, drill-down e governança |
+| Centro Cirúrgico / CME | Não concluído | desenvolver fluxo completo |
+| Urgência/Emergência | Não concluído | desenvolver fluxo completo |
+| Nutrição / Hemoterapia etc. | Não iniciado/concluído | definir escopo e implementar |
+
+## Travas de negócio já planejadas/implementadas
+
+O faturamento de convênio deve respeitar a cadeia:
+
+`Alta → Auditoria → Contas Médicas → Validação da conta → Guia TISS → Lote → XML validado → envio/manual → retorno → financeiro`.
+
+A conta não deve pular Auditoria ou Contas Médicas. XML preliminar não deve ser tratado como TISS homologado enquanto não houver validação pelos schemas oficiais aplicáveis.
 
 ## Dependências externas
 
-Ainda é necessário criar projetos Supabase separados para desenvolvimento/preview/produção, cadastrar variáveis na Vercel e configurar URLs de redirecionamento no Auth. Nenhum deploy de produção foi realizado.
+- projetos Supabase corretamente configurados por ambiente;
+- variáveis e segredos na Vercel;
+- schemas/documentação oficial TISS aplicável;
+- credenciais/endpoints de homologação das operadoras;
+- certificados quando exigidos;
+- contratos/tabelas comerciais reais e licenciadas;
+- credenciais/layouts dos provedores NFS-e utilizados.
 
-## Correção operacional do middleware
+## Qualidade e deploy
 
-O middleware agora trata configuração ausente ou inválida sem lançar exceção na
-Edge Runtime. O visitante é direcionado para uma página segura de indisponibilidade;
-o login continua bloqueado até que as variáveis públicas do Supabase sejam
-configuradas no ambiente da Vercel e um novo deploy seja publicado.
+O projeto deve continuar passando por `lint`, `typecheck`, testes e `build`. O check da Vercel pode falhar por **build rate limit**; esse caso deve ser distinguido de falha real de compilação.
 
-A leitura de configuração também contempla os nomes emitidos por integrações
-Supabase/Vercel e o nome legado da chave anônima, normaliza espaços e impede cache
-da página de indisponibilidade. Ainda é obrigatório publicar novo build no ambiente
-em que as variáveis foram habilitadas.
+Consulte também [`MANUAL.md`](MANUAL.md) e o módulo interno `/manual`.
