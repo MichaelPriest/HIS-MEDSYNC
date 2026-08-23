@@ -10,7 +10,7 @@ const PAGE_SIZE = 20;
 
 type TipoRelacao = { nome: string | null } | { nome: string | null }[] | null;
 
-function nomeTipo(tipo: TipoRelacao) {
+function nomeTipoLegado(tipo: TipoRelacao) {
   if (!tipo) return null;
   return Array.isArray(tipo) ? (tipo[0]?.nome ?? null) : tipo.nome;
 }
@@ -23,13 +23,24 @@ export default async function ProfissionaisPage({ searchParams }: { searchParams
   const to = from + PAGE_SIZE - 1;
 
   const supabase = await createClient();
-  let request = supabase.from("profissionais").select("id,nome_completo,cpf,conselho,numero_conselho,uf_conselho,especialidade,cbo,telefone,email,foto_path,tipo:tipos_profissional(nome)", { count: "exact" }).eq("ativo", true);
+  let request = supabase
+    .from("profissionais")
+    .select("id,nome_completo,cpf,conselho,numero_conselho,uf_conselho,especialidade,cbo,telefone,email,foto_path,tipo_profissional_catalogo_id,tipo:tipos_profissional(nome)", { count: "exact" })
+    .eq("ativo", true);
+
   if (query) request = request.ilike("nome_completo", `%${query}%`);
   const { data, error, count } = await request.order("nome_completo").range(from, to);
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
+
+  const catalogoIds = [...new Set((data ?? []).map((item) => item.tipo_profissional_catalogo_id).filter((id): id is string => Boolean(id)))];
+  const { data: catalogos } = catalogoIds.length
+    ? await supabase.from("catalogos").select("id,descricao").in("id", catalogoIds)
+    : { data: [] as Array<{ id: string; descricao: string }> };
+  const nomeCatalogoPorId = new Map((catalogos ?? []).map((item) => [item.id, item.descricao]));
+
   const profissionaisComFoto = await Promise.all((data ?? []).map(async (item) => ({
     ...item,
-    tipo_nome: nomeTipo(item.tipo as TipoRelacao),
+    tipo_nome: (item.tipo_profissional_catalogo_id ? nomeCatalogoPorId.get(item.tipo_profissional_catalogo_id) : null) || nomeTipoLegado(item.tipo as TipoRelacao),
     foto_url: await criarUrlFotoAssinada(supabase, item.foto_path),
   })));
 
