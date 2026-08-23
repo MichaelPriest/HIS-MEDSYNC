@@ -5,16 +5,31 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
+const somenteDigitos = (valor: string) => valor.replace(/\D/g, "");
+
 export async function emitirSenhaTotem(formData: FormData) {
   const supabase = await createClient();
   const unidadeId = String(formData.get("unidade_id") ?? "").trim();
-  const setorCodigo = String(formData.get("setor_codigo") ?? "").trim();
+  const setorCodigo = String(formData.get("setor_codigo") ?? "recepcao").trim();
   const prioridade = String(formData.get("prioridade") ?? "normal").trim();
-  if (!unidadeId || !setorCodigo) redirect(`/totem/${unidadeId || "invalido"}?erro=1`);
+  const cpf = somenteDigitos(String(formData.get("cpf") ?? ""));
+  const acao = String(formData.get("acao") ?? "emitir");
+  if (!unidadeId) redirect(`/totem/invalido?erro=1`);
+
+  let pacienteId: string | null = null;
+  if (cpf.length === 11) {
+    const { data: paciente } = await supabase.from("pacientes").select("id").eq("cpf", cpf).maybeSingle();
+    pacienteId = paciente?.id ? String(paciente.id) : null;
+    if (acao === "identificar" && !pacienteId) redirect(`/totem/${unidadeId}?erro=cpf-nao-localizado`);
+  } else if (acao === "identificar") redirect(`/totem/${unidadeId}?erro=cpf-invalido`);
+
   const { data, error } = await supabase.rpc("emitir_senha_totem", { p_unidade_id: unidadeId, p_setor_codigo: setorCodigo, p_prioridade: prioridade });
-  const senha = Array.isArray(data) ? data[0]?.senha : null;
+  const emitida = Array.isArray(data) ? data[0] : null;
+  const senha = emitida?.senha ?? null;
+  const senhaId = emitida?.id ?? emitida?.senha_id ?? null;
   if (error || !senha) redirect(`/totem/${unidadeId}?erro=1`);
-  redirect(`/totem/${unidadeId}?senha=${encodeURIComponent(senha)}`);
+  if (pacienteId && senhaId) await supabase.from("senhas_atendimento").update({ paciente_id: pacienteId }).eq("id", senhaId).eq("unidade_id", unidadeId);
+  redirect(`/totem/${unidadeId}?senha=${encodeURIComponent(senha)}${pacienteId ? "&identificado=1" : ""}`);
 }
 
 async function efetivarChamada(senhaId: string, ponto: string) {
