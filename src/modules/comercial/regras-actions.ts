@@ -29,7 +29,16 @@ export async function salvarPacoteContrato(formData:FormData){
 
 export async function adicionarItemPacote(formData:FormData){
   const {supabase}=await getAssistencialContext();
-  const pacoteId=text(formData,"pacote_id"),codigo=text(formData,"codigo"); if(!pacoteId||!codigo) redirect("/comercial/regras?erro=item-pacote");
-  const {error}=await supabase.from("contrato_pacote_itens").upsert({pacote_id:pacoteId,codigo,tabela:text(formData,"tabela")||null,quantidade_inclusa:num(text(formData,"quantidade_inclusa")),cobranca_excedente:formData.get("cobranca_excedente")==="on"},{onConflict:"pacote_id,codigo,tabela"});
-  if(error) redirect("/comercial/regras?erro=item-pacote-salvar"); revalidatePath("/comercial/regras");
+  const pacoteId=text(formData,"pacote_id"),codigo=text(formData,"codigo"),tabela=text(formData,"tabela");
+  if(!pacoteId||!codigo) redirect("/comercial/regras?erro=item-pacote");
+  const payload={quantidade_inclusa:num(text(formData,"quantidade_inclusa")),cobranca_excedente:formData.get("cobranca_excedente")==="on"};
+  let consulta=supabase.from("contrato_pacote_itens").select("id").eq("pacote_id",pacoteId).eq("codigo",codigo);
+  consulta=tabela?consulta.eq("tabela",tabela):consulta.is("tabela",null);
+  const {data:existente,error:consultaError}=await consulta.limit(1).maybeSingle();
+  if(consultaError) redirect("/comercial/regras?erro=item-pacote-salvar");
+  const resultado=existente
+    ? await supabase.from("contrato_pacote_itens").update(payload).eq("id",existente.id)
+    : await supabase.from("contrato_pacote_itens").insert({pacote_id:pacoteId,codigo,tabela:tabela||null,...payload});
+  if(resultado.error) redirect("/comercial/regras?erro=item-pacote-salvar");
+  revalidatePath("/comercial/regras");
 }
