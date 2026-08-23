@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Bell, BedDouble, BookOpenCheck, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, FolderCog, HeartPulse, LayoutDashboard, Menu, Pill, Search, ShieldCheck, Stethoscope, UserRound, UsersRound, X } from "lucide-react";
+import { Bell, BedDouble, BookOpenCheck, Building2, CalendarDays, ChevronDown, ChevronRight, ClipboardList, FolderCog, HeartPulse, LayoutDashboard, Menu, Pill, Search, ShieldCheck, Stethoscope, TicketCheck, UserRound, UsersRound, X } from "lucide-react";
 import { brand } from "@/config/brand";
 
 const cadastroNav: Array<{ href: Route; label: string; icon: typeof UsersRound }> = [
@@ -14,6 +14,7 @@ const cadastroNav: Array<{ href: Route; label: string; icon: typeof UsersRound }
   { href: "/catalogos", label: "Catálogos", icon: BookOpenCheck },
 ];
 const assistencialNav: Array<{ href: Route; label: string; icon: typeof ClipboardList }> = [
+  { href: "/senhas", label: "Senhas / Recepção", icon: TicketCheck },
   { href: "/atendimentos", label: "Atendimento / ADT", icon: ClipboardList },
   { href: "/agenda", label: "Agenda e recepção", icon: CalendarDays },
   { href: "/triagem", label: "Triagem", icon: HeartPulse },
