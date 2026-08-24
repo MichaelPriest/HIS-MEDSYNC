@@ -35,10 +35,12 @@ export function PatientRemotePicker({
   empresaId,
   value,
   onChange,
+  locked = false,
 }: {
   empresaId: string;
   value: AdmissionPatient | null;
   onChange: (patient: AdmissionPatient | null) => void;
+  locked?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [query, setQuery] = useState("");
@@ -47,7 +49,7 @@ export function PatientRemotePicker({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (value) return;
+    if (value || locked) return;
     const term = query.trim();
     if (term.length < 2) return;
 
@@ -75,9 +77,10 @@ export function PatientRemotePicker({
       active = false;
       window.clearTimeout(timer);
     };
-  }, [empresaId, query, supabase, value]);
+  }, [empresaId, locked, query, supabase, value]);
 
   async function selectPatient(id: string) {
+    if (locked) return;
     setLoading(true);
     setError(null);
     const { data, error: patientError } = await supabase
@@ -106,12 +109,13 @@ export function PatientRemotePicker({
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><UserRound className="size-4" /></span>
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">Paciente selecionado</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">{locked ? "Paciente identificado no Totem" : "Paciente selecionado"}</p>
               <strong className="mt-1 block truncate text-sm text-slate-900">{value.nome_completo}</strong>
               <p className="mt-1 text-xs text-slate-600">{value.ra} · Registro #{value.numero_registro}{value.cpf ? ` · CPF ${value.cpf}` : ""}</p>
+              {locked ? <p className="mt-1 text-xs font-medium text-emerald-700">Vínculo protegido para manter a continuidade da senha com o prontuário correto.</p> : null}
             </div>
           </div>
-          <button type="button" onClick={() => onChange(null)} className="btn-secondary h-9 text-xs"><X className="size-3.5" /> Trocar paciente</button>
+          {!locked ? <button type="button" onClick={() => onChange(null)} className="btn-secondary h-9 text-xs"><X className="size-3.5" /> Trocar paciente</button> : null}
         </div>
       </div>
     );
