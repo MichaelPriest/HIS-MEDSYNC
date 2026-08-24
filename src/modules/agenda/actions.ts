@@ -93,5 +93,22 @@ export async function atualizarStatusAgendamento(formData: FormData) {
   }
 
   revalidatePath("/agenda");
+
+  if (status === "checkin") {
+    const { data: agendamento, error: agendaError } = await supabase
+      .from("agendamentos")
+      .select("cirurgia_eletiva")
+      .eq("id", agendamentoId)
+      .maybeSingle();
+
+    if (agendaError || !agendamento) {
+      console.error("[agenda.checkin] falha ao resolver destino", { code: agendaError?.code ?? "SEM_DADO" });
+      agendaRedirect(retorno, "erro", "acao");
+    }
+
+    if (agendamento.cirurgia_eletiva) redirect(`/assistencial/centro-cirurgico?agendamento=${agendamentoId}` as Route);
+    redirect(`/atendimentos/novo?agendamento=${agendamentoId}` as Route);
+  }
+
   agendaRedirect(retorno, "sucesso", "status");
 }
