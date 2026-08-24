@@ -7,6 +7,17 @@ import { getAssistencialContext } from "@/modules/assistencial/context";
 
 const somenteDigitos = (valor: string) => valor.replace(/\D/g, "");
 
+function dataSaoPaulo() {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 function erroTotem(message?: string | null, code?: string | null) {
   const msg = String(message ?? "");
   if (msg.includes("TOTEM_UNIDADE_INDISPONIVEL")) return "unidade-indisponivel";
@@ -49,6 +60,31 @@ export async function emitirSenhaTotem(formData: FormData) {
   }
   if (acao === "identificar" && cpf.length !== 11) redirect(`/totem/${unidadeId}?erro=cpf-invalido`);
 
+  let nomeExibicao: string | null = null;
+  let cpfFinal: string | null = null;
+
+  if (acao === "identificar") {
+    const consulta = await supabase.rpc("consultar_paciente_totem", {
+      p_unidade_id: unidadeId,
+      p_cpf: cpf,
+    });
+    const info = primeiraLinha(consulta.data) as { localizado?: unknown; nome_exibicao?: unknown; cpf_final?: unknown } | null;
+
+    if (consulta.error) {
+      console.error("[totem] falha ao consultar CPF", {
+        unidadeId,
+        code: consulta.error.code,
+        message: consulta.error.message,
+        details: consulta.error.details,
+      });
+      redirect(`/totem/${unidadeId}?erro=${erroTotem(consulta.error.message, consulta.error.code)}`);
+    }
+    if (!info?.localizado) redirect(`/totem/${unidadeId}?erro=cpf-nao-localizado`);
+
+    nomeExibicao = info.nome_exibicao ? String(info.nome_exibicao) : null;
+    cpfFinal = info.cpf_final ? String(info.cpf_final) : cpf.slice(-2);
+  }
+
   const v2 = await supabase.rpc("emitir_senha_totem_v2", {
     p_unidade_id: unidadeId,
     p_setor_codigo: setorCodigo,
@@ -56,23 +92,25 @@ export async function emitirSenhaTotem(formData: FormData) {
     p_cpf: acao === "identificar" ? cpf : null,
   });
 
-  const emitida = primeiraLinha(v2.data) as { senha?: unknown; identificado?: unknown } | null;
+  const emitida = primeiraLinha(v2.data) as { id?: unknown; senha?: unknown; identificado?: unknown } | null;
+  let ticketId = emitida?.id ? String(emitida.id) : null;
   let senha = emitida?.senha ? String(emitida.senha) : null;
   let identificado = Boolean(emitida?.identificado);
   let erroFinal = v2.error;
 
-  // Compatibilidade com bancos que ainda nao recarregaram a assinatura V2 no PostgREST.
-  // Erros funcionais conhecidos (CPF/unidade/setor/prioridade) nunca sao mascarados pelo fallback.
-  if ((!senha || v2.error) && !erroSemanticoTotem(v2.error?.message)) {
+  // Fallback somente para emissão anônima sem CPF. Uma identificação nunca pode perder
+  // o vínculo com o paciente silenciosamente.
+  if (acao !== "identificar" && (!senha || v2.error) && !erroSemanticoTotem(v2.error?.message)) {
     const legado = await supabase.rpc("emitir_senha_totem", {
       p_unidade_id: unidadeId,
       p_setor_codigo: setorCodigo,
       p_prioridade: prioridade,
     });
-    const emitidaLegada = primeiraLinha(legado.data) as { senha?: unknown } | null;
+    const emitidaLegada = primeiraLinha(legado.data) as { id?: unknown; senha?: unknown } | null;
     const senhaLegada = emitidaLegada?.senha ? String(emitidaLegada.senha) : null;
 
     if (senhaLegada) {
+      ticketId = emitidaLegada?.id ? String(emitidaLegada.id) : null;
       senha = senhaLegada;
       identificado = false;
       erroFinal = null;
@@ -80,7 +118,6 @@ export async function emitirSenhaTotem(formData: FormData) {
         unidadeId,
         setorCodigo,
         prioridade,
-        acao,
         v2Code: v2.error?.code,
         v2Message: v2.error?.message,
       });
@@ -90,13 +127,10 @@ export async function emitirSenhaTotem(formData: FormData) {
         unidadeId,
         setorCodigo,
         prioridade,
-        acao,
         v2Code: v2.error?.code,
         v2Message: v2.error?.message,
         legadoCode: legado.error.code,
         legadoMessage: legado.error.message,
-        legadoDetails: legado.error.details,
-        legadoHint: legado.error.hint,
       });
     }
   }
@@ -117,7 +151,12 @@ export async function emitirSenhaTotem(formData: FormData) {
     redirect(`/totem/${unidadeId}?erro=${erroTotem(erroFinal?.message ?? v2.error?.message, erroFinal?.code ?? v2.error?.code)}`);
   }
 
-  redirect(`/totem/${unidadeId}?senha=${encodeURIComponent(senha)}${identificado ? "&identificado=1" : ""}`);
+  const query = new URLSearchParams({ senha });
+  if (ticketId) query.set("ticket", ticketId);
+  if (identificado) query.set("identificado", "1");
+  if (identificado && nomeExibicao) query.set("nome", nomeExibicao);
+  if (identificado && cpfFinal) query.set("cpfFinal", cpfFinal);
+  redirect(`/totem/${unidadeId}?${query.toString()}`);
 }
 
 async function efetivarChamada(senhaId: string, ponto: string) {
@@ -142,7 +181,7 @@ export async function chamarProximaSenha(formData: FormData) {
   const ponto = String(formData.get("ponto_atendimento") ?? "").trim();
   const setorId = String(formData.get("setor_id") ?? "").trim();
   if (!ponto || !setorId) redirect("/senhas?erro=1");
-  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const hoje = dataSaoPaulo();
   const { data: fila } = await supabase.from("senhas_atendimento").select("id,prioridade,sequencial").eq("unidade_id", unidadeId).eq("setor_id", setorId).eq("data_referencia", hoje).eq("status", "aguardando").limit(200);
   const peso: Record<string, number> = { emergencia: 0, preferencial: 1, normal: 2 };
   const proxima = (fila ?? []).sort((a, b) => (peso[String(a.prioridade)] ?? 9) - (peso[String(b.prioridade)] ?? 9) || Number(a.sequencial) - Number(b.sequencial))[0];
