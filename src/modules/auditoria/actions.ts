@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getAssistencialContext } from "@/modules/assistencial/context";
+import { requirePermission } from "@/lib/permissions/server";
 
 const txt = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
 const go = (query: string): never => redirect(`/auditoria?${query}` as never);
 
 export async function executarAuditoriaAutomatica(formData: FormData) {
-  const { supabase } = await getAssistencialContext();
+  const { supabase } = await requirePermission("auditoria.executar");
   const auditoriaId = txt(formData, "auditoria_id");
   if (!auditoriaId) return go("erro=auditoria");
 
@@ -22,7 +22,7 @@ export async function executarAuditoriaAutomatica(formData: FormData) {
 }
 
 export async function resolverPendenciaAuditoria(formData: FormData) {
-  const { supabase } = await getAssistencialContext();
+  const { supabase } = await requirePermission("auditoria.executar");
   const itemId = txt(formData, "item_id");
   if (!itemId) return go("erro=pendencia");
 
@@ -37,7 +37,7 @@ export async function resolverPendenciaAuditoria(formData: FormData) {
 }
 
 export async function reabrirPendenciaAuditoria(formData: FormData) {
-  const { supabase } = await getAssistencialContext();
+  const { supabase } = await requirePermission("auditoria.executar");
   const itemId = txt(formData, "item_id");
   if (!itemId) return go("erro=pendencia");
 

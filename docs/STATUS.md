@@ -6,8 +6,8 @@ Este documento separa **estrutura criada**, **funcionalidade inicial** e **módu
 
 | Área | Estado atual | Próximos pontos críticos |
 |---|---|---|
-| Fundação / Auth / multiempresa | Funcional em evolução | permissões granulares, auditoria e testes RLS completos |
-| Interface / navegação | Funcional em evolução; áreas de trabalho, navegação contextual, contexto do episódio e redução progressiva de formulários consolidados no PR #5 | refinamento por perfil, acessibilidade, busca global ampliada e testes de usabilidade |
+| Fundação / Auth / multiempresa | Funcional em evolução; RBAC granular, navegação por perfil, central de acessos e testes automatizados ampliados no PR #6 | proteção granular progressiva de server actions/RPCs, testes RLS multi-tenant completos e break-glass clínico |
+| Interface / navegação | Funcional em evolução; áreas de trabalho, navegação contextual, contexto do episódio e redução progressiva de formulários consolidados no PR #5; filtro de navegação por permissões no PR #6 | acessibilidade, busca global ampliada e testes de usabilidade |
 | Pacientes / Profissionais / Convênios | Funcional em evolução | validações, documentos, contratos e fluxos especializados |
 | Totem / Senhas / Recepção | Base funcional | regras operacionais, impressão e homologação de painéis |
 | Atendimento / ADT | Base funcional | completar regras de episódios e documentos |
@@ -22,11 +22,11 @@ Este documento separa **estrutura criada**, **funcionalidade inicial** e **módu
 | Almoxarifado | Base funcional; UX consolidada em visão operacional no PR #5 | inventário, requisições, reposição, rastreabilidade |
 | Comercial / Credenciamento | Base avançada | alimentar contratos reais e regras específicas |
 | Tabelas comerciais | Base avançada | importar/gerenciar dados reais licenciados e versões |
-| Auditoria pós-alta | Base funcional | regras automáticas e auditoria clínica/administrativa |
-| Contas Médicas | Base funcional | checklist por convênio e automações de conferência |
+| Auditoria pós-alta | Base funcional | regras automáticas, autorização RPC específica e auditoria clínica/administrativa |
+| Contas Médicas | Base funcional | checklist por convênio, autorização RPC específica e automações de conferência |
 | GED | Base funcional | upload/visualização/versionamento/assinaturas completos |
 | Conta hospitalar | Base funcional | pacotes, consumo automático e fechamento operacional |
-| Motor contratual | Base avançada | ampliar regras reais por contrato e homologar cálculos |
+| Motor contratual | Base avançada | ampliar regras reais por contrato, autorização RPC específica e homologar cálculos |
 | TISS | Estrutura funcional, não homologada | XSD ANS, XML definitivo, adapters de operadoras |
 | Glosas / Recursos | Base funcional | importação automática de demonstrativos e XML definitivo |
 | Financeiro | Parcial; integrado visualmente ao ciclo da receita no PR #5 | baixas, retenções, conciliação, contas a pagar e caixa |
@@ -35,6 +35,12 @@ Este documento separa **estrutura criada**, **funcionalidade inicial** e **módu
 | Centro Cirúrgico / CME | Não concluído | desenvolver fluxo completo |
 | Urgência/Emergência | Não concluído | desenvolver fluxo completo |
 | Nutrição / Hemoterapia etc. | Não iniciado/concluído | definir escopo e implementar |
+
+## Segurança e autorização
+
+O PR #6 introduz catálogo granular de permissões, navegação por perfil e uma Central de Acessos em `/configuracoes/acessos`. A matriz operacional exibida pela aplicação usa `public.permissoes` como fonte de verdade; o catálogo TypeScript existe apenas para os códigos que o código da aplicação precisa referenciar estaticamente.
+
+O CI do PR #6 executa `lint`, `typecheck`, testes unitários, `build`, instalação do Chromium e smoke E2E público com Playwright. O endurecimento dos RPCs `SECURITY DEFINER` continua sendo incremental e deve preservar apenas endpoints públicos intencionais (por exemplo, totem/painel) e exigir permissão funcional explícita nos fluxos autenticados sensíveis.
 
 ## Travas de negócio já planejadas/implementadas
 
@@ -56,6 +62,6 @@ A conta não deve pular Auditoria ou Contas Médicas. XML preliminar não deve s
 
 ## Qualidade e deploy
 
-O projeto deve continuar passando por `lint`, `typecheck`, testes e `build`. O check da Vercel pode falhar por **build rate limit**; esse caso deve ser distinguido de falha real de compilação.
+O projeto deve continuar passando por `lint`, `typecheck`, testes, `build` e smoke E2E. O check da Vercel pode falhar por **build rate limit**; esse caso deve ser distinguido de falha real de compilação.
 
-Consulte também [`MANUAL.md`](MANUAL.md), [`UX-CONSOLIDACAO.md`](UX-CONSOLIDACAO.md) e o módulo interno `/manual`.
+Consulte também [`MANUAL.md`](MANUAL.md), [`UX-CONSOLIDACAO.md`](UX-CONSOLIDACAO.md), [`MATRIZ_PERMISSOES.md`](MATRIZ_PERMISSOES.md), [`SEGURANCA.md`](SEGURANCA.md) e o módulo interno `/manual`.

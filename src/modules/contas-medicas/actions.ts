@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getAssistencialContext } from "@/modules/assistencial/context";
+import { requirePermission } from "@/lib/permissions/server";
 
 const txt = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
 const go = (processoId: string, query: string): never =>
   redirect(`/contas-medicas/${processoId}?${query}` as never);
 
 export async function resolverPendenciaContaMedica(formData: FormData) {
-  const { supabase, user } = await getAssistencialContext();
+  const { supabase, user } = await requirePermission("contas_medicas.processar");
   const processoId = txt(formData, "processo_id");
   const pendenciaId = txt(formData, "pendencia_id");
   if (!processoId || !pendenciaId) return go(processoId || "", "erro=pendencia");
@@ -30,7 +30,7 @@ export async function resolverPendenciaContaMedica(formData: FormData) {
 }
 
 export async function reabrirPendenciaContaMedica(formData: FormData) {
-  const { supabase } = await getAssistencialContext();
+  const { supabase } = await requirePermission("contas_medicas.processar");
   const processoId = txt(formData, "processo_id");
   const pendenciaId = txt(formData, "pendencia_id");
   if (!processoId || !pendenciaId) return go(processoId || "", "erro=pendencia");
