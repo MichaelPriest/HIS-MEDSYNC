@@ -104,6 +104,36 @@ with check (
   and updated_by = (select auth.uid())
 );
 
+-- A tela de estrutura também mantém a tabela operacional de setores.
+-- Mantemos SELECT já existente e adicionamos somente escrita autorizada.
+grant select, insert, update on table public.setores to authenticated;
+
+drop policy if exists setores_insert_estrutura on public.setores;
+create policy setores_insert_estrutura
+on public.setores
+for insert
+to authenticated
+with check (
+  public.tem_unidade(empresa_id, unidade_id)
+  and public.tem_permissao(empresa_id, unidade_id, 'estrutura.criar')
+  and created_by = (select auth.uid())
+);
+
+drop policy if exists setores_update_estrutura on public.setores;
+create policy setores_update_estrutura
+on public.setores
+for update
+to authenticated
+using (
+  public.tem_unidade(empresa_id, unidade_id)
+  and public.tem_permissao(empresa_id, unidade_id, 'estrutura.editar')
+)
+with check (
+  public.tem_unidade(empresa_id, unidade_id)
+  and public.tem_permissao(empresa_id, unidade_id, 'estrutura.editar')
+  and updated_by = (select auth.uid())
+);
+
 comment on table public.estruturas_fisicas is
   'Hierarquia física da unidade hospitalar: blocos, andares, alas, setores, UTI, centro cirúrgico, consultórios e demais áreas.';
 comment on column public.estruturas_fisicas.parent_id is
