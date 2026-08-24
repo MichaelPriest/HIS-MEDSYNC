@@ -64,14 +64,18 @@ export default async function AltaPacientePage({
   ]);
   if (!unidadeId) return null;
 
-  const [internacaoReq, pendenciasReq, planosReq, conciliacoesReq, sumariosReq] = await Promise.all([
-    supabase
-      .from("internacoes")
-      .select("id,atendimento_id,setor,quarto,leito,motivo,previsao_alta,data_internacao,status,atendimento:atendimentos(id,numero_atendimento,paciente:pacientes(nome_completo,ra))")
-      .eq("id", internacaoId)
-      .eq("empresa_id", empresaId)
-      .eq("unidade_id", unidadeId)
-      .maybeSingle(),
+  const { data: internacaoData } = await supabase
+    .from("internacoes")
+    .select("id,atendimento_id,setor,quarto,leito,motivo,previsao_alta,data_internacao,status,atendimento:atendimentos(id,numero_atendimento,paciente:pacientes(nome_completo,ra))")
+    .eq("id", internacaoId)
+    .eq("empresa_id", empresaId)
+    .eq("unidade_id", unidadeId)
+    .maybeSingle();
+
+  const internacao = internacaoData as Internacao | null;
+  if (!internacao) notFound();
+
+  const [pendenciasReq, planosReq, conciliacoesReq, sumariosReq] = await Promise.all([
     supabase
       .from("alta_pendencias")
       .select("id,codigo,descricao,categoria,bloqueia_alta,status,justificativa")
@@ -90,7 +94,7 @@ export default async function AltaPacientePage({
     supabase
       .from("conciliacoes_medicamentosas")
       .select("id,medicamento,dose_domiciliar,decisao,conciliado_em")
-      .eq("internacao_id", internacaoId)
+      .eq("atendimento_id", internacao.atendimento_id)
       .eq("empresa_id", empresaId)
       .eq("unidade_id", unidadeId)
       .eq("momento", "alta")
@@ -104,8 +108,6 @@ export default async function AltaPacientePage({
       .order("created_at", { ascending: false }),
   ]);
 
-  const internacao = internacaoReq.data as Internacao | null;
-  if (!internacao) notFound();
   const atendimento = one(internacao.atendimento);
   const paciente = one(atendimento?.paciente ?? null);
   const pendencias = (pendenciasReq.data ?? []) as Pendencia[];
