@@ -29,7 +29,7 @@ function BotaoIdentificar({ pronto }: { pronto: boolean }) {
   );
 }
 
-export function CpfVirtualKeyboard({ unidadeId }: { unidadeId: string }) {
+export function CpfVirtualKeyboard({ unidadeId, prioridade }: { unidadeId: string; prioridade: "normal" | "preferencial" | "emergencia" }) {
   const [cpf, setCpf] = useState("");
   const digitar = (numero: string) => setCpf((atual) => (atual.length < 11 ? `${atual}${numero}` : atual));
   const apagar = () => setCpf((atual) => atual.slice(0, -1));
@@ -39,7 +39,7 @@ export function CpfVirtualKeyboard({ unidadeId }: { unidadeId: string }) {
     <form action={emitirSenhaTotem} className="grid gap-5 lg:grid-cols-[1fr_320px]">
       <input type="hidden" name="unidade_id" value={unidadeId} />
       <input type="hidden" name="setor_codigo" value="recepcao" />
-      <input type="hidden" name="prioridade" value="normal" />
+      <input type="hidden" name="prioridade" value={prioridade} />
       <input type="hidden" name="cpf" value={cpf} />
 
       <div>
@@ -47,9 +47,7 @@ export function CpfVirtualKeyboard({ unidadeId }: { unidadeId: string }) {
         <div className="mt-2 flex min-h-16 items-center rounded-2xl border-2 border-brand-100 bg-slate-50 px-5 text-3xl font-black tracking-[0.08em] text-brand-950 shadow-inner">
           {cpf ? formatarCpf(cpf) : <span className="text-slate-300">000.000.000-00</span>}
         </div>
-        <p className="mt-3 text-sm leading-6 text-slate-500">
-          Use o teclado ao lado. O sistema confirma somente informações mínimas do cadastro antes de emitir a senha.
-        </p>
+        <p className="mt-3 text-sm leading-6 text-slate-500">Use o teclado ao lado. A prioridade escolhida será mantida na senha.</p>
         <div className="mt-5 rounded-2xl border border-brand-100 bg-brand-50/70 p-4 text-sm text-brand-950">
           <strong>Privacidade:</strong> após localizar o CPF, o Totem mostra apenas o nome abreviado e os últimos dígitos do documento.
         </div>
@@ -58,38 +56,11 @@ export function CpfVirtualKeyboard({ unidadeId }: { unidadeId: string }) {
 
       <div className="grid grid-cols-3 gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-inner">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((numero) => (
-          <button
-            key={numero}
-            type="button"
-            onClick={() => digitar(numero)}
-            className="grid h-16 place-items-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-900 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 active:scale-95"
-          >
-            {numero}
-          </button>
+          <button key={numero} type="button" onClick={() => digitar(numero)} className="grid h-16 place-items-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-900 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 active:scale-95">{numero}</button>
         ))}
-        <button
-          type="button"
-          onClick={limpar}
-          className="grid h-16 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100 active:scale-95"
-          aria-label="Limpar CPF"
-        >
-          <Eraser className="size-6" />
-        </button>
-        <button
-          type="button"
-          onClick={() => digitar("0")}
-          className="grid h-16 place-items-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-900 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 active:scale-95"
-        >
-          0
-        </button>
-        <button
-          type="button"
-          onClick={apagar}
-          className="grid h-16 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100 active:scale-95"
-          aria-label="Apagar último número"
-        >
-          <Delete className="size-6" />
-        </button>
+        <button type="button" onClick={limpar} className="grid h-16 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100 active:scale-95" aria-label="Limpar CPF"><Eraser className="size-6" /></button>
+        <button type="button" onClick={() => digitar("0")} className="grid h-16 place-items-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-900 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 active:scale-95">0</button>
+        <button type="button" onClick={apagar} className="grid h-16 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100 active:scale-95" aria-label="Apagar último número"><Delete className="size-6" /></button>
       </div>
     </form>
   );
