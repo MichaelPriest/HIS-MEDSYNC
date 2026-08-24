@@ -49,16 +49,16 @@ select ok(
 select ok(
   exists (
     select 1 from pg_constraint
-    where conname='itens_assistenciais_tabela_tiss_codigo_check'
-      and pg_get_constraintdef(oid) like '%00%98%18%19%20%22%'
+    where conname='itens_assistenciais_tabela_tiss_check'
+      and pg_get_constraintdef(oid) like '%00%18%19%20%22%98%'
   ),
-  'catalogo admite tabelas TISS 00, 98, 18, 19, 20 e 22'
+  'catalogo admite tabelas TISS 00, 18, 19, 20, 22 e 98'
 );
 
 select ok(
   exists (
     select 1 from pg_constraint
-    where conname='itens_assistenciais_tiss_codigo_check'
+    where conname='itens_assistenciais_pacote_codigo_check'
       and pg_get_constraintdef(oid) like '%pacote%98%'
       and pg_get_constraintdef(oid) like '%codigo_tabela_propria%'
   ),
