@@ -88,6 +88,7 @@ export const permissions = [
   "internacao.admitir",
   "internacao.movimentar",
   "internacao.alta",
+  "leitos.gerenciar",
   "centro_cirurgico.visualizar",
   "centro_cirurgico.operar",
   "nutricao.visualizar",
