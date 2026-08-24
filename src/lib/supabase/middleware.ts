@@ -44,6 +44,17 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
+  const publicRoute =
+    request.nextUrl.pathname === "/login" ||
+    request.nextUrl.pathname.startsWith("/recuperar-senha");
+  const hasAuthCookie = request.cookies
+    .getAll()
+    .some(({ name }) => name.startsWith("sb-") && name.includes("auth-token"));
+
+  // Sem cookie de sessão não há motivo para consultar o Auth remoto em páginas
+  // públicas. Isso também mantém os smoke tests independentes de um projeto real.
+  if (publicRoute && !hasAuthCookie) return response;
+
   let user = null;
 
   try {
@@ -52,10 +63,6 @@ export async function updateSession(request: NextRequest) {
   } catch {
     // Uma indisponibilidade do Auth deve encerrar a sessão sem expor detalhes.
   }
-
-  const publicRoute =
-    request.nextUrl.pathname === "/login" ||
-    request.nextUrl.pathname.startsWith("/recuperar-senha");
 
   if (!user && !publicRoute) {
     return NextResponse.redirect(new URL("/login", request.url));
