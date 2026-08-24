@@ -20,7 +20,7 @@ function agendaReturn(formData: FormData) {
   return requested.startsWith("/agenda") ? requested : "/agenda";
 }
 
-function agendaRedirect(base: string, key: "erro" | "sucesso", value: string) {
+function agendaRedirect(base: string, key: "erro" | "sucesso", value: string): never {
   const separator = base.includes("?") ? "&" : "?";
   redirect(`${base}${separator}${key}=${encodeURIComponent(value)}` as Route);
 }
