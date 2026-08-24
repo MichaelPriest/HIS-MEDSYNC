@@ -3,54 +3,40 @@
 import { useMemo, useState } from "react";
 import { FormTabs } from "@/components/cadastros/form-tabs";
 import { MaskedInput } from "@/components/forms/masked-input";
-import { PatientPicker } from "@/components/atendimentos/patient-picker";
-
-type Patient = {
-  id: string;
-  nome_completo: string;
-  cpf: string | null;
-  rg: string | null;
-  cns: string | null;
-  data_nascimento: string;
-  nacionalidade: string | null;
-  estado_civil: string | null;
-  sexo: string | null;
-  telefone: string | null;
-  email: string | null;
-  cep: string | null;
-  logradouro: string | null;
-  numero: string | null;
-  complemento: string | null;
-  bairro: string | null;
-  cidade: string | null;
-  uf: string | null;
-  ra: string;
-  numero_registro: number;
-};
+import { PatientRemotePicker, type AdmissionPatient } from "@/components/atendimentos/patient-remote-picker";
 
 type Profissional = { id: string; nome_completo: string };
 type Convenio = { id: string; nome_fantasia: string; registro_ans: string | null };
 type Plano = { id: string; convenio_id: string; nome: string; codigo: string | null };
 type Tipo = { codigo: string; descricao: string };
 
-export function AdmissionForm({ action, patients, profissionais, convenios, planos, tipos }: {
+export function AdmissionForm({
+  action,
+  empresaId,
+  initialPatient,
+  profissionais,
+  convenios,
+  planos,
+  tipos,
+}: {
   action: (formData: FormData) => void | Promise<void>;
-  patients: Patient[];
+  empresaId: string;
+  initialPatient: AdmissionPatient | null;
   profissionais: Profissional[];
   convenios: Convenio[];
   planos: Plano[];
   tipos: Tipo[];
 }) {
-  const [patientId, setPatientId] = useState("");
-  const patient = useMemo(() => patients.find((item) => item.id === patientId) ?? null, [patients, patientId]);
+  const [patient, setPatient] = useState<AdmissionPatient | null>(initialPatient);
+  const patientId = patient?.id ?? "";
   const [coverage, setCoverage] = useState<"particular" | "convenio">("particular");
   const [convenioId, setConvenioId] = useState("");
   const [atendimentoRn, setAtendimentoRn] = useState(false);
   const planosFiltrados = useMemo(() => planos.filter((item) => item.convenio_id === convenioId), [planos, convenioId]);
 
   const dadosPaciente = <div className="space-y-5">
-    <PatientPicker patients={patients.map((p) => ({ id: p.id, nome_completo: p.nome_completo, cpf: p.cpf, ra: p.ra, numero_registro: p.numero_registro }))} name="paciente_id" value={patientId} onChange={setPatientId} />
-    {patient ? <div className="rounded-2xl border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950"><div className="font-semibold">Paciente localizado</div><div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-xs"><span>Registro #{patient.numero_registro}</span><span>{patient.ra}</span><span>{patient.cpf ? `CPF ${patient.cpf}` : "CPF não informado"}</span></div></div> : null}
+    <PatientRemotePicker empresaId={empresaId} value={patient} onChange={setPatient} />
+    <input type="hidden" name="paciente_id" value={patientId} />
     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2"><span>Nome completo *</span><input name="paciente_nome" defaultValue={patient?.nome_completo ?? ""} key={`nome-${patientId}`} className="ui-input" /></label>
       <label className="space-y-2 text-sm font-medium text-slate-700"><span>CPF</span><MaskedInput name="paciente_cpf" mask="cpf" defaultValue={patient?.cpf ?? ""} key={`cpf-${patientId}`} /></label>
@@ -107,6 +93,6 @@ export function AdmissionForm({ action, patients, profissionais, convenios, plan
 
   return <form noValidate action={action} className="ui-card p-5 sm:p-6">
     <FormTabs tabs={[{ id: "paciente", label: "Paciente", content: dadosPaciente }, { id: "endereco", label: "Endereço", content: endereco }, { id: "cobertura", label: "Particular / Convênio", content: cobertura }, { id: "atendimento", label: "Atendimento", content: atendimento }]} />
-    <div className="mt-8 flex justify-end gap-3 border-t border-slate-100 pt-5"><a href="/atendimentos" className="btn-secondary">Cancelar</a><button className="ui-button-primary">Abrir atendimento</button></div>
+    <div className="mt-8 flex justify-end gap-3 border-t border-slate-100 pt-5"><a href="/atendimentos" className="btn-secondary">Cancelar</a><button disabled={!patient} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">Abrir atendimento</button></div>
   </form>;
 }
