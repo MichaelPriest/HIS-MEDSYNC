@@ -1,5 +1,6 @@
 "use server";
 
+import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
@@ -12,6 +13,16 @@ function optional(formData: FormData, name: string) {
 function toIso(value: string) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function agendaReturn(formData: FormData) {
+  const requested = String(formData.get("retorno") ?? "/agenda").trim();
+  return requested.startsWith("/agenda") ? requested : "/agenda";
+}
+
+function agendaRedirect(base: string, key: "erro" | "sucesso", value: string) {
+  const separator = base.includes("?") ? "&" : "?";
+  redirect(`${base}${separator}${key}=${encodeURIComponent(value)}` as Route);
 }
 
 export async function criarAgendamento(formData: FormData) {
@@ -63,7 +74,7 @@ export async function atualizarStatusAgendamento(formData: FormData) {
   const agendamentoId = String(formData.get("agendamento_id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
   const motivo = optional(formData, "motivo");
-  const retorno = String(formData.get("retorno") ?? "/agenda");
+  const retorno = agendaReturn(formData);
 
   if (!agendamentoId || !status) redirect("/agenda?erro=acao-invalida");
 
@@ -75,12 +86,12 @@ export async function atualizarStatusAgendamento(formData: FormData) {
 
   if (error) {
     const code = String(error.message ?? "");
-    if (code.includes("AGENDA_MOTIVO_CANCELAMENTO_OBRIGATORIO")) redirect(`${retorno}${retorno.includes("?") ? "&" : "?"}erro=motivo-cancelamento`);
-    if (code.includes("AGENDA_TRANSICAO_INVALIDA") || code.includes("AGENDA_STATUS_FINAL")) redirect(`${retorno}${retorno.includes("?") ? "&" : "?"}erro=status`);
+    if (code.includes("AGENDA_MOTIVO_CANCELAMENTO_OBRIGATORIO")) agendaRedirect(retorno, "erro", "motivo-cancelamento");
+    if (code.includes("AGENDA_TRANSICAO_INVALIDA") || code.includes("AGENDA_STATUS_FINAL")) agendaRedirect(retorno, "erro", "status");
     console.error("[agenda.status] falha", { code: error.code });
-    redirect(`${retorno}${retorno.includes("?") ? "&" : "?"}erro=acao`);
+    agendaRedirect(retorno, "erro", "acao");
   }
 
   revalidatePath("/agenda");
-  redirect(`${retorno}${retorno.includes("?") ? "&" : "?"}sucesso=status`);
+  agendaRedirect(retorno, "sucesso", "status");
 }
