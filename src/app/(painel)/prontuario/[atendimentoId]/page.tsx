@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { Activity, BedDouble, ClipboardList, FileHeart, FlaskConical, Pill, ScanLine, ShieldCheck, Stethoscope, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import { SectionPage } from "@/components/painel/section-page";
@@ -27,9 +28,19 @@ export default async function AtendimentoMedicoPage({ params, searchParams }: { 
   const convenio = one(atendimento.convenio);
   const plano = one(atendimento.plano);
 
+  const triagemHref = `/triagem?atendimento=${atendimentoId}` as Route;
+  const evolucaoHref = `/prontuario/${atendimentoId}/clinico` as Route;
+  const prescricaoHref = `/prescricao?atendimento=${atendimentoId}` as Route;
+
   return <SectionPage eyebrow="Assistencial / Atendimento médico" title={paciente?.nome_completo ?? "Paciente"} description={`Atendimento #${atendimento.numero_atendimento ?? "—"} · Registro #${paciente?.numero_registro ?? "—"} · ${paciente?.ra ?? "—"}`}>
     {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Encaminhamento registrado no fluxo assistencial.</div> : null}
     {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">Não foi possível registrar o encaminhamento.</div> : null}
+
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <Link href="/atendimentos" className="text-sm font-semibold text-brand-700 hover:text-brand-900">← Voltar aos atendimentos</Link>
+      <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">Episódio em contexto</span>
+    </div>
+
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <div className="ui-card p-4"><div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><UserRound className="size-4 text-brand-700"/>Paciente</div><p className="mt-3 text-sm text-slate-600">CPF {fmt(paciente?.cpf)} · CNS {fmt(paciente?.cns)}</p><p className="mt-1 text-sm text-slate-600">Nascimento {fmt(paciente?.data_nascimento)} · Sexo {fmt(paciente?.sexo)}</p></div>
       <div className="ui-card p-4"><div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ClipboardList className="size-4 text-brand-700"/>Episódio</div><p className="mt-3 text-sm text-slate-600">{fmt(atendimento.tipo_atendimento)} · {fmt(atendimento.origem)}</p><p className="mt-1 text-sm text-slate-600">Status: {atendimento.status} · Setor: {fmt(atendimento.setor_atual)}</p></div>
@@ -37,7 +48,12 @@ export default async function AtendimentoMedicoPage({ params, searchParams }: { 
       <div className="ui-card p-4"><div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><FileHeart className="size-4 text-brand-700"/>Responsável clínico</div><p className="mt-3 text-sm text-slate-600">{profissional?.nome_completo ?? "Não definido"}</p><p className="mt-1 text-sm text-slate-600">{fmt(profissional?.especialidade)}</p></div>
     </div>
 
-    <div className="mt-5 flex flex-wrap gap-2"><Link className="ui-button-secondary" href="/triagem">Triagem</Link><Link className="ui-button-secondary" href="/prontuario">Nova evolução</Link><Link className="ui-button-secondary" href="/prescricao">Prescrição</Link><Link className="ui-button-secondary" href="/internacao">Internação</Link></div>
+    <section className="ui-card mt-5 p-4 sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div><p className="text-xs font-black uppercase tracking-wider text-brand-600">Jornada do atendimento</p><h2 className="mt-1 font-semibold text-slate-900">Continue sem pesquisar o paciente novamente</h2><p className="mt-1 text-sm text-slate-500">As ações abaixo preservam este atendimento como contexto.</p></div>
+        <div className="flex flex-wrap gap-2"><Link className="ui-button-secondary" href={triagemHref}>Triagem</Link><Link className="ui-button-primary" href={evolucaoHref}>Nova evolução</Link><Link className="ui-button-secondary" href={prescricaoHref}>Prescrição</Link><Link className="ui-button-secondary" href="/internacao">Internação e leitos</Link></div>
+      </div>
+    </section>
 
     <section className="ui-card mt-6 p-5"><div className="flex items-center gap-3"><Stethoscope className="size-5 text-brand-700"/><div><h2 className="font-semibold text-slate-900">Encaminhar para outro setor</h2><p className="text-sm text-slate-500">O paciente entra na fila do setor escolhido sem perder o vínculo com este atendimento.</p></div></div><form action={encaminharSetor} className="mt-4 grid gap-3 lg:grid-cols-[220px_160px_1fr_auto]"><input type="hidden" name="atendimento_id" value={atendimentoId}/><select name="setor_codigo" required defaultValue="" className="ui-input"><option value="">Selecione o setor</option><option value="enfermagem">Enfermagem</option><option value="farmacia">Farmácia</option><option value="laboratorio">Laboratório</option><option value="imagem">Diagnóstico por Imagem</option><option value="internacao">Internação</option></select><select name="prioridade" defaultValue="normal" className="ui-input"><option value="normal">Normal</option><option value="preferencial">Preferencial</option><option value="emergencia">Emergência</option></select><input name="motivo" className="ui-input" placeholder="Motivo / orientação para o setor"/><button className="ui-button-primary">Encaminhar</button></form></section>
 
