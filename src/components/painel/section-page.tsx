@@ -8,6 +8,7 @@ type SectionPageProps = {
   description: string;
   primaryActionLabel?: string;
   primaryActionHref?: Route;
+  actions?: React.ReactNode;
   children?: React.ReactNode;
 };
 
@@ -17,6 +18,7 @@ export function SectionPage({
   description,
   primaryActionLabel,
   primaryActionHref,
+  actions,
   children,
 }: SectionPageProps) {
   return (
@@ -35,7 +37,9 @@ export function SectionPage({
             </div>
           </div>
 
-          {primaryActionLabel && primaryActionHref ? (
+          {actions ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+          ) : primaryActionLabel && primaryActionHref ? (
             <Link
               href={primaryActionHref}
               className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-900 to-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-900/10 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[.985]"
