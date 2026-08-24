@@ -1,25 +1,25 @@
 # Estado real da implementação
 
-Atualizado em 2026-08-23.
+Atualizado em 2026-08-24.
 
 Este documento separa **estrutura criada**, **funcionalidade inicial** e **módulo ainda não homologado**. O MedSync HIS continua em desenvolvimento e não deve ser considerado pronto para produção hospitalar apenas porque determinado menu/tabela existe.
 
 | Área | Estado atual | Próximos pontos críticos |
 |---|---|---|
 | Fundação / Auth / multiempresa | Funcional em evolução | permissões granulares, auditoria e testes RLS completos |
-| Interface / navegação | Funcional | refinamento por perfil e acessibilidade |
+| Interface / navegação | Funcional em evolução; áreas de trabalho, navegação contextual, contexto do episódio e redução progressiva de formulários consolidados no PR #5 | refinamento por perfil, acessibilidade, busca global ampliada e testes de usabilidade |
 | Pacientes / Profissionais / Convênios | Funcional em evolução | validações, documentos, contratos e fluxos especializados |
 | Totem / Senhas / Recepção | Base funcional | regras operacionais, impressão e homologação de painéis |
 | Atendimento / ADT | Base funcional | completar regras de episódios e documentos |
-| Central de Guias | Base funcional | integração automática com solicitações e operadoras |
+| Central de Guias | Base funcional; UX consolidada por fila/status no PR #5 | integração automática com solicitações e operadoras |
 | Triagem / Fila médica | Base funcional | protocolos/escalas e regras clínicas |
-| Prontuário | Parcial | aprofundamento clínico completo |
+| Prontuário | Parcial; usado como workspace central do episódio no PR #5 | aprofundamento clínico completo |
 | Enfermagem | Parcial | SAE, checagem, evolução, balanço, escalas |
 | Farmácia | Parcial | dispensação, devolução, estoque e rastreabilidade |
 | Laboratório / Imagem | Parcial | execução, resultados/laudos e liberação |
 | Internação | Parcial | mapa de leitos, movimentações, diárias e alta |
-| Compras | Base funcional | alçadas, pedido automático, recebimento parcial/divergência |
-| Almoxarifado | Base funcional | inventário, requisições, reposição, rastreabilidade |
+| Compras | Base funcional; UX consolidada por operação no PR #5 | alçadas, pedido automático, recebimento parcial/divergência |
+| Almoxarifado | Base funcional; UX consolidada em visão operacional no PR #5 | inventário, requisições, reposição, rastreabilidade |
 | Comercial / Credenciamento | Base avançada | alimentar contratos reais e regras específicas |
 | Tabelas comerciais | Base avançada | importar/gerenciar dados reais licenciados e versões |
 | Auditoria pós-alta | Base funcional | regras automáticas e auditoria clínica/administrativa |
@@ -29,7 +29,7 @@ Este documento separa **estrutura criada**, **funcionalidade inicial** e **módu
 | Motor contratual | Base avançada | ampliar regras reais por contrato e homologar cálculos |
 | TISS | Estrutura funcional, não homologada | XSD ANS, XML definitivo, adapters de operadoras |
 | Glosas / Recursos | Base funcional | importação automática de demonstrativos e XML definitivo |
-| Financeiro | Parcial | baixas, retenções, conciliação, contas a pagar e caixa |
+| Financeiro | Parcial; integrado visualmente ao ciclo da receita no PR #5 | baixas, retenções, conciliação, contas a pagar e caixa |
 | NFS-e | Estrutura | adapters reais das prefeituras/provedores utilizados |
 | Diretoria | Base | KPIs, filtros, metas, drill-down e governança |
 | Centro Cirúrgico / CME | Não concluído | desenvolver fluxo completo |
@@ -58,4 +58,4 @@ A conta não deve pular Auditoria ou Contas Médicas. XML preliminar não deve s
 
 O projeto deve continuar passando por `lint`, `typecheck`, testes e `build`. O check da Vercel pode falhar por **build rate limit**; esse caso deve ser distinguido de falha real de compilação.
 
-Consulte também [`MANUAL.md`](MANUAL.md) e o módulo interno `/manual`.
+Consulte também [`MANUAL.md`](MANUAL.md), [`UX-CONSOLIDACAO.md`](UX-CONSOLIDACAO.md) e o módulo interno `/manual`.

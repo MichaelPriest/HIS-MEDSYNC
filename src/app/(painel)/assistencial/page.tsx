@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { Activity, Baby, BedDouble, ClipboardCheck, Droplets, FlaskConical, HeartPulse, Pill, Salad, ScanLine, Scissors, ShieldAlert, ShieldCheck, Stethoscope, Syringe, Truck, Wind } from "lucide-react";
+import { Activity, Baby, BedDouble, ChevronDown, ClipboardCheck, Droplets, FlaskConical, HeartPulse, Pill, Salad, ScanLine, Scissors, ShieldAlert, ShieldCheck, Stethoscope, Syringe, Truck, Wind } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { createClient } from "@/lib/supabase/server";
 
@@ -41,7 +41,10 @@ const modules = [
   ["imunizacao","Imunização","Vacina, dose, fabricante, lote, validade, via, local de aplicação e evento adverso.",Syringe,"imunizacoes","/assistencial/imunizacao"],
 ] as const;
 
-const especializados = new Set(["dialise","oncologia","radioterapia","hemodinamica","endoscopia","anatomia-patologica","transplantes","home-care","paliativos","imunizacao"]);
+type AssistencialModule = (typeof modules)[number];
+
+const especializados = new Set<string>(["dialise","oncologia","radioterapia","hemodinamica","endoscopia","anatomia-patologica","transplantes","home-care","paliativos","imunizacao"]);
+const fluxoPrincipal = new Set<string>(["prontuario","sae","medicamentos","laboratorio","imagem","internacao","urgencia","procedimentos","alta"]);
 
 export default async function AssistencialPage() {
   const supabase = await createClient();
@@ -49,30 +52,54 @@ export default async function AssistencialPage() {
     const { count, error } = await supabase.from(table).select("id", { count: "exact", head: true });
     return [slug, error ? null : count ?? 0] as const;
   }));
-  const map = new Map(counts);
+  const countMap = new Map(counts);
+  const principais = modules.filter(([slug]) => fluxoPrincipal.has(slug));
+  const avancados = modules.filter(([slug]) => especializados.has(slug));
+  const complementares = modules.filter(([slug]) => !fluxoPrincipal.has(slug) && !especializados.has(slug));
+
+  const moduleCard = ([slug,title,description,Icon,,href]: AssistencialModule) => {
+    const count = countMap.get(slug);
+    const especializado = especializados.has(slug);
+    return <Link key={slug} href={href as Route} className="group his-card relative overflow-hidden p-5 sm:p-6">
+      <div className="flex items-start justify-between gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-brand-50 text-brand-700 transition group-hover:bg-brand-100"><Icon className="size-5.5" /></span><div className="flex flex-col items-end gap-1.5">{especializado ? <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-violet-700">Especializado</span> : null}<span className="rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">{count === null ? "restrito" : `${count} registro${count === 1 ? "" : "s"}`}</span></div></div>
+      <h3 className="mt-5 text-lg font-black text-slate-950">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-500">{description}</p><span className="mt-5 inline-flex text-xs font-black text-brand-600 transition group-hover:translate-x-1">Abrir área →</span>
+    </Link>;
+  };
 
   return (
-    <SectionPage eyebrow="Assistencial" title="Central Assistencial" description="Prontuário unificado, operação hospitalar e especialidades avançadas integradas ao mesmo paciente e atendimento.">
+    <SectionPage eyebrow="Assistencial" title="Central Assistencial" description="Acesse primeiro os fluxos mais usados e expanda as áreas especializadas somente quando precisar.">
       <section className="rounded-[24px] bg-[linear-gradient(120deg,#0b1f44_0%,#173273_58%,#2563eb_100%)] p-6 text-white shadow-his-float sm:p-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div><p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200/70">Operação clínica integrada</p><h2 className="mt-2 text-2xl font-black tracking-tight">Um episódio assistencial, todas as equipes</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-blue-100/70">Médico, enfermagem, farmácia, diagnóstico, internação e especialidades compartilham atendimento, paciente, rastreabilidade, permissões e histórico clínico sem bancos paralelos.</p></div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[.07] px-4 py-3 text-xs font-semibold text-cyan-100"><strong className="text-xl text-white">{modules.length}</strong><br/>domínios assistenciais</div>
-            <div className="rounded-2xl border border-white/10 bg-white/[.07] px-4 py-3 text-xs font-semibold text-cyan-100"><strong className="text-xl text-white">{especializados.size}</strong><br/>módulos especializados</div>
+            <div className="rounded-2xl border border-white/10 bg-white/[.07] px-4 py-3 text-xs font-semibold text-cyan-100"><strong className="text-xl text-white">{principais.length}</strong><br/>fluxos principais</div>
+            <div className="rounded-2xl border border-white/10 bg-white/[.07] px-4 py-3 text-xs font-semibold text-cyan-100"><strong className="text-xl text-white">{modules.length}</strong><br/>áreas integradas</div>
           </div>
         </div>
       </section>
 
-      <section className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3 ui-stagger">
-        {modules.map(([slug,title,description,Icon,,href]) => {
-          const count = map.get(slug);
-          const especializado = especializados.has(slug);
-          return <Link key={slug} href={href as Route} className="group his-card relative overflow-hidden p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4"><span className="grid size-12 place-items-center rounded-2xl bg-brand-50 text-brand-700 transition group-hover:bg-brand-100"><Icon className="size-5.5" /></span><div className="flex flex-col items-end gap-1.5">{especializado ? <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-violet-700">Especializado</span> : null}<span className="rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">{count === null ? "restrito" : `${count} registro${count === 1 ? "" : "s"}`}</span></div></div>
-            <h2 className="mt-5 text-lg font-black text-slate-950">{title}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{description}</p><span className="mt-5 inline-flex text-xs font-black text-brand-600 transition group-hover:translate-x-1">Abrir módulo →</span>
-          </Link>;
-        })}
+      <section className="mt-6">
+        <div className="mb-4"><p className="text-xs font-black uppercase tracking-[0.16em] text-brand-600">Mais usados</p><h2 className="mt-1 text-xl font-black text-slate-950">Fluxo principal do atendimento</h2><p className="mt-1 text-sm text-slate-500">As áreas essenciais ficam visíveis sem competir com todos os módulos especializados.</p></div>
+        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3 ui-stagger">{principais.map(moduleCard)}</div>
       </section>
+
+      <details className="his-card mt-6 overflow-hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-4 p-5 sm:p-6">
+          <span className="grid size-11 place-items-center rounded-2xl bg-slate-100 text-slate-700"><Activity className="size-5" /></span>
+          <div className="min-w-0 flex-1"><h2 className="font-black text-slate-950">Outras áreas assistenciais</h2><p className="mt-1 text-sm text-slate-500">Centro cirúrgico, UTI, nutrição, hemoterapia, CCIH, obstetrícia e demais fluxos.</p></div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{complementares.length}</span><ChevronDown className="size-5 text-slate-400" />
+        </summary>
+        <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6"><div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{complementares.map(moduleCard)}</div></div>
+      </details>
+
+      <details className="his-card mt-4 overflow-hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-4 p-5 sm:p-6">
+          <span className="grid size-11 place-items-center rounded-2xl bg-violet-50 text-violet-700"><ShieldCheck className="size-5" /></span>
+          <div className="min-w-0 flex-1"><h2 className="font-black text-slate-950">Especialidades avançadas</h2><p className="mt-1 text-sm text-slate-500">Hemodiálise, oncologia, radioterapia, hemodinâmica, transplantes e outros módulos específicos.</p></div>
+          <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700">{avancados.length}</span><ChevronDown className="size-5 text-slate-400" />
+        </summary>
+        <div className="border-t border-slate-100 bg-violet-50/20 p-4 sm:p-6"><div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{avancados.map(moduleCard)}</div></div>
+      </details>
     </SectionPage>
   );
 }

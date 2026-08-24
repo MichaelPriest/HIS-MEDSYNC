@@ -19,9 +19,9 @@ function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-export function AtendimentoPicker({ name = "atendimento_id", atendimentos }: { name?: string; atendimentos: AtendimentoOption[] }) {
+export function AtendimentoPicker({ name = "atendimento_id", atendimentos, defaultValue = "" }: { name?: string; atendimentos: AtendimentoOption[]; defaultValue?: string }) {
   const [query, setQuery] = useState("");
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(defaultValue);
 
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
@@ -57,6 +57,6 @@ export function AtendimentoPicker({ name = "atendimento_id", atendimentos }: { n
         </button>;
       }) : <p className="p-4 text-sm text-slate-500">Nenhum atendimento localizado.</p>}
     </div>
-    {selected ? <div className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-950">Selecionado: <strong>{selected.paciente?.nome_completo ?? "Paciente"}</strong> · Atendimento #{selected.numero_atendimento ?? "—"} · {selected.paciente?.ra ?? "—"}</div> : null}
+    {selected ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-950"><span>Selecionado: <strong>{selected.paciente?.nome_completo ?? "Paciente"}</strong> · Atendimento #{selected.numero_atendimento ?? "—"} · {selected.paciente?.ra ?? "—"}</span><button type="button" onClick={() => { setValue(""); setQuery(""); }} className="text-xs font-bold text-brand-700 hover:text-brand-900">Trocar atendimento</button></div> : null}
   </div>;
 }

@@ -43,18 +43,10 @@ export default async function Dashboard() {
   }));
 
   return (
-    <div className="ui-page-enter space-y-6">
-      <section className="relative overflow-hidden rounded-[24px] bg-[linear-gradient(120deg,#0b1f44_0%,#173273_58%,#1d4ed8_100%)] px-6 py-7 text-white shadow-his-float sm:px-8 sm:py-8">
-        <div className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-cyan-300/15 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-[-80px] left-[36%] size-52 rounded-full bg-blue-300/10 blur-3xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-200/80"><Activity className="size-4" />Central operacional</div>
-            <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-[34px]">Visão geral do hospital</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100/70">Acompanhe recepção, atendimentos, cadastros e operação assistencial em uma única visão.</p>
-          </div>
-          <div className="flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-white/[0.08] px-4 py-3 text-xs font-semibold text-white/85 backdrop-blur"><Clock3 className="size-4 text-cyan-300" />Atualização em tempo real pelo Supabase</div>
-        </div>
+    <div className="ui-page-enter space-y-5">
+      <section className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-his-card sm:flex-row sm:items-center sm:justify-between">
+        <div><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-brand-600"><Activity className="size-3.5" />Central operacional</div><h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Visão geral do hospital</h1><p className="mt-1 text-sm text-slate-500">Escolha uma área de trabalho ou continue um atendimento recente.</p></div>
+        <div className="flex w-fit items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600"><Clock3 className="size-4 text-brand-600" />Dados do escopo atual</div>
       </section>
 
       <DashboardTabs

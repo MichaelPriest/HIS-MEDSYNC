@@ -3,15 +3,19 @@
 import Link from "next/link";
 import type { Route } from "next";
 import {
+  Activity,
   ArrowUpRight,
   BookOpenCheck,
+  Boxes,
   Building2,
   CalendarClock,
   ClipboardList,
   HeartPulse,
+  ShieldCheck,
   Stethoscope,
   TicketCheck,
   UsersRound,
+  WalletCards,
 } from "lucide-react";
 
 type Metric = {
@@ -36,6 +40,15 @@ const metricStyle = {
   pacientes: { Icon: UsersRound, wrap: "bg-cyan-50 text-cyan-700", line: "from-cyan-500 to-sky-400" },
   profissionais: { Icon: Stethoscope, wrap: "bg-emerald-50 text-emerald-700", line: "from-emerald-500 to-teal-400" },
 };
+
+const workspaces: Array<{ href: Route; label: string; description: string; Icon: typeof HeartPulse }> = [
+  { href: "/atendimentos" as Route, label: "Jornada do paciente", description: "Recepção, guia, triagem, fila e prontuário.", Icon: HeartPulse },
+  { href: "/assistencial" as Route, label: "Assistência clínica", description: "Prescrição, internação e domínios assistenciais.", Icon: Activity },
+  { href: "/auditoria" as Route, label: "Ciclo da receita", description: "Auditoria, contas, TISS, glosas e recebimentos.", Icon: WalletCards },
+  { href: "/pacientes" as Route, label: "Cadastros e contratos", description: "Pacientes, profissionais, convênios e tabelas.", Icon: UsersRound },
+  { href: "/compras" as Route, label: "Gestão e suprimentos", description: "Compras, estoque, GED e visão diretiva.", Icon: Boxes },
+  { href: "/configuracoes/paineis" as Route, label: "Configurações", description: "Painéis, integrações TISS e NFS-e.", Icon: ShieldCheck },
+];
 
 const quickLinks: Array<{ href: Route; label: string; Icon: typeof TicketCheck }> = [
   { href: "/senhas" as Route, label: "Recepção", Icon: TicketCheck },
@@ -69,6 +82,15 @@ export function DashboardTabs({
 }) {
   return (
     <div className="space-y-5">
+      <section>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div><p className="his-eyebrow">Central de trabalho</p><h2 className="mt-1 text-lg font-black text-slate-900">Entrar por área, continuar pelo fluxo</h2></div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {workspaces.map(({ href, label, description, Icon }) => <Link key={href} href={href} className="group his-card flex items-start gap-4 p-4 hover:border-brand-200 hover:shadow-his-float"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Icon className="size-4.5" /></span><span className="min-w-0 flex-1"><strong className="block text-sm text-slate-900">{label}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span></span><ArrowUpRight className="size-4 shrink-0 text-slate-300 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-600" /></Link>)}
+        </div>
+      </section>
+
       <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4 ui-stagger">
         {metrics.map((metric) => {
           const style = metricStyle[metric.icon];
@@ -94,7 +116,7 @@ export function DashboardTabs({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
             <div>
               <p className="his-eyebrow">Operação assistencial</p>
-              <h2 className="mt-1 text-lg font-bold text-slate-900">Atendimentos recentes</h2>
+              <h2 className="mt-1 text-lg font-bold text-slate-900">Continuar atendimentos</h2>
             </div>
             <Link href={"/atendimentos" as Route} className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-600 hover:text-brand-700">Ver todos <ArrowUpRight className="size-3.5" /></Link>
           </div>
@@ -102,15 +124,16 @@ export function DashboardTabs({
           {recentAtendimentos.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead><tr><th className="px-5 py-3.5 sm:px-6">Atendimento</th><th className="px-5 py-3.5">Paciente</th><th className="px-5 py-3.5">Tipo</th><th className="px-5 py-3.5">Status</th><th className="px-5 py-3.5">Data</th></tr></thead>
+                <thead><tr><th className="px-5 py-3.5 sm:px-6">Atendimento</th><th className="px-5 py-3.5">Paciente</th><th className="px-5 py-3.5">Tipo</th><th className="px-5 py-3.5">Status</th><th className="px-5 py-3.5">Data</th><th className="px-5 py-3.5 text-right">Ação</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {recentAtendimentos.map((item) => (
-                    <tr key={item.id}>
+                    <tr key={item.id} className="hover:bg-slate-50/60">
                       <td className="px-5 py-4 font-bold text-brand-900 sm:px-6">#{item.numero}</td>
                       <td className="max-w-56 truncate px-5 py-4 font-semibold text-slate-800">{item.paciente}</td>
                       <td className="px-5 py-4 text-slate-500">{item.tipo}</td>
                       <td className="px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ring-1 ring-inset ${statusClass(item.status)}`}>{item.status.replaceAll("_", " ")}</span></td>
                       <td className="whitespace-nowrap px-5 py-4 text-slate-500">{formatDate(item.data)}</td>
+                      <td className="px-5 py-4 text-right"><Link href={`/prontuario/${item.id}` as Route} className="inline-flex items-center gap-1 text-xs font-bold text-brand-700 hover:text-brand-900">Abrir <ArrowUpRight className="size-3.5" /></Link></td>
                     </tr>
                   ))}
                 </tbody>
@@ -130,7 +153,7 @@ export function DashboardTabs({
 
           <article className="overflow-hidden rounded-[20px] bg-[linear-gradient(145deg,#0b1f44_0%,#173273_100%)] p-5 text-white shadow-his-card sm:p-6">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200/65">Acesso rápido</p>
-            <h2 className="mt-1 text-lg font-bold">Fluxo operacional</h2>
+            <h2 className="mt-1 text-lg font-bold">Jornada mais usada</h2>
             <div className="mt-5 grid grid-cols-2 gap-2.5">
               {quickLinks.map(({ href, label, Icon }) => (
                 <Link key={href} href={href} className="group rounded-2xl border border-white/10 bg-white/[0.065] p-3.5 hover:bg-white/[0.11]">

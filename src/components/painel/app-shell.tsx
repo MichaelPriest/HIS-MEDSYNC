@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   Activity,
-  Bell,
   BedDouble,
   BookOpenCheck,
   Boxes,
@@ -17,6 +16,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  FileText,
   FlaskConical,
   FolderCog,
   Handshake,
@@ -42,79 +42,142 @@ import {
 import { brand } from "@/config/brand";
 
 type NavItem = { href: string; label: string; icon: typeof UsersRound };
+type NavGroup = { key: string; label: string; shortLabel: string; icon: typeof UsersRound; items: NavItem[] };
+
+const jornadaNav: NavItem[] = [
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
+  { href: "/senhas", label: "Recepção", icon: TicketCheck },
+  { href: "/atendimentos", label: "Atendimentos", icon: ClipboardList },
+  { href: "/central-guias", label: "Guias", icon: ClipboardCheck },
+  { href: "/autorizacoes", label: "Autorizações", icon: ShieldCheck },
+  { href: "/triagem", label: "Triagem", icon: HeartPulse },
+  { href: "/fila-medica", label: "Fila médica", icon: Stethoscope },
+  { href: "/prontuario", label: "Prontuário", icon: ClipboardCheck },
+];
+
+const assistenciaNav: NavItem[] = [
+  { href: "/assistencial", label: "Central Assistencial", icon: Activity },
+  { href: "/prescricao", label: "Prescrição", icon: Pill },
+  { href: "/internacao", label: "Internação e leitos", icon: BedDouble },
+];
+
+const setoresNav: NavItem[] = [
+  { href: "/setores/enfermagem", label: "Enfermagem", icon: Activity },
+  { href: "/setores/farmacia", label: "Farmácia", icon: Pill },
+  { href: "/setores/laboratorio", label: "Laboratório", icon: FlaskConical },
+  { href: "/setores/imagem", label: "Imagem", icon: ScanLine },
+  { href: "/setores/internacao", label: "Internação", icon: BedDouble },
+];
 
 const cadastroNav: NavItem[] = [
   { href: "/pacientes", label: "Pacientes", icon: UsersRound },
   { href: "/profissionais", label: "Profissionais", icon: Stethoscope },
   { href: "/convenios", label: "Convênios", icon: Building2 },
   { href: "/catalogos", label: "Catálogos", icon: BookOpenCheck },
+  { href: "/comercial", label: "Credenciamento", icon: Handshake },
+  { href: "/comercial/procedimentos", label: "Procedimentos", icon: ClipboardList },
+  { href: "/comercial/regras", label: "Regras contratuais", icon: ShieldCheck },
+  { href: "/comercial/tabelas", label: "Tabelas comerciais", icon: ReceiptText },
 ];
-const assistencialNav: NavItem[] = [
-  { href: "/assistencial", label: "Central Assistencial", icon: Activity },
-  { href: "/senhas", label: "Senhas / Recepção", icon: TicketCheck },
-  { href: "/atendimentos", label: "Atendimento / ADT", icon: ClipboardList },
-  { href: "/central-guias", label: "Central de Guias", icon: ClipboardCheck },
-  { href: "/autorizacoes", label: "Autorizações", icon: ShieldCheck },
-  { href: "/agenda", label: "Agenda e recepção", icon: CalendarDays },
-  { href: "/triagem", label: "Triagem", icon: HeartPulse },
-  { href: "/fila-medica", label: "Minha fila médica", icon: Stethoscope },
-  { href: "/prontuario", label: "Prontuário", icon: ShieldCheck },
-  { href: "/prescricao", label: "Prescrição", icon: Pill },
-  { href: "/internacao", label: "Internação", icon: BedDouble },
-];
-const setoresNav: NavItem[] = [
-  { href: "/setores/enfermagem", label: "Enfermagem", icon: Activity },
-  { href: "/setores/farmacia", label: "Farmácia", icon: Pill },
-  { href: "/setores/laboratorio", label: "Laboratório", icon: FlaskConical },
-  { href: "/setores/imagem", label: "Imagem", icon: ScanLine },
-  { href: "/setores/internacao", label: "Fila de internação", icon: BedDouble },
-];
-const corporativoNav: NavItem[] = [
+
+const gestaoNav: NavItem[] = [
+  { href: "/diretoria", label: "Diretoria", icon: LayoutDashboard },
+  { href: "/ged", label: "GED", icon: FileText },
   { href: "/compras", label: "Compras", icon: ShoppingCart },
-  { href: "/almoxarifado", label: "Almoxarifado / Estoque", icon: Boxes },
-  { href: "/auditoria", label: "Auditoria de contas", icon: ShieldCheck },
-  { href: "/comercial", label: "Comercial / Credenciamento", icon: Handshake },
+  { href: "/almoxarifado", label: "Estoque", icon: Boxes },
 ];
-const financeiroNav: NavItem[] = [
+
+const receitaNav: NavItem[] = [
+  { href: "/auditoria", label: "Auditoria", icon: ShieldCheck },
+  { href: "/contas-medicas", label: "Contas médicas", icon: ClipboardCheck },
   { href: "/faturamento", label: "Pré-faturamento", icon: ReceiptText },
   { href: "/faturamento/lotes", label: "Lotes TISS", icon: ReceiptText },
   { href: "/faturamento/glosas", label: "Glosas e recursos", icon: ReceiptText },
-  { href: "/financeiro", label: "Contas a receber", icon: WalletCards },
-  { href: "/financeiro/notas-fiscais", label: "Notas fiscais / NFS-e", icon: ReceiptText },
+  { href: "/financeiro", label: "Recebimentos", icon: WalletCards },
+  { href: "/financeiro/notas-fiscais", label: "Notas fiscais", icon: FileText },
 ];
 
-const allNav = [...cadastroNav, ...assistencialNav, ...setoresNav, ...corporativoNav, ...financeiroNav];
+const configuracaoNav: NavItem[] = [
+  { href: "/configuracoes/paineis", label: "Painéis e chamadas", icon: MonitorCog },
+  { href: "/configuracoes/tiss-webservices", label: "Webservices TISS", icon: Cable },
+  { href: "/configuracoes/nfse", label: "Prefeituras / NFS-e", icon: Landmark },
+];
+
+const navGroups: NavGroup[] = [
+  { key: "jornada", label: "Jornada do paciente", shortLabel: "Jornada", icon: HeartPulse, items: jornadaNav },
+  { key: "assistencia", label: "Assistência clínica", shortLabel: "Assistência", icon: Stethoscope, items: assistenciaNav },
+  { key: "setores", label: "Execução por setor", shortLabel: "Setores", icon: ClipboardList, items: setoresNav },
+  { key: "cadastros", label: "Cadastros e contratos", shortLabel: "Cadastros", icon: FolderCog, items: cadastroNav },
+  { key: "gestao", label: "Gestão e suprimentos", shortLabel: "Gestão", icon: Building2, items: gestaoNav },
+  { key: "receita", label: "Ciclo da receita", shortLabel: "Receita", icon: WalletCards, items: receitaNav },
+  { key: "configuracoes", label: "Configurações", shortLabel: "Config.", icon: MonitorCog, items: configuracaoNav },
+];
+
+const allNav = navGroups.flatMap((group) => group.items);
+
+function pathMatches(pathname: string, item: NavItem) {
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+}
+
+function activeItem(pathname: string) {
+  return [...allNav].sort((a, b) => b.href.length - a.href.length).find((item) => pathMatches(pathname, item)) ?? null;
+}
+
+function activeGroup(pathname: string) {
+  const item = activeItem(pathname);
+  if (!item) return null;
+  return navGroups.find((group) => group.items.some((candidate) => candidate.href === item.href)) ?? null;
+}
 
 function currentTitle(pathname: string) {
   if (pathname === "/painel") return "Visão geral";
   if (pathname.startsWith("/manual")) return "Manual do sistema";
-  const item = [...allNav].sort((a, b) => b.href.length - a.href.length).find((nav) => pathname === nav.href || pathname.startsWith(`${nav.href}/`));
-  if (item) return item.label;
-  if (pathname.startsWith("/configuracoes/paineis")) return "Painéis e chamadas";
-  if (pathname.startsWith("/configuracoes/tiss-webservices")) return "Webservices TISS";
-  if (pathname.startsWith("/configuracoes/nfse")) return "Prefeituras / NFS-e";
-  return "MedSync HIS";
+  if (pathname.startsWith("/meu-perfil")) return "Meu perfil";
+  return activeItem(pathname)?.label ?? "MedSync HIS";
 }
 
 function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; unidadeId?: string | null }) {
   const pathname = usePathname();
-  const cadastrosAtivo = cadastroNav.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
-  const [cadastrosOpen, setCadastrosOpen] = useState(true);
+  const selected = activeItem(pathname);
+  const selectedGroup = activeGroup(pathname);
+  const [openGroup, setOpenGroup] = useState<string | null>(() => selectedGroup?.key ?? "jornada");
 
   const navLink = (item: NavItem) => {
-    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+    const active = selected?.href === item.href;
     const Icon = item.icon;
     return (
       <Link
         key={item.href}
         href={item.href as Route}
         onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
         className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white/[0.12] text-white shadow-sm" : "text-white/62 hover:bg-white/[0.07] hover:text-white"}`}
       >
         {active ? <span className="absolute -left-3 h-7 w-1 rounded-r-full bg-cyan-400" /> : null}
         <span className={`grid size-8 place-items-center rounded-lg transition ${active ? "bg-white/10 text-cyan-300" : "text-white/42 group-hover:text-white/75"}`}><Icon className="size-4" /></span>
         <span className="truncate">{item.label}</span>
       </Link>
+    );
+  };
+
+  const navGroup = (group: NavGroup) => {
+    const active = selectedGroup?.key === group.key;
+    const open = openGroup === group.key;
+    const Icon = group.icon;
+    return (
+      <div key={group.key}>
+        <button
+          type="button"
+          onClick={() => setOpenGroup((value) => value === group.key ? null : group.key)}
+          aria-expanded={open}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${active ? "bg-white/[0.08] text-white" : "text-white/68 hover:bg-white/[0.07] hover:text-white"}`}
+        >
+          <span className={`grid size-8 place-items-center rounded-lg ${active ? "text-cyan-300" : "text-white/45"}`}><Icon className="size-4" /></span>
+          <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
+          {open ? <ChevronDown className="size-4 text-white/35" /> : <ChevronRight className="size-4 text-white/35" />}
+        </button>
+        {open ? <div className="ml-7 mt-1.5 space-y-1 border-l border-white/[0.08] pl-2.5">{group.items.map(navLink)}</div> : null}
+      </div>
     );
   };
 
@@ -147,23 +210,15 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-5">
-        {sectionLabel("Principal")}
-        <nav className="mt-3 space-y-1" aria-label="Principal">
+        {sectionLabel("Início")}
+        <nav className="mt-3 space-y-1" aria-label="Navegação principal">
           {navLink({ href: "/painel", label: "Visão geral", icon: LayoutDashboard })}
-          {navLink({ href: "/manual", label: "Manual do sistema", icon: HelpCircle })}
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => setCadastrosOpen((value) => !value)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${cadastrosAtivo ? "bg-white/[0.08] text-white" : "text-white/62 hover:bg-white/[0.07] hover:text-white"}`}
-            >
-              <span className="grid size-8 place-items-center rounded-lg text-white/45"><FolderCog className="size-4" /></span>
-              <span>Cadastros</span>
-              {cadastrosOpen ? <ChevronDown className="ml-auto size-4 text-white/35" /> : <ChevronRight className="ml-auto size-4 text-white/35" />}
-            </button>
-            {cadastrosOpen ? <div className="ml-7 mt-1.5 space-y-1 border-l border-white/[0.08] pl-2.5">{cadastroNav.map(navLink)}</div> : null}
-          </div>
         </nav>
+
+        <div className="mt-5 border-t border-white/[0.07] pt-5">
+          {sectionLabel("Áreas de trabalho")}
+          <div className="mt-3 space-y-1">{navGroups.map(navGroup)}</div>
+        </div>
 
         {unidadeId ? (
           <div className="mt-6 border-t border-white/[0.07] pt-5">
@@ -174,20 +229,6 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
             </div>
           </div>
         ) : null}
-
-        <div className="mt-6 border-t border-white/[0.07] pt-5">{sectionLabel("Assistencial")}<div className="mt-3 space-y-1">{assistencialNav.map(navLink)}</div></div>
-        <div className="mt-6 border-t border-white/[0.07] pt-5">{sectionLabel("Filas por setor")}<div className="mt-3 space-y-1">{setoresNav.map(navLink)}</div></div>
-        <div className="mt-6 border-t border-white/[0.07] pt-5">{sectionLabel("Corporativo")}<div className="mt-3 space-y-1">{corporativoNav.map(navLink)}</div></div>
-        <div className="mt-6 border-t border-white/[0.07] pt-5">{sectionLabel("Financeiro")}<div className="mt-3 space-y-1">{financeiroNav.map(navLink)}</div></div>
-
-        <div className="mt-6 border-t border-white/[0.07] pt-5">
-          {sectionLabel("Configurações")}
-          <div className="mt-3 space-y-1">
-            {navLink({ href: "/configuracoes/paineis", label: "Painéis e chamadas", icon: MonitorCog })}
-            {navLink({ href: "/configuracoes/tiss-webservices", label: "Webservices TISS", icon: Cable })}
-            {navLink({ href: "/configuracoes/nfse", label: "Prefeituras / NFS-e", icon: Landmark })}
-          </div>
-        </div>
       </div>
 
       <div className="border-t border-white/[0.08] p-4">
@@ -197,6 +238,27 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
             <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-white/90">Ambiente hospitalar</p><p className="mt-0.5 truncate text-[11px] text-white/38">Conexão protegida</p></div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceBar({ pathname }: { pathname: string }) {
+  const group = activeGroup(pathname);
+  const selected = activeItem(pathname);
+  if (!group) return null;
+  const GroupIcon = group.icon;
+  return (
+    <div className="border-t border-slate-100 bg-white">
+      <div className="flex min-h-11 items-center gap-2 overflow-x-auto px-4 sm:px-6 xl:px-8">
+        <span className="sticky left-0 z-10 mr-1 inline-flex shrink-0 items-center gap-1.5 bg-white pr-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+          <GroupIcon className="size-3.5" />{group.shortLabel}
+        </span>
+        {group.items.map((item) => {
+          const active = selected?.href === item.href;
+          const Icon = item.icon;
+          return <Link key={item.href} href={item.href as Route} aria-current={active ? "page" : undefined} className={`inline-flex h-11 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-semibold transition ${active ? "border-brand-600 text-brand-800" : "border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-800"}`}><Icon className="size-3.5" />{item.label}</Link>;
+        })}
       </div>
     </div>
   );
@@ -215,7 +277,7 @@ export function AppShell({ children, email, unidadeId, logoutAction }: { childre
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b border-[#e4eaf2] bg-white/95 backdrop-blur-xl">
-          <div className="flex h-[72px] items-center gap-3 px-4 sm:px-6 xl:px-8">
+          <div className="flex h-16 items-center gap-3 px-4 sm:px-6 xl:px-8">
             <button onClick={() => setMobileOpen(true)} aria-label="Abrir menu" className="rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 lg:hidden"><Menu className="size-5" /></button>
 
             <div className="min-w-0">
@@ -224,15 +286,13 @@ export function AppShell({ children, email, unidadeId, logoutAction }: { childre
             </div>
 
             <div className="hidden min-w-0 flex-1 justify-center lg:flex">
-              <div className="relative w-full max-w-lg">
+              <form action="/atendimentos" method="get" className="relative w-full max-w-lg">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <input aria-label="Busca global" placeholder="Buscar paciente, RA, atendimento, guia..." className="h-11 w-full rounded-2xl border border-[#e1e8f1] bg-[#f7f9fc] pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100" />
-              </div>
+                <input name="q" aria-label="Busca global" placeholder="Paciente, CPF, CNS, RA ou atendimento..." className="h-10 w-full rounded-xl border border-[#e1e8f1] bg-[#f7f9fc] pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100" />
+              </form>
             </div>
 
             <div className="ml-auto flex items-center gap-2.5">
-              <span className="hidden items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700 md:inline-flex"><span className="size-1.5 rounded-full bg-emerald-500" />Online</span>
-              <button aria-label="Notificações" className="relative grid size-10 place-items-center rounded-xl border border-[#e1e8f1] bg-white text-slate-600 shadow-sm hover:bg-slate-50"><Bell className="size-4.5" /><span className="ui-notification-dot absolute right-2.5 top-2.5 size-1.5 rounded-full bg-rose-500" /></button>
               <details className="relative">
                 <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-xl border border-[#e1e8f1] bg-white px-2 py-1.5 text-sm shadow-sm hover:bg-slate-50">
                   <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-brand-100 to-cyan-100 font-bold text-brand-800">{email?.slice(0, 1).toUpperCase() || "U"}</span>
@@ -248,9 +308,10 @@ export function AppShell({ children, email, unidadeId, logoutAction }: { childre
               </details>
             </div>
           </div>
+          <WorkspaceBar pathname={pathname} />
         </header>
 
-        <main className="mx-auto w-full max-w-[1700px] px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7">{children}</main>
+        <main className="mx-auto w-full max-w-[1700px] px-4 py-4 sm:px-6 sm:py-5 xl:px-8 xl:py-6">{children}</main>
       </div>
     </div>
   );
