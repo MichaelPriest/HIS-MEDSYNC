@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, AlertTriangle, ArrowLeft, ClipboardCheck, FileHeart, HeartPulse, Scale, ShieldCheck, Stethoscope } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ClipboardCheck, FileHeart, HeartPulse, Scale, ShieldCheck, Stethoscope } from "lucide-react";
 import { notFound } from "next/navigation";
 import { SectionPage } from "@/components/painel/section-page";
 import { createClient } from "@/lib/supabase/server";
