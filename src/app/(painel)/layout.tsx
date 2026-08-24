@@ -3,11 +3,8 @@ import { AppShell } from "@/components/painel/app-shell";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/modules/auth/actions";
 
-type NamedRelation = { nome: string | null } | { nome: string | null }[] | null;
-type CompanyRelation =
-  | { nome_fantasia: string | null; razao_social: string | null }
-  | { nome_fantasia: string | null; razao_social: string | null }[]
-  | null;
+type NamedRow = { nome: string | null };
+type CompanyRow = { nome_fantasia: string | null; razao_social: string | null };
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
@@ -54,7 +51,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
     if (!perfisError) {
       profileNames = [...new Set((perfis ?? []).flatMap((item) => {
-        const perfil = one(item.perfil as NamedRelation);
+        const perfil = one(item.perfil as NamedRow | NamedRow[] | null);
         return perfil?.nome ? [perfil.nome] : [];
       }))];
     }
@@ -78,8 +75,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     }
   }
 
-  const unidadeAtual = one(unidade?.unidade as NamedRelation);
-  const empresaAtual = one(unidade?.empresa as CompanyRelation);
+  const unidadeAtual = one(unidade?.unidade as NamedRow | NamedRow[] | null);
+  const empresaAtual = one(unidade?.empresa as CompanyRow | CompanyRow[] | null);
 
   return (
     <AppShell
