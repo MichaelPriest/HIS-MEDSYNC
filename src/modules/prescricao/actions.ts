@@ -79,6 +79,9 @@ export async function assinarPrescricaoAction(formData: FormData) {
 
   const { data: p } = await supabase.from("prescricoes").select("id,tipo,item,atendimento_id,profissional_id,atendimento:atendimentos(paciente_id)").eq("id", prescricaoId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle();
   if (p?.tipo === "medicamento") {
+    const { error: aprazamentoError } = await supabase.rpc("gerar_aprazamentos_prescricao", { p_prescricao_id: prescricaoId, p_horizonte_dias: 2 });
+    if (aprazamentoError) console.error("[prescricao] gerar aprazamentos", aprazamentoError);
+
     const atendimento = Array.isArray(p.atendimento) ? p.atendimento[0] : p.atendimento;
     const { data: existente } = await supabase.from("filas_setoriais").select("id").eq("atendimento_id", p.atendimento_id).eq("setor_codigo", "farmacia").eq("origem", "prescricao").in("status", ["aguardando","chamado","em_atendimento"]).limit(1).maybeSingle();
     if (!existente && atendimento?.paciente_id) {
@@ -91,6 +94,7 @@ export async function assinarPrescricaoAction(formData: FormData) {
     }
   }
   revalidatePath("/prescricao");
+  revalidatePath("/assistencial/medicamentos");
   redirect("/prescricao?sucesso=assinada");
 }
 
@@ -105,5 +109,6 @@ export async function suspenderPrescricaoAction(formData: FormData) {
     redirect("/prescricao?erro=suspensao");
   }
   revalidatePath("/prescricao");
+  revalidatePath("/assistencial/medicamentos");
   redirect("/prescricao?sucesso=suspensa");
 }
