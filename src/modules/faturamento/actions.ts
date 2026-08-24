@@ -4,6 +4,15 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
+type PrecoComercial = {
+  valor: number;
+  metodologia: string;
+  fonte_id: string | null;
+  edicao_id: string | null;
+  item_id: string | null;
+  memoria: Record<string, unknown>;
+};
+
 function competenciaAtual() {
   return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date()).slice(0, 7);
 }
@@ -61,7 +70,7 @@ export async function adicionarItemConta(contaId: string, formData: FormData) {
   let categoriaItem: string | null = null;
   let familiaTuss: number | null = null;
   let valorUnitario = parseMoney(formData.get("valor_unitario"));
-  let preco: { valor:number; metodologia:string; fonte_id:string; edicao_id:string; item_id:string; memoria:Record<string,unknown> } | null = null;
+  let preco: PrecoComercial | null = null;
 
   if (itemAssistencialId) {
     const { data: master } = await supabase.from("itens_assistenciais")
@@ -84,8 +93,9 @@ export async function adicionarItemConta(contaId: string, formData: FormData) {
         p_data: dataExecucao.slice(0,10),
         p_categoria: categoriaContrato(master.categoria),
       });
-      if (!precoError) preco = Array.isArray(precos) ? (precos[0] as typeof preco) ?? null : null;
-      if (preco?.valor !== undefined && preco?.valor !== null) valorUnitario = Number(preco.valor);
+      const precoLista = Array.isArray(precos) ? (precos as unknown as PrecoComercial[]) : [];
+      if (!precoError) preco = precoLista[0] ?? null;
+      if (preco?.valor !== undefined && preco.valor !== null) valorUnitario = Number(preco.valor);
     }
   }
 
