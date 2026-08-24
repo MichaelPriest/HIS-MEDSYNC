@@ -96,7 +96,7 @@ export default async function AssistencialModuloPage({ params, searchParams }: {
       supabase.from(config.tables[0]).select(["id","created_at",...(recentFields ?? []).map(([key]) => key)].join(",")).order("created_at", { ascending: false }).limit(20),
     ]);
     atendimentos = (episodios ?? []).map((item) => { const paciente = Array.isArray(item.paciente) ? item.paciente[0] : item.paciente; return { id:item.id, numero_atendimento:item.numero_atendimento, data_abertura:item.data_abertura, paciente:{ nome_completo:paciente?.nome_completo ?? "Paciente", cpf:paciente?.cpf ?? null, ra:paciente?.ra ?? null, numero_registro:paciente?.numero_registro ?? null } }; });
-    recentes = (recentesResult.data ?? []) as Array<Record<string, unknown>>;
+    recentes = (recentesResult.data ?? []).map((row) => row as unknown as Record<string, unknown>);
   }
 
   const Icon = config.Icon;
