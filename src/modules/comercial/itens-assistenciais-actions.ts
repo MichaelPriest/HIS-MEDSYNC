@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAnyPermission } from "@/lib/permissions/server";
+import { asRoute } from "@/lib/route-cast";
 
 const route = "/comercial/tabelas/itens";
 
@@ -102,6 +103,10 @@ function normalizeHeader(value: string) {
     .replace(/[\s-]+/g, "_");
 }
 
+function go(query: string): never {
+  redirect(asRoute(`${route}?${query}`));
+}
+
 export async function salvarItemAssistencial(formData: FormData) {
   const { supabase, user, empresaId } = await requireAnyPermission([
     "tabelas_comerciais.gerenciar",
@@ -111,13 +116,13 @@ export async function salvarItemAssistencial(formData: FormData) {
   const codigoInterno = text(formData, "codigo_interno");
   const categoria = text(formData, "categoria") ?? "outro";
   const descricao = text(formData, "descricao");
-  if (!codigoInterno || !descricao || !categorias.has(categoria)) redirect(`${route}?erro=campos`);
+  if (!codigoInterno || !descricao || !categorias.has(categoria)) go("erro=campos");
 
   const codigoTuss = text(formData, "codigo_tuss");
   const codigoProprio = text(formData, "codigo_tabela_propria");
   const tiss = resolveTiss(categoria, codigoTuss, codigoProprio);
   if (["00", "98"].includes(tiss.tabelaTissCodigo) && (!tiss.codigoProprio || tiss.codigoProprio.length > 10)) {
-    redirect(`${route}?erro=codigo-proprio`);
+    go("erro=codigo-proprio");
   }
 
   const payload = {
@@ -155,12 +160,12 @@ export async function salvarItemAssistencial(formData: FormData) {
     .upsert(payload, { onConflict: "empresa_id,codigo_interno" });
   if (error) {
     console.error("[itens-assistenciais] salvar", { code: error.code });
-    redirect(`${route}?erro=salvar`);
+    go("erro=salvar");
   }
 
   revalidatePath(route);
   revalidatePath("/almoxarifado");
-  redirect(`${route}?sucesso=salvo`);
+  go("sucesso=salvo");
 }
 
 export async function importarItensAssistenciais(formData: FormData) {
@@ -170,12 +175,12 @@ export async function importarItensAssistenciais(formData: FormData) {
   ]);
   const arquivo = formData.get("arquivo");
   if (!(arquivo instanceof File) || arquivo.size === 0 || arquivo.size > 15 * 1024 * 1024) {
-    redirect(`${route}?erro=arquivo`);
+    go("erro=arquivo");
   }
 
   const raw = (await arquivo.text()).replace(/^\uFEFF/, "");
   const lines = raw.split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) redirect(`${route}?erro=arquivo-vazio`);
+  if (lines.length < 2) go("erro=arquivo-vazio");
   const separator = lines[0].includes(";") ? ";" : ",";
   const headers = splitCsvLine(lines[0], separator).map(normalizeHeader);
   const index = (...names: string[]) => headers.findIndex((header) => names.includes(header));
@@ -185,7 +190,7 @@ export async function importarItensAssistenciais(formData: FormData) {
   };
   const codigoIndex = index("codigo_interno", "codigo", "codigo_item");
   const descricaoIndex = index("descricao", "nome");
-  if (codigoIndex < 0 || descricaoIndex < 0) redirect(`${route}?erro=colunas`);
+  if (codigoIndex < 0 || descricaoIndex < 0) go("erro=colunas");
 
   const rows = [] as Array<Record<string, unknown>>;
   let rejeitados = 0;
@@ -236,25 +241,25 @@ export async function importarItensAssistenciais(formData: FormData) {
     });
   }
 
-  if (!rows.length) redirect(`${route}?erro=sem-itens`);
+  if (!rows.length) go("erro=sem-itens");
   for (let start = 0; start < rows.length; start += 500) {
     const { error } = await supabase
       .from("itens_assistenciais")
       .upsert(rows.slice(start, start + 500), { onConflict: "empresa_id,codigo_interno" });
     if (error) {
       console.error("[itens-assistenciais] importar", { code: error.code, start });
-      redirect(`${route}?erro=importacao`);
+      go("erro=importacao");
     }
   }
 
   revalidatePath(route);
-  redirect(`${route}?importados=${rows.length}&rejeitados=${rejeitados}`);
+  go(`importados=${rows.length}&rejeitados=${rejeitados}`);
 }
 
 export async function criarProdutoEstoqueDoItem(formData: FormData) {
   const { supabase, user, empresaId } = await requireAnyPermission(["estoque.gerenciar"]);
   const itemId = text(formData, "item_id");
-  if (!itemId) redirect(`${route}?erro=item`);
+  if (!itemId) go("erro=item");
 
   const { data: item } = await supabase
     .from("itens_assistenciais")
@@ -263,9 +268,9 @@ export async function criarProdutoEstoqueDoItem(formData: FormData) {
     .eq("empresa_id", empresaId)
     .eq("ativo", true)
     .maybeSingle();
-  if (!item) redirect(`${route}?erro=item`);
+  if (!item) go("erro=item");
   if (!["medicamento", "material", "opme", "gas_medicinal"].includes(item.categoria)) {
-    redirect(`${route}?erro=nao-estocavel`);
+    go("erro=nao-estocavel");
   }
 
   const { data: existente } = await supabase
@@ -275,7 +280,7 @@ export async function criarProdutoEstoqueDoItem(formData: FormData) {
     .eq("item_assistencial_id", item.id)
     .limit(1)
     .maybeSingle();
-  if (existente) redirect(`${route}?sucesso=ja-vinculado`);
+  if (existente) go("sucesso=ja-vinculado");
 
   const { error } = await supabase.from("estoque_produtos").insert({
     empresa_id: empresaId,
@@ -297,24 +302,24 @@ export async function criarProdutoEstoqueDoItem(formData: FormData) {
   });
   if (error) {
     console.error("[itens-assistenciais] criar estoque", { code: error.code });
-    redirect(`${route}?erro=estoque`);
+    go("erro=estoque");
   }
 
   revalidatePath(route);
   revalidatePath("/almoxarifado");
-  redirect(`${route}?sucesso=estoque`);
+  go("sucesso=estoque");
 }
 
 export async function inativarItemAssistencial(formData: FormData) {
   const { supabase, user, empresaId } = await requireAnyPermission(["tabelas_comerciais.gerenciar"]);
   const itemId = text(formData, "item_id");
-  if (!itemId) redirect(`${route}?erro=item`);
+  if (!itemId) go("erro=item");
   const { error } = await supabase
     .from("itens_assistenciais")
     .update({ ativo: false, updated_at: new Date().toISOString(), updated_by: user.id })
     .eq("id", itemId)
     .eq("empresa_id", empresaId);
-  if (error) redirect(`${route}?erro=inativar`);
+  if (error) go("erro=inativar");
   revalidatePath(route);
-  redirect(`${route}?sucesso=inativado`);
+  go("sucesso=inativado");
 }
