@@ -1,56 +1,196 @@
-import { AlertTriangle, BedDouble, CheckCircle2, ClipboardCheck, DoorOpen, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, UserRoundCheck } from "lucide-react";
+import type { Route } from "next";
+import Link from "next/link";
+import { BedDouble, ClipboardCheck, DoorOpen, Hospital, ShieldAlert, UserRoundCheck } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { EncounterPicker } from "@/components/atendimentos/encounter-picker";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import { assinarSumarioAlta, bloquearLeito, cancelarReservaLeito, concluirHigienizacaoLeito, criarInternacao, criarSumarioAlta, darAltaInternacao, desbloquearLeito, iniciarHigienizacaoLeito, movimentarInternacao, registrarConciliacaoAlta, reservarLeito, salvarPlanejamentoAlta, sincronizarPendenciasAlta } from "@/modules/internacao/actions";
+import { criarInternacao } from "@/modules/internacao/actions";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-const one = (v: any) => Array.isArray(v) ? v[0] ?? null : v;
-const fmt = (v?: string | null) => v ? new Date(v).toLocaleString("pt-BR") : "—";
-
-const statusStyle: Record<string,string> = {
-  livre:"bg-emerald-50 text-emerald-700 border-emerald-200", ocupado:"bg-blue-50 text-blue-700 border-blue-200", reservado:"bg-violet-50 text-violet-700 border-violet-200",
-  higienizacao:"bg-amber-50 text-amber-700 border-amber-200", bloqueado:"bg-rose-50 text-rose-700 border-rose-200", manutencao:"bg-slate-100 text-slate-700 border-slate-200",
+type Rel<T> = T | T[] | null;
+type Paciente = { nome_completo: string | null; cpf: string | null; ra: string | null; numero_registro: string | null };
+type Atendimento = { id: string; numero_atendimento: string | number | null; data_abertura: string; paciente: Rel<Paciente> };
+type Profissional = { id: string; nome_completo: string };
+type Internacao = {
+  id: string;
+  atendimento_id: string;
+  setor: string;
+  quarto: string | null;
+  leito: string | null;
+  leito_id: string | null;
+  acomodacao: string | null;
+  motivo: string | null;
+  previsao_alta: string | null;
+  status: string;
+  data_internacao: string | null;
+  isolamento: boolean | null;
+  tipo_isolamento: string | null;
+  atendimento: Rel<{ id: string; numero_atendimento: string | number | null; paciente: Rel<{ nome_completo: string | null; ra: string | null }> }>;
+  profissional: Rel<{ nome_completo: string | null }>;
 };
+type Leito = { id: string; setor: string; quarto: string | null; codigo: string; acomodacao: string | null; status: string; ativo: boolean };
+type PendenciaAlta = { internacao_id: string; bloqueia_alta: boolean; status: string };
+type Params = { sucesso?: string; erro?: string };
 
-export default async function InternacaoPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string }> }) {
-  const sp=await searchParams; const {supabase,unidadeId}=await getAssistencialContext();
-  const [atReq,profReq,intReq,leitoReq,resReq,bloqReq,higReq,pendReq,planReq,sumReq,concReq]=await Promise.all([
-    supabase.from("atendimentos").select("id,numero_atendimento,data_abertura,paciente:pacientes(nome_completo,cpf,ra,numero_registro)").eq("unidade_id",unidadeId).in("status",["aberto","em_espera","em_atendimento"]).order("data_abertura",{ascending:false}).limit(300),
-    supabase.from("profissionais").select("id,nome_completo").eq("ativo",true).order("nome_completo").limit(500),
-    supabase.from("internacoes").select("id,atendimento_id,profissional_responsavel_id,setor,quarto,leito,leito_id,acomodacao,motivo,previsao_alta,status,data_internacao,atendimento:atendimentos(numero_atendimento,paciente:pacientes(nome_completo,ra,numero_registro)),profissional:profissionais(nome_completo)").eq("unidade_id",unidadeId).in("status",["aguardando_leito","internado","transferido"]).order("data_internacao",{ascending:false}).limit(150),
-    supabase.from("leitos").select("id,setor,quarto,codigo,tipo,acomodacao,isolamento_capaz,status,ativo").eq("unidade_id",unidadeId).eq("ativo",true).order("setor").order("codigo").limit(500),
-    supabase.from("leito_reservas").select("id,leito_id,atendimento_id,reservado_em,reservado_ate,status,observacoes,atendimento:atendimentos(numero_atendimento,paciente:pacientes(nome_completo))").eq("unidade_id",unidadeId).eq("status","ativa").limit(200),
-    supabase.from("leito_bloqueios").select("id,leito_id,tipo,motivo,inicio_em,previsto_ate,status").eq("unidade_id",unidadeId).eq("status","ativo").limit(200),
-    supabase.from("leito_higienizacoes").select("id,leito_id,status,solicitada_em,iniciada_em,observacoes").eq("unidade_id",unidadeId).in("status",["pendente","em_andamento"]).limit(200),
-    supabase.from("alta_pendencias").select("id,internacao_id,codigo,descricao,categoria,bloqueia_alta,status,justificativa").eq("unidade_id",unidadeId).order("created_at",{ascending:true}).limit(500),
-    supabase.from("planejamentos_alta").select("id,internacao_id,status,previsao_alta,destino,concluido_em,created_at").eq("unidade_id",unidadeId).order("created_at",{ascending:false}).limit(200),
-    supabase.from("sumarios_alta").select("id,internacao_id,condicao_alta,assinado_em,bloqueado,created_at").eq("unidade_id",unidadeId).order("created_at",{ascending:false}).limit(200),
-    supabase.from("conciliacoes_medicamentosas").select("id,atendimento_id,momento,medicamento,decisao,conciliado_em").eq("unidade_id",unidadeId).eq("momento","alta").order("conciliado_em",{ascending:false}).limit(300),
+const one = <T,>(value: Rel<T>): T | null => Array.isArray(value) ? value[0] ?? null : value;
+const fmt = (value?: string | null) => value ? new Date(value).toLocaleString("pt-BR") : "—";
+const fmtDate = (value?: string | null) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR") : "—";
+
+export default async function InternacaoPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const params = await searchParams;
+  const { supabase, empresaId, unidadeId } = await getAssistencialContext();
+  if (!unidadeId) return null;
+
+  const [atendimentosReq, profissionaisReq, internacoesReq, leitosReq, pendenciasReq] = await Promise.all([
+    supabase
+      .from("atendimentos")
+      .select("id,numero_atendimento,data_abertura,paciente:pacientes(nome_completo,cpf,ra,numero_registro)")
+      .eq("empresa_id", empresaId)
+      .eq("unidade_id", unidadeId)
+      .in("status", ["aberto", "em_espera", "em_atendimento"])
+      .order("data_abertura", { ascending: false })
+      .limit(300),
+    supabase
+      .from("profissionais")
+      .select("id,nome_completo")
+      .eq("empresa_id", empresaId)
+      .eq("ativo", true)
+      .order("nome_completo")
+      .limit(500),
+    supabase
+      .from("internacoes")
+      .select("id,atendimento_id,setor,quarto,leito,leito_id,acomodacao,motivo,previsao_alta,status,data_internacao,isolamento,tipo_isolamento,atendimento:atendimentos(id,numero_atendimento,paciente:pacientes(nome_completo,ra)),profissional:profissionais(nome_completo)")
+      .eq("empresa_id", empresaId)
+      .eq("unidade_id", unidadeId)
+      .in("status", ["aguardando_leito", "internado", "transferido"])
+      .order("data_internacao", { ascending: false })
+      .limit(250),
+    supabase
+      .from("leitos")
+      .select("id,setor,quarto,codigo,acomodacao,status,ativo")
+      .eq("empresa_id", empresaId)
+      .eq("unidade_id", unidadeId)
+      .eq("ativo", true)
+      .order("setor")
+      .order("codigo")
+      .limit(1000),
+    supabase
+      .from("alta_pendencias")
+      .select("internacao_id,bloqueia_alta,status")
+      .eq("empresa_id", empresaId)
+      .eq("unidade_id", unidadeId)
+      .eq("bloqueia_alta", true)
+      .neq("status", "resolvida")
+      .limit(1000),
   ]);
-  const atendimentos=(atReq.data??[]) as any[]; const profissionais=(profReq.data??[]) as any[]; const internados=(intReq.data??[]) as any[]; const leitos=(leitoReq.data??[]) as any[];
-  const reservas=(resReq.data??[]) as any[]; const bloqueios=(bloqReq.data??[]) as any[]; const higienizacoes=(higReq.data??[]) as any[]; const pendencias=(pendReq.data??[]) as any[];
-  const planos=(planReq.data??[]) as any[]; const sumarios=(sumReq.data??[]) as any[]; const conciliacoes=(concReq.data??[]) as any[];
-  const livre=leitos.filter((l)=>l.status==="livre").length, ocupado=leitos.filter((l)=>l.status==="ocupado").length, higiene=leitos.filter((l)=>l.status==="higienizacao").length, bloqueado=leitos.filter((l)=>["bloqueado","manutencao"].includes(l.status)).length;
-  const encounters=atendimentos.map((item)=>{const p=one(item.paciente);return{id:item.id,numero_atendimento:item.numero_atendimento,data_abertura:item.data_abertura,paciente:{nome_completo:p?.nome_completo??"Paciente",cpf:p?.cpf??null,ra:p?.ra??null,numero_registro:p?.numero_registro??null}};});
 
-  return <SectionPage eyebrow="Assistencial / Internação" title="Internação, Leitos e Alta" description="Censo em tempo real, reserva e bloqueio, giro/higienização, movimentação e alta segura com barreiras clínicas obrigatórias.">
-    {sp.sucesso?<div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Operação concluída: {sp.sucesso}.</div>:null}
-    {sp.erro?<div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Não foi possível concluir: {decodeURIComponent(sp.erro)}.</div>:null}
+  const atendimentos = (atendimentosReq.data ?? []) as Atendimento[];
+  const profissionais = (profissionaisReq.data ?? []) as Profissional[];
+  const internacoes = (internacoesReq.data ?? []) as Internacao[];
+  const leitos = (leitosReq.data ?? []) as Leito[];
+  const pendencias = (pendenciasReq.data ?? []) as PendenciaAlta[];
+  const pendenciasPorInternacao = new Map<string, number>();
+  for (const item of pendencias) pendenciasPorInternacao.set(item.internacao_id, (pendenciasPorInternacao.get(item.internacao_id) ?? 0) + 1);
 
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{[["Leitos",leitos.length,BedDouble],["Livres",livre,DoorOpen],["Ocupados",ocupado,UserRoundCheck],["Higienização",higiene,Sparkles],["Bloqueados",bloqueado,LockKeyhole]].map(([label,value,Icon]:any)=><div key={label} className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</p><Icon className="size-5 text-brand-600"/></div><p className="mt-2 text-3xl font-black text-brand-950">{value}</p></div>)}</section>
+  const encounters = atendimentos.map((item) => {
+    const paciente = one(item.paciente);
+    return {
+      id: item.id,
+      numero_atendimento: item.numero_atendimento,
+      data_abertura: item.data_abertura,
+      paciente: {
+        nome_completo: paciente?.nome_completo ?? "Paciente",
+        cpf: paciente?.cpf ?? null,
+        ra: paciente?.ra ?? null,
+        numero_registro: paciente?.numero_registro ?? null,
+      },
+    };
+  });
 
-    <section className="mt-5 his-card p-6"><div className="mb-5 flex items-center gap-3"><BedDouble className="size-5 text-brand-700"/><div><h2 className="font-black">Nova internação</h2><p className="text-sm text-slate-500">Pode admitir diretamente em leito livre ou manter o paciente sem leito para alocação posterior.</p></div></div><form action={criarInternacao} className="grid gap-3 lg:grid-cols-4"><div className="lg:col-span-4"><EncounterPicker encounters={encounters} name="atendimento_id"/></div><select name="profissional_responsavel_id" defaultValue="" className="ui-input"><option value="">Responsável a definir</option>{profissionais.map((p)=><option key={p.id} value={p.id}>{p.nome_completo}</option>)}</select><input name="setor" required className="ui-input" placeholder="Setor de internação"/><select name="leito_id" defaultValue="" className="ui-input"><option value="">Sem leito por enquanto</option>{leitos.filter((l)=>l.status==="livre").map((l)=><option key={l.id} value={l.id}>{l.setor} · {l.quarto??""} · {l.codigo}</option>)}</select><select name="acomodacao" defaultValue="" className="ui-input"><option value="">Acomodação</option><option value="enfermaria">Enfermaria</option><option value="apartamento">Apartamento</option><option value="uti">UTI</option><option value="observacao">Observação</option></select><input name="previsao_alta" type="date" className="ui-input"/><input name="motivo" className="ui-input lg:col-span-2" placeholder="Motivo da internação"/><input name="observacoes" className="ui-input" placeholder="Observações"/><button className="ui-button-primary">Registrar internação</button></form></section>
+  const livres = leitos.filter((item) => item.status === "livre").length;
+  const aguardandoLeito = internacoes.filter((item) => item.status === "aguardando_leito" || !item.leito_id).length;
+  const isolamentos = internacoes.filter((item) => item.isolamento).length;
+  const comPendenciasAlta = [...pendenciasPorInternacao.keys()].length;
 
-    <section className="mt-5"><div className="mb-3 flex items-center justify-between"><div><h2 className="text-lg font-black text-slate-900">Mapa de leitos</h2><p className="text-sm text-slate-500">Ações operacionais respeitam ocupação, reserva, bloqueio e ciclo de higienização.</p></div><a href="/internacao" className="ui-button-secondary"><RefreshCw className="size-4"/>Atualizar</a></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{leitos.map((l)=>{const reserva=reservas.find((r)=>r.leito_id===l.id);const bloq=bloqueios.find((b)=>b.leito_id===l.id);const hig=higienizacoes.find((h)=>h.leito_id===l.id);const ra=one(reserva?.atendimento);const rp=one(ra?.paciente);return <article key={l.id} className="his-card p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wider text-slate-400">{l.setor}</p><h3 className="mt-1 text-xl font-black text-slate-950">{l.quarto?`${l.quarto} · `:""}{l.codigo}</h3><p className="text-xs text-slate-500">{l.acomodacao??l.tipo??"Leito"}{l.isolamento_capaz?" · isolamento":""}</p></div><span className={`rounded-full border px-2.5 py-1 text-xs font-black ${statusStyle[l.status]??"bg-slate-50 text-slate-700"}`}>{l.status}</span></div>{reserva?<div className="mt-3 rounded-xl bg-violet-50 p-3 text-xs text-violet-800"><b>Reservado:</b> {rp?.nome_completo??`Atend. #${ra?.numero_atendimento??"—"}`}<br/>até {fmt(reserva.reservado_ate)}</div>:null}{bloq?<div className="mt-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-800"><b>{bloq.tipo}:</b> {bloq.motivo}</div>:null}{hig?<div className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800"><b>Higienização:</b> {hig.status} · {fmt(hig.solicitada_em)}</div>:null}<div className="mt-4 space-y-2">{l.status==="livre"?<><form action={reservarLeito} className="grid gap-2"><input type="hidden" name="leito_id" value={l.id}/><select name="atendimento_id" required defaultValue="" className="ui-input"><option value="">Reservar para atendimento...</option>{encounters.map((e)=><option key={e.id} value={e.id}>#{e.numero_atendimento} · {e.paciente.nome_completo}</option>)}</select><input name="reservado_ate" type="datetime-local" className="ui-input"/><button className="ui-button-secondary">Reservar leito</button></form><form action={bloquearLeito} className="grid gap-2 border-t border-slate-100 pt-2"><input type="hidden" name="leito_id" value={l.id}/><div className="flex gap-2"><select name="tipo" defaultValue="operacional" className="ui-input"><option value="operacional">Operacional</option><option value="manutencao">Manutenção</option><option value="isolamento">Isolamento</option></select><input name="motivo" required className="ui-input" placeholder="Motivo"/></div><button className="ui-button-secondary">Bloquear</button></form></>:null}{reserva?<form action={cancelarReservaLeito}><input type="hidden" name="reserva_id" value={reserva.id}/><input type="hidden" name="motivo" value="Cancelada pelo mapa de leitos"/><button className="ui-button-secondary w-full">Cancelar reserva</button></form>:null}{bloq?<form action={desbloquearLeito}><input type="hidden" name="bloqueio_id" value={bloq.id}/><button className="ui-button-secondary w-full">Encerrar bloqueio</button></form>:null}{l.status==="higienizacao"&&hig?.status!=="em_andamento"?<form action={iniciarHigienizacaoLeito}><input type="hidden" name="leito_id" value={l.id}/><button className="ui-button-primary w-full">Iniciar higienização</button></form>:null}{l.status==="higienizacao"&&hig?.status==="em_andamento"?<form action={concluirHigienizacaoLeito}><input type="hidden" name="leito_id" value={l.id}/><button className="ui-button-primary w-full">Concluir e liberar leito</button></form>:null}</div></article>;})}</div></section>
+  return (
+    <SectionPage
+      eyebrow="Assistencial / Internação"
+      title="Painel da Internação"
+      description="Visão resumida das internações ativas. Leitos, regulação NIR e alta segura possuem áreas próprias para reduzir a complexidade da operação."
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Link href="/internacao/leitos" className="ui-button-secondary"><BedDouble className="size-4" />Mapa de leitos</Link>
+          <Link href="/internacao/nir" className="ui-button-secondary"><Hospital className="size-4" />Gestão NIR</Link>
+          <Link href="/internacao/altas" className="ui-button-primary"><ClipboardCheck className="size-4" />Central de altas</Link>
+        </div>
+      }
+    >
+      {params.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Operação concluída com sucesso.</div> : null}
+      {params.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Não foi possível concluir a operação da internação.</div> : null}
 
-    <section className="mt-6 his-card overflow-hidden"><div className="border-b border-slate-100 p-5"><h2 className="font-black">Pacientes internados</h2><p className="text-sm text-slate-500">Alocação e transferência transacional entre leitos.</p></div><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Paciente</th><th className="px-5 py-3">Local</th><th className="px-5 py-3">Previsão alta</th><th className="px-5 py-3">Movimentar</th></tr></thead><tbody className="divide-y divide-slate-100">{internados.map((i)=>{const a=one(i.atendimento);const p=one(a?.paciente);return <tr key={i.id}><td className="px-5 py-4"><p className="font-black">{p?.nome_completo??"Paciente"}</p><p className="text-xs text-slate-500">Atend. #{a?.numero_atendimento??"—"} · RA {p?.ra??"—"}</p></td><td className="px-5 py-4">{i.setor}{i.leito?` · ${i.leito}`:" · aguardando leito"}</td><td className="px-5 py-4">{i.previsao_alta??"—"}</td><td className="px-5 py-4"><form action={movimentarInternacao} className="flex min-w-80 gap-2"><input type="hidden" name="internacao_id" value={i.id}/><select name="leito_id" required defaultValue="" className="ui-input"><option value="">Destino...</option>{leitos.filter((l)=>l.status==="livre"||(l.status==="reservado"&&reservas.some((r)=>r.leito_id===l.id&&r.atendimento_id===i.atendimento_id))).map((l)=><option key={l.id} value={l.id}>{l.setor} · {l.codigo} · {l.status}</option>)}</select><input name="motivo" className="ui-input" placeholder="Motivo"/><button className="ui-button-primary">Mover</button></form></td></tr>;})}</tbody></table></div></section>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <Kpi label="Internações ativas" value={internacoes.length} icon={<UserRoundCheck className="size-5 text-brand-600" />} />
+        <Kpi label="Leitos livres" value={livres} icon={<DoorOpen className="size-5 text-emerald-600" />} />
+        <Kpi label="Aguardando leito" value={aguardandoLeito} icon={<Hospital className="size-5 text-violet-600" />} />
+        <Kpi label="Em isolamento" value={isolamentos} icon={<ShieldAlert className="size-5 text-rose-600" />} />
+        <Kpi label="Pendências de alta" value={comPendenciasAlta} icon={<ClipboardCheck className="size-5 text-amber-600" />} />
+      </section>
 
-    <section className="mt-6"><div className="mb-4"><h2 className="text-lg font-black text-slate-900">Central de Alta Segura</h2><p className="text-sm text-slate-500">A alta final somente é liberada quando plano multiprofissional, conciliação medicamentosa e sumário assinado estiverem concluídos.</p></div><div className="space-y-5">{internados.filter((i)=>i.status==="internado").map((i)=>{const a=one(i.atendimento);const p=one(a?.paciente);const ps=pendencias.filter((x)=>x.internacao_id===i.id);const abertas=ps.filter((x)=>x.bloqueia_alta&&x.status==="pendente");const plano=planos.find((x)=>x.internacao_id===i.id);const sumario=sumarios.find((x)=>x.internacao_id===i.id);const conc=conciliacoes.filter((x)=>x.atendimento_id===i.atendimento_id);return <article key={i.id} className="his-card p-6"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-wider text-slate-400">Atendimento #{a?.numero_atendimento??"—"}</p><h3 className="mt-1 text-xl font-black text-slate-950">{p?.nome_completo??"Paciente"}</h3><p className="text-sm text-slate-500">{i.setor}{i.leito?` · ${i.leito}`:""} · internação desde {fmt(i.data_internacao)}</p></div><form action={sincronizarPendenciasAlta}><input type="hidden" name="internacao_id" value={i.id}/><button className="ui-button-secondary"><RefreshCw className="size-4"/>Revalidar alta</button></form></div><div className="mt-4 grid gap-2 md:grid-cols-3">{ps.length?ps.map((x)=><div key={x.id} className={`rounded-xl border p-3 text-sm ${x.status==="resolvida"?"border-emerald-200 bg-emerald-50 text-emerald-800":"border-amber-200 bg-amber-50 text-amber-800"}`}><div className="flex items-center gap-2">{x.status==="resolvida"?<CheckCircle2 className="size-4"/>:<AlertTriangle className="size-4"/>}<b>{x.descricao}</b></div></div>):<div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Clique em Revalidar alta.</div>}</div>
-      <div className="mt-5 grid gap-5 xl:grid-cols-3"><form action={salvarPlanejamentoAlta} className="rounded-2xl border border-slate-100 p-4"><input type="hidden" name="internacao_id" value={i.id}/><div className="mb-3 flex items-center gap-2"><ClipboardCheck className="size-4 text-brand-700"/><h4 className="font-black">1. Planejamento de alta</h4></div><div className="grid gap-2"><input name="previsao_alta" type="date" defaultValue={i.previsao_alta??""} className="ui-input"/><input name="destino" defaultValue={plano?.destino??""} className="ui-input" placeholder="Destino"/><input name="cuidador_responsavel" className="ui-input" placeholder="Cuidador responsável"/><textarea name="necessidades_domiciliares" rows={2} className="ui-input" placeholder="Necessidades domiciliares"/><input name="equipamentos" className="ui-input" placeholder="Equipamentos"/><input name="retorno_agendado" className="ui-input" placeholder="Retorno"/><input name="transporte" className="ui-input" placeholder="Transporte"/><textarea name="orientacoes" rows={2} className="ui-input" placeholder="Orientações"/><label className="rounded-xl border border-slate-200 p-3 text-sm font-bold"><input type="checkbox" name="concluir" className="mr-2"/>Concluir planejamento</label><button className="ui-button-primary">Salvar plano</button></div></form>
-      <form action={registrarConciliacaoAlta} className="rounded-2xl border border-slate-100 p-4"><input type="hidden" name="internacao_id" value={i.id}/><div className="mb-3 flex items-center gap-2"><ShieldCheck className="size-4 text-emerald-700"/><h4 className="font-black">2. Conciliação medicamentosa</h4></div><div className="grid gap-2"><input name="medicamento" required className="ui-input" placeholder="Medicamento"/><input name="dose_domiciliar" className="ui-input" placeholder="Dose"/><div className="grid grid-cols-2 gap-2"><input name="via_domiciliar" className="ui-input" placeholder="Via"/><input name="frequencia_domiciliar" className="ui-input" placeholder="Frequência"/></div><select name="decisao" defaultValue="manter" className="ui-input"><option value="manter">Manter</option><option value="suspender">Suspender</option><option value="ajustar">Ajustar</option><option value="iniciar">Iniciar</option></select><textarea name="justificativa" rows={2} className="ui-input" placeholder="Justificativa / divergência"/><button className="ui-button-primary">Registrar conciliação</button></div><div className="mt-3 text-xs text-slate-500">Registros de alta: {conc.length}</div></form>
-      <div className="rounded-2xl border border-slate-100 p-4"><div className="mb-3 flex items-center gap-2"><ClipboardCheck className="size-4 text-violet-700"/><h4 className="font-black">3. Sumário e assinatura</h4></div>{sumario?<div className="rounded-xl bg-slate-50 p-3 text-sm"><p className="font-bold">Sumário criado {fmt(sumario.created_at)}</p><p className="text-xs text-slate-500">{sumario.assinado_em?`Assinado ${fmt(sumario.assinado_em)}`:"Aguardando assinatura"}</p>{!sumario.assinado_em?<form action={assinarSumarioAlta} className="mt-3"><input type="hidden" name="sumario_id" value={sumario.id}/><input type="hidden" name="internacao_id" value={i.id}/><button className="ui-button-primary">Assinar sumário</button></form>:null}</div>:<form action={criarSumarioAlta} className="grid gap-2"><input type="hidden" name="internacao_id" value={i.id}/><textarea name="diagnosticos" rows={2} className="ui-input" placeholder="Diagnósticos — um por linha"/><textarea name="procedimentos" rows={2} className="ui-input" placeholder="Procedimentos — um por linha"/><textarea name="evolucao_resumida" rows={3} className="ui-input" placeholder="Evolução resumida"/><input name="condicao_alta" required className="ui-input" placeholder="Condição na alta"/><textarea name="medicamentos_alta" rows={2} className="ui-input" placeholder="Medicamentos — um por linha"/><textarea name="orientacoes" rows={2} className="ui-input" placeholder="Orientações"/><textarea name="sinais_alarme" rows={2} className="ui-input" placeholder="Sinais de alarme"/><input name="retorno" className="ui-input" placeholder="Retorno"/><button className="ui-button-primary">Criar sumário</button></form>}</div></div>
-      <div className={`mt-5 rounded-2xl border p-4 ${abertas.length?"border-amber-200 bg-amber-50":"border-emerald-200 bg-emerald-50"}`}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className={`font-black ${abertas.length?"text-amber-900":"text-emerald-900"}`}>{abertas.length?`${abertas.length} pendência(s) bloqueando a alta`:"Paciente apto para alta operacional"}</p><p className="text-xs text-slate-600">A função transacional revalida tudo novamente antes de encerrar o atendimento.</p></div><form action={darAltaInternacao} className="flex flex-wrap gap-2"><input type="hidden" name="internacao_id" value={i.id}/><input name="motivo" required className="ui-input min-w-64" placeholder="Motivo / condição da alta"/><button disabled={abertas.length>0} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-40">Concluir alta</button></form></div></div></article>;})}</div></section>
-  </SectionPage>;
+      <section className="mt-5 his-card p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <h2 className="font-black text-slate-950">Nova internação</h2>
+            <p className="mt-1 text-sm text-slate-500">Admite o atendimento em leito livre ou envia sem leito para regulação posterior na NIR.</p>
+          </div>
+          <Link href="/internacao/nir" className="text-xs font-black text-brand-700 hover:underline">Abrir fila regulatória →</Link>
+        </div>
+        <form action={criarInternacao} className="grid gap-3 lg:grid-cols-4">
+          <div className="lg:col-span-4"><EncounterPicker encounters={encounters} name="atendimento_id" /></div>
+          <select name="profissional_responsavel_id" defaultValue="" className="ui-input"><option value="">Responsável a definir</option>{profissionais.map((item) => <option key={item.id} value={item.id}>{item.nome_completo}</option>)}</select>
+          <input name="setor" required className="ui-input" placeholder="Setor de internação" />
+          <select name="leito_id" defaultValue="" className="ui-input"><option value="">Sem leito — enviar para NIR</option>{leitos.filter((item) => item.status === "livre").map((item) => <option key={item.id} value={item.id}>{item.setor} · {item.quarto ?? ""} · {item.codigo}</option>)}</select>
+          <select name="acomodacao" defaultValue="" className="ui-input"><option value="">Acomodação</option><option value="enfermaria">Enfermaria</option><option value="apartamento">Apartamento</option><option value="uti">UTI</option><option value="observacao">Observação</option></select>
+          <input name="previsao_alta" type="date" className="ui-input" />
+          <input name="motivo" className="ui-input lg:col-span-2" placeholder="Motivo da internação" />
+          <input name="observacoes" className="ui-input" placeholder="Observações" />
+          <button className="ui-button-primary">Registrar internação</button>
+        </form>
+      </section>
+
+      <section className="mt-5 his-card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div><h2 className="font-black text-slate-950">Pacientes internados</h2><p className="mt-1 text-sm text-slate-500">Resumo assistencial e de localização. Movimentação de leitos fica na NIR e a alta na Central de Altas.</p></div>
+          <span className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">{internacoes.length} ativo(s)</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Paciente</th><th className="px-4 py-3">Local</th><th className="px-4 py-3">Responsável</th><th className="px-4 py-3">Internação</th><th className="px-4 py-3">Previsão alta</th><th className="px-4 py-3">Situação</th><th className="px-5 py-3 text-right">Ações</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {internacoes.map((internacao) => {
+                const atendimento = one(internacao.atendimento);
+                const paciente = one(atendimento?.paciente ?? null);
+                const profissional = one(internacao.profissional);
+                const blockers = pendenciasPorInternacao.get(internacao.id) ?? 0;
+                return (
+                  <tr key={internacao.id} className="bg-white align-middle">
+                    <td className="px-5 py-4"><p className="font-black text-slate-950">{paciente?.nome_completo ?? "Paciente"}</p><p className="mt-1 text-xs text-slate-500">Atend. #{atendimento?.numero_atendimento ?? "—"} · RA {paciente?.ra ?? "—"}</p></td>
+                    <td className="px-4 py-4"><p className="font-semibold text-slate-800">{internacao.setor}</p><p className="text-xs text-slate-500">{internacao.quarto ? `Quarto ${internacao.quarto} · ` : ""}{internacao.leito ?? "Aguardando leito"}</p></td>
+                    <td className="px-4 py-4 text-slate-600">{profissional?.nome_completo ?? "A definir"}</td>
+                    <td className="px-4 py-4 text-slate-600">{fmt(internacao.data_internacao)}</td>
+                    <td className="px-4 py-4 text-slate-600">{fmtDate(internacao.previsao_alta)}</td>
+                    <td className="px-4 py-4"><div className="flex flex-wrap gap-1.5">{internacao.isolamento ? <span className="rounded-lg bg-rose-50 px-2 py-1 text-xs font-black text-rose-700">Isolamento{internacao.tipo_isolamento ? ` · ${internacao.tipo_isolamento}` : ""}</span> : null}{blockers ? <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-black text-amber-700">{blockers} pendência(s) de alta</span> : <span className="rounded-lg bg-slate-50 px-2 py-1 text-xs font-bold text-slate-500">{internacao.status.replaceAll("_", " ")}</span>}</div></td>
+                    <td className="px-5 py-4"><div className="flex justify-end gap-2">{atendimento?.id ? <Link href={`/prontuario/${atendimento.id}` as Route} className="ui-button-secondary">Prontuário</Link> : null}<Link href={`/internacao/altas/${internacao.id}` as Route} className="ui-button-secondary">Alta</Link></div></td>
+                  </tr>
+                );
+              })}
+              {!internacoes.length ? <tr><td colSpan={7} className="px-6 py-14 text-center text-slate-500">Nenhuma internação ativa nesta unidade.</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </SectionPage>
+  );
+}
+
+function Kpi({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+  return <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</p>{icon}</div><p className="mt-2 text-3xl font-black text-brand-950">{value}</p></div>;
 }
