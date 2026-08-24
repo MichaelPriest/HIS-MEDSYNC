@@ -7,7 +7,7 @@ import { assinarPrescricaoAction, criarPrescricao, suspenderPrescricaoAction } f
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function PrescricaoPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string }> }) {
+export default async function PrescricaoPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string; atendimento?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
   const [{ data: atendimentos }, { data: profissionais }, { data: produtos }, { data: recentes }] = await Promise.all([
@@ -24,7 +24,7 @@ export default async function PrescricaoPage({ searchParams }: { searchParams: P
     <div className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
       <form action={criarPrescricao} className="his-card p-6">
         <div className="mb-6 flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-brand-50 text-brand-700"><Pill className="size-5" /></span><div><h2 className="font-black text-slate-900">Novo item de prescrição</h2><p className="text-sm text-slate-500">O item nasce como rascunho. A Farmácia só recebe medicamento após assinatura.</p></div></div>
-        <EncounterPicker encounters={(atendimentos ?? []).map((item) => { const p = Array.isArray(item.paciente) ? item.paciente[0] : item.paciente; return { id: item.id, numero_atendimento: item.numero_atendimento, data_abertura: item.data_abertura, paciente: { nome_completo: p?.nome_completo ?? "Paciente", cpf: p?.cpf ?? null, ra: p?.ra ?? "—", numero_registro: p?.numero_registro ?? 0 } }; })} name="atendimento_id" />
+        <EncounterPicker encounters={(atendimentos ?? []).map((item) => { const p = Array.isArray(item.paciente) ? item.paciente[0] : item.paciente; return { id: item.id, numero_atendimento: item.numero_atendimento, data_abertura: item.data_abertura, paciente: { nome_completo: p?.nome_completo ?? "Paciente", cpf: p?.cpf ?? null, ra: p?.ra ?? "—", numero_registro: p?.numero_registro ?? 0 } }; })} name="atendimento_id" defaultValue={params.atendimento ?? ""} />
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Profissional *</span><select name="profissional_id" required defaultValue="" className="ui-input"><option value="">Selecione</option>{profissionais?.map((p) => <option key={p.id} value={p.id}>{p.nome_completo}</option>)}</select></label>
           <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Tipo *</span><select name="tipo" defaultValue="medicamento" className="ui-input"><option value="medicamento">Medicamento</option><option value="dieta">Dieta</option><option value="cuidado">Cuidado</option><option value="procedimento">Procedimento</option><option value="outro">Outro</option></select></label>
