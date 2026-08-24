@@ -1,9 +1,7 @@
 begin;
 
--- Garante privilegio de uso do schema para as chamadas publicas do Totem.
 grant usage on schema public to anon, authenticated;
 
--- Garante Recepcao ativa/habilitada no Totem para todas as unidades ativas.
 insert into public.setores_chamada(
   empresa_id,
   unidade_id,
@@ -60,10 +58,10 @@ declare
   v_cpf text := regexp_replace(coalesce(p_cpf,''), '\D', '', 'g');
   v_prioridade public.prioridade_senha;
 begin
-  select * into v_unidade
-  from public.unidades
-  where id = p_unidade_id
-    and ativo
+  select u.* into v_unidade
+  from public.unidades u
+  where u.id = p_unidade_id
+    and u.ativo
   limit 1;
 
   if not found then
@@ -76,12 +74,12 @@ begin
     raise exception using errcode = 'P0001', message = 'TOTEM_PRIORIDADE_INVALIDA';
   end;
 
-  select * into v_setor
-  from public.setores_chamada
-  where unidade_id = p_unidade_id
-    and codigo = coalesce(nullif(trim(p_setor_codigo),''),'recepcao')
-    and ativo
-    and permite_totem
+  select sc.* into v_setor
+  from public.setores_chamada sc
+  where sc.unidade_id = p_unidade_id
+    and sc.codigo = coalesce(nullif(trim(p_setor_codigo),''),'recepcao')
+    and sc.ativo
+    and sc.permite_totem
   limit 1;
 
   if not found then
@@ -147,7 +145,6 @@ $$;
 revoke all on function public.emitir_senha_totem_v2(uuid,text,text,text) from public;
 grant execute on function public.emitir_senha_totem_v2(uuid,text,text,text) to anon, authenticated;
 
--- Mantem a RPC antiga disponivel para clientes em transicao.
 create or replace function public.emitir_senha_totem(
   p_unidade_id uuid,
   p_setor_codigo text,
@@ -178,7 +175,6 @@ grant execute on function public.emitir_senha_totem(uuid,text,public.prioridade_
 comment on function public.emitir_senha_totem_v2(uuid,text,text,text) is
 'RPC publica do Totem. Emite senha somente para unidade ativa e setor habilitado; identificacao por CPF e opcional e nao expoe dados do paciente.';
 
--- Forca o PostgREST/Supabase Data API a recarregar as assinaturas das RPCs.
 notify pgrst, 'reload schema';
 
 commit;
