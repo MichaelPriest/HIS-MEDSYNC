@@ -35,5 +35,6 @@ export async function atualizarMeuPerfil(formData: FormData) {
 
   if (error) redirect("/meu-perfil?erro=salvar");
   revalidatePath("/meu-perfil");
+  revalidatePath("/", "layout");
   redirect("/meu-perfil?sucesso=1");
 }

@@ -45,6 +45,7 @@ export function AdmissionForm({ action, patients, profissionais, convenios, plan
   const patient = useMemo(() => patients.find((item) => item.id === patientId) ?? null, [patients, patientId]);
   const [coverage, setCoverage] = useState<"particular" | "convenio">("particular");
   const [convenioId, setConvenioId] = useState("");
+  const [atendimentoRn, setAtendimentoRn] = useState(false);
   const planosFiltrados = useMemo(() => planos.filter((item) => item.convenio_id === convenioId), [planos, convenioId]);
 
   const dadosPaciente = <div className="space-y-5">
@@ -76,16 +77,25 @@ export function AdmissionForm({ action, patients, profissionais, convenios, plan
 
   const cobertura = <div className="space-y-5">
     <div className="grid gap-3 sm:grid-cols-2">
-      {(["particular", "convenio"] as const).map((tipo) => <label key={tipo} className={`cursor-pointer rounded-2xl border p-4 transition ${coverage === tipo ? "border-brand-300 bg-brand-50" : "border-slate-200 bg-white"}`}><input type="radio" name="cobertura" value={tipo} checked={coverage === tipo} onChange={() => setCoverage(tipo)} className="mr-2 accent-brand-700" /><span className="font-semibold text-slate-900">{tipo === "particular" ? "Particular" : "Convênio"}</span><p className="mt-1 text-xs text-slate-500">{tipo === "particular" ? "Atendimento sem cobertura de operadora." : "Atendimento vinculado a operadora, plano e carteirinha."}</p></label>)}
+      {(["particular", "convenio"] as const).map((tipo) => <label key={tipo} className={`cursor-pointer rounded-2xl border p-4 transition ${coverage === tipo ? "border-brand-300 bg-brand-50" : "border-slate-200 bg-white"}`}><input type="radio" name="cobertura" value={tipo} checked={coverage === tipo} onChange={() => { setCoverage(tipo); if (tipo === "particular") setAtendimentoRn(false); }} className="mr-2 accent-brand-700" /><span className="font-semibold text-slate-900">{tipo === "particular" ? "Particular" : "Convênio"}</span><p className="mt-1 text-xs text-slate-500">{tipo === "particular" ? "Atendimento sem cobertura de operadora." : "Atendimento vinculado a operadora, plano e carteirinha."}</p></label>)}
     </div>
-    {coverage === "convenio" ? <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Convênio *</span><select name="convenio_id" value={convenioId} onChange={(e) => setConvenioId(e.target.value)} className="ui-input"><option value="">Selecione</option>{convenios.map((item) => <option key={item.id} value={item.id}>{item.nome_fantasia}{item.registro_ans ? ` · ANS ${item.registro_ans}` : ""}</option>)}</select></label>
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Plano *</span><select name="plano_id" defaultValue="" className="ui-input"><option value="">Selecione</option>{planosFiltrados.map((item) => <option key={item.id} value={item.id}>{item.nome}{item.codigo ? ` · ${item.codigo}` : ""}</option>)}</select></label>
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Carteirinha *</span><input name="numero_carteirinha" className="ui-input" /></label>
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Validade da carteirinha</span><input name="validade_carteirinha" type="date" className="ui-input" /></label>
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Nº autorização</span><input name="numero_autorizacao" className="ui-input" /></label>
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Senha autorização</span><input name="senha_autorizacao" className="ui-input" /></label>
-    </div> : <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Cobertura definida como particular. Convênio, plano e carteirinha não serão vinculados a este atendimento.</div>}
+    {coverage === "convenio" ? <>
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Convênio *</span><select name="convenio_id" value={convenioId} onChange={(e) => setConvenioId(e.target.value)} className="ui-input"><option value="">Selecione</option>{convenios.map((item) => <option key={item.id} value={item.id}>{item.nome_fantasia}{item.registro_ans ? ` · ANS ${item.registro_ans}` : ""}</option>)}</select></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Plano *</span><select name="plano_id" defaultValue="" className="ui-input"><option value="">Selecione</option>{planosFiltrados.map((item) => <option key={item.id} value={item.id}>{item.nome}{item.codigo ? ` · ${item.codigo}` : ""}</option>)}</select></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Carteirinha *</span><input name="numero_carteirinha" className="ui-input" /></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Validade da carteirinha</span><input name="validade_carteirinha" type="date" className="ui-input" /></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Nº autorização</span><input name="numero_autorizacao" className="ui-input" /></label>
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Senha autorização</span><input name="senha_autorizacao" className="ui-input" /></label>
+      </div>
+      <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${atendimentoRn ? "border-brand-300 bg-brand-50" : "border-slate-200 bg-slate-50/70"}`}>
+        <input type="checkbox" name="atendimento_rn" value="true" checked={atendimentoRn} onChange={(event) => setAtendimentoRn(event.target.checked)} className="mt-0.5 size-4 accent-brand-700" />
+        <span>
+          <span className="block text-sm font-semibold text-slate-900">Atendimento a RN (TISS)</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-500">Marque quando o atendimento for prestado ao recém-nato utilizando o contrato/carteirinha do responsável. Marcado será registrado como indicador “S”; desmarcado como “N” no snapshot da guia TISS.</span>
+        </span>
+      </label>
+    </> : <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Cobertura definida como particular. Convênio, plano, carteirinha e indicador TISS de atendimento a RN não serão vinculados a este atendimento.</div>}
   </div>;
 
   const atendimento = <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
