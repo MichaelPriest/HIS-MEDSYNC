@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getAssistencialContext } from "@/modules/assistencial/context";
+import { asRoute } from "@/lib/route-cast";
 
 const somenteDigitos = (valor: string) => valor.replace(/\D/g, "");
 
@@ -26,7 +27,7 @@ function prioridadeValida(valor: string): valor is "normal" | "preferencial" | "
 
 function retornoTotem(unidadeId: string, prioridade: string, etapa: "identificacao" | "cpf", erro: string) {
   const query = new URLSearchParams({ prioridade, etapa, erro });
-  return `/totem/${unidadeId}?${query.toString()}`;
+  return asRoute(`/totem/${unidadeId}?${query.toString()}`);
 }
 
 function erroTotem(message?: string | null, code?: string | null) {
@@ -111,7 +112,7 @@ export async function emitirSenhaTotem(formData: FormData) {
   if (identificado) query.set("identificado", "1");
   if (identificado && nomeExibicao) query.set("nome", nomeExibicao);
   if (identificado && cpfFinal) query.set("cpfFinal", cpfFinal);
-  redirect(`/totem/${unidadeId}?${query.toString()}`);
+  redirect(asRoute(`/totem/${unidadeId}?${query.toString()}`));
 }
 
 async function efetivarChamada(senhaId: string, pontoInformado: string) {
@@ -168,5 +169,5 @@ export async function iniciarAtendimentoSenha(formData: FormData) {
   if (!senha || !["chamada", "aguardando"].includes(String(senha.status))) redirect("/senhas?erro=1");
   const { error } = await supabase.from("senhas_atendimento").update({ status: "em_atendimento", iniciado_em: new Date().toISOString(), updated_by: user.id }).eq("id", senhaId);
   if (error) redirect("/senhas?erro=1");
-  redirect(`/atendimentos/novo?senha=${encodeURIComponent(senhaId)}`);
+  redirect(asRoute(`/atendimentos/novo?senha=${encodeURIComponent(senhaId)}`));
 }
