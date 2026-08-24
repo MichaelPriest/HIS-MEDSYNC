@@ -45,5 +45,5 @@ export async function assumirPaciente(formData: FormData) {
   }).eq("id", encaminhamento.atendimento_id).eq("unidade_id", unidadeId);
   if (atendimentoError) redirect("/fila-medica?erro=atendimento");
 
-  redirect(`/prontuario/${encaminhamento.atendimento_id}`);
+  redirect(`/prontuario/${encaminhamento.atendimento_id}/clinico`);
 }
