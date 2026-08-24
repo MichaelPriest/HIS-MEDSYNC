@@ -1,4 +1,4 @@
-import { BellRing, HeartPulse, MapPin, UserRound, Volume2 } from "lucide-react";
+import { BellRing, HeartPulse, MapPin, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PanelAutoRefresh } from "@/components/senhas/panel-auto-refresh";
 
@@ -20,7 +20,6 @@ export default async function PainelChamadasPage({ params, searchParams }: { par
 
   return (
     <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,.24),_transparent_26%),linear-gradient(145deg,#07162f_0%,#0b1f44_55%,#10295a_100%)] p-5 text-white sm:p-8 lg:p-10">
-      <PanelAutoRefresh />
       <div className="mx-auto max-w-7xl ui-page-enter">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-6">
           <div className="flex items-center gap-4">
@@ -31,7 +30,16 @@ export default async function PainelChamadasPage({ params, searchParams }: { par
               <p className="mt-1 text-sm text-white/45">{modoSetorial ? "Chamadas organizadas por setor." : "Painel integrado com chamadas de todos os setores."}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-xs font-semibold text-white/65 backdrop-blur"><Volume2 className="size-4 text-cyan-300" />Áudio de chamadas ativo</div>
+          <PanelAutoRefresh
+            chamada={atual ? {
+              senha: atual.senha,
+              nome: atual.nome_chamada,
+              identificado: atual.identificado,
+              ponto: atual.ponto_atendimento,
+              setor: atual.setor_nome,
+              ultimaChamadaEm: atual.ultima_chamada_em,
+            } : null}
+          />
         </header>
 
         <section className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.45fr)]">
