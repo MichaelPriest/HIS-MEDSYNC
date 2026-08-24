@@ -39,6 +39,7 @@ export const navigationRequirements: Record<string, readonly Permission[]> = {
   "/financeiro/notas-fiscais": ["nfse.visualizar", "financeiro.visualizar"],
   "/financeiro": ["financeiro.visualizar"],
   "/configuracoes/acessos": ["usuarios.administrar"],
+  "/configuracoes/estrutura": ["estrutura.visualizar", "configuracoes.visualizar"],
   "/configuracoes/paineis": ["configuracoes.visualizar", "paineis.visualizar", "paineis.configurar"],
   "/configuracoes/tiss-webservices": ["configuracoes.visualizar", "tiss.visualizar", "faturamento.visualizar"],
   "/configuracoes/nfse": ["configuracoes.visualizar", "nfse.visualizar"],
