@@ -50,6 +50,7 @@ const cadastroNav: NavItem[] = [
   { href: "/catalogos", label: "Catálogos", icon: BookOpenCheck },
 ];
 const assistencialNav: NavItem[] = [
+  { href: "/assistencial", label: "Central Assistencial", icon: Activity },
   { href: "/senhas", label: "Senhas / Recepção", icon: TicketCheck },
   { href: "/atendimentos", label: "Atendimento / ADT", icon: ClipboardList },
   { href: "/central-guias", label: "Central de Guias", icon: ClipboardCheck },
