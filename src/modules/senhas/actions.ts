@@ -8,12 +8,7 @@ import { getAssistencialContext } from "@/modules/assistencial/context";
 const somenteDigitos = (valor: string) => valor.replace(/\D/g, "");
 
 function dataSaoPaulo() {
-  const parts = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
+  const parts = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
@@ -23,6 +18,15 @@ function normalizarGuiche(valor: string, quantidade: number) {
   const numero = match ? Number(match[0]) : NaN;
   if (!Number.isInteger(numero) || numero < 1 || numero > quantidade) return null;
   return `Guichê ${String(numero).padStart(2, "0")}`;
+}
+
+function prioridadeValida(valor: string): valor is "normal" | "preferencial" | "emergencia" {
+  return ["normal", "preferencial", "emergencia"].includes(valor);
+}
+
+function retornoTotem(unidadeId: string, prioridade: string, etapa: "identificacao" | "cpf", erro: string) {
+  const query = new URLSearchParams({ prioridade, etapa, erro });
+  return `/totem/${unidadeId}?${query.toString()}`;
 }
 
 function erroTotem(message?: string | null, code?: string | null) {
@@ -50,14 +54,15 @@ export async function emitirSenhaTotem(formData: FormData) {
   const supabase = await createClient();
   const unidadeId = String(formData.get("unidade_id") ?? "").trim();
   const setorCodigo = String(formData.get("setor_codigo") ?? "recepcao").trim() || "recepcao";
-  const prioridade = String(formData.get("prioridade") ?? "normal").trim() || "normal";
+  const prioridadeBruta = String(formData.get("prioridade") ?? "normal").trim() || "normal";
+  const prioridade = prioridadeValida(prioridadeBruta) ? prioridadeBruta : "normal";
   const cpfInformado = String(formData.get("cpf") ?? "").trim();
   const cpf = somenteDigitos(cpfInformado);
   const acao = String(formData.get("acao") ?? "emitir");
 
   if (!unidadeId) redirect("/totem/invalido?erro=unidade-indisponivel");
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(unidadeId)) redirect("/totem/invalido?erro=unidade-indisponivel");
-  if (acao === "identificar" && cpf.length !== 11) redirect(`/totem/${unidadeId}?erro=cpf-invalido`);
+  if (acao === "identificar" && cpf.length !== 11) redirect(retornoTotem(unidadeId, prioridade, "cpf", "cpf-invalido"));
 
   let nomeExibicao: string | null = null;
   let cpfFinal: string | null = null;
@@ -67,9 +72,9 @@ export async function emitirSenhaTotem(formData: FormData) {
     const info = primeiraLinha(consulta.data) as { localizado?: unknown; nome_exibicao?: unknown; cpf_final?: unknown } | null;
     if (consulta.error) {
       console.error("[totem] falha ao consultar CPF", { unidadeId, code: consulta.error.code, message: consulta.error.message, details: consulta.error.details });
-      redirect(`/totem/${unidadeId}?erro=${erroTotem(consulta.error.message, consulta.error.code)}`);
+      redirect(retornoTotem(unidadeId, prioridade, "cpf", erroTotem(consulta.error.message, consulta.error.code)));
     }
-    if (!info?.localizado) redirect(`/totem/${unidadeId}?erro=cpf-nao-localizado`);
+    if (!info?.localizado) redirect(retornoTotem(unidadeId, prioridade, "cpf", "cpf-nao-localizado"));
     nomeExibicao = info.nome_exibicao ? String(info.nome_exibicao) : null;
     cpfFinal = info.cpf_final ? String(info.cpf_final) : cpf.slice(-2);
   }
@@ -97,7 +102,8 @@ export async function emitirSenhaTotem(formData: FormData) {
 
   if (erroFinal || !senha) {
     console.error("[totem] falha ao emitir senha", { unidadeId, setorCodigo, prioridade, acao, code: erroFinal?.code, message: erroFinal?.message, details: erroFinal?.details, hint: erroFinal?.hint });
-    redirect(`/totem/${unidadeId}?erro=${erroTotem(erroFinal?.message ?? v2.error?.message, erroFinal?.code ?? v2.error?.code)}`);
+    const etapa = acao === "identificar" ? "cpf" : "identificacao";
+    redirect(retornoTotem(unidadeId, prioridade, etapa, erroTotem(erroFinal?.message ?? v2.error?.message, erroFinal?.code ?? v2.error?.code)));
   }
 
   const query = new URLSearchParams({ senha });
