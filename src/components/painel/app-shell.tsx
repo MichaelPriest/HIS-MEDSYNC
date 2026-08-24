@@ -105,6 +105,7 @@ const receitaNav: NavItem[] = [
 ];
 
 const configuracaoNav: NavItem[] = [
+  { href: "/configuracoes/acessos", label: "Usuários e acessos", icon: UsersRound },
   { href: "/configuracoes/paineis", label: "Painéis e chamadas", icon: MonitorCog },
   { href: "/configuracoes/tiss-webservices", label: "Webservices TISS", icon: Cable },
   { href: "/configuracoes/nfse", label: "Prefeituras / NFS-e", icon: Landmark },
