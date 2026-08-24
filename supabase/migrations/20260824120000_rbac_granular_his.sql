@@ -140,7 +140,7 @@ from public.perfis pf
 join public.permissoes pe on pe.ativo
 where pf.ativo
   and pf.sistema
-  and lower(unaccent(pf.nome)) in ('administrador','admin')
+  and lower(pf.nome) in ('administrador','admin')
 on conflict do nothing;
 
 insert into public.perfil_permissoes(perfil_id, permissao_id)
@@ -153,7 +153,7 @@ join public.permissoes pe on pe.codigo = any(array[
   'atendimentos.visualizar','atendimentos.abrir','atendimentos.transferir',
   'autorizacoes.visualizar','autorizacoes.editar','autorizacoes.solicitar','guias.visualizar','guias.gerenciar'
 ])
-where pf.ativo and pf.sistema and lower(unaccent(pf.nome)) in ('recepcao','recepção')
+where pf.ativo and pf.sistema and lower(pf.nome) in ('recepcao','recepção')
 on conflict do nothing;
 
 insert into public.perfil_permissoes(perfil_id, permissao_id)
@@ -168,7 +168,7 @@ join public.permissoes pe on pe.codigo = any(array[
   'exames.visualizar','exames.gerenciar','laboratorio.visualizar','imagem.visualizar',
   'internacao.visualizar','internacao.criar','internacao.admitir'
 ])
-where pf.ativo and pf.sistema and lower(unaccent(pf.nome)) in ('medico','médico')
+where pf.ativo and pf.sistema and lower(pf.nome) in ('medico','médico')
 on conflict do nothing;
 
 insert into public.perfil_permissoes(perfil_id, permissao_id)
@@ -182,7 +182,7 @@ join public.permissoes pe on pe.codigo = any(array[
   'enfermagem.visualizar','enfermagem.gerenciar','enfermagem.registrar','enfermagem.checar',
   'medicamentos.administrar','internacao.visualizar'
 ])
-where pf.ativo and pf.sistema and lower(unaccent(pf.nome)) = 'enfermagem'
+where pf.ativo and pf.sistema and lower(pf.nome) = 'enfermagem'
 on conflict do nothing;
 
 insert into public.perfil_permissoes(perfil_id, permissao_id)
@@ -196,7 +196,7 @@ join public.permissoes pe on pe.codigo = any(array[
   'financeiro.visualizar','nfse.visualizar',
   'comercial.visualizar','credenciamento.visualizar','tabelas_comerciais.visualizar','tabelas_procedimentos.visualizar'
 ])
-where pf.ativo and pf.sistema and lower(unaccent(pf.nome)) = 'faturamento'
+where pf.ativo and pf.sistema and lower(pf.nome) = 'faturamento'
 on conflict do nothing;
 
 insert into public.perfil_permissoes(perfil_id, permissao_id)
@@ -207,7 +207,7 @@ join public.permissoes pe on pe.codigo = any(array[
   'contas_medicas.visualizar','contas_medicas.processar','contas_medicas.analisar',
   'faturamento.visualizar','prontuario.visualizar'
 ])
-where pf.ativo and pf.sistema and lower(unaccent(pf.nome)) = 'auditoria'
+where pf.ativo and pf.sistema and lower(pf.nome) = 'auditoria'
 on conflict do nothing;
 
 insert into public.perfil_permissoes(perfil_id, permissao_id)
@@ -218,7 +218,7 @@ join public.permissoes pe on pe.codigo = any(array[
   'nfse.visualizar','nfse.gerenciar','nfse.configurar','nfse.emitir',
   'faturamento.visualizar','glosas.visualizar'
 ])
-where pf.ativo and pf.sistema and lower(unaccent(pf.nome)) = 'financeiro'
+where pf.ativo and pf.sistema and lower(pf.nome) = 'financeiro'
 on conflict do nothing;
 
 insert into public.perfil_permissoes(perfil_id, permissao_id)
@@ -228,7 +228,7 @@ join public.permissoes pe on pe.codigo = any(array[
   'compras.visualizar','compras.gerenciar','compras.solicitar','compras.cotar','compras.aprovar','compras.receber',
   'estoque.visualizar','estoque.gerenciar','estoque.movimentar','estoque.inventariar'
 ])
-where pf.ativo and pf.sistema and lower(unaccent(pf.nome)) = 'compras e estoque'
+where pf.ativo and pf.sistema and lower(pf.nome) = 'compras e estoque'
 on conflict do nothing;
 
 -- Gestão de perfis é permitida apenas a usuários com usuarios.administrar.
