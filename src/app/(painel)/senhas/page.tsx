@@ -23,8 +23,20 @@ function mascararCpf(cpf?: string | null) {
   return d.length === 11 ? `***.***.***-${d.slice(-2)}` : "CPF identificado";
 }
 
-function GuicheSelect({ guiches, compact = false }: { guiches: string[]; compact?: boolean }) {
-  return <select name="ponto_atendimento" required defaultValue="" className={`ui-input ${compact ? "h-9 w-36 py-1.5" : "min-w-44"}`}>
+function mensagemErroFila(erro?: string) {
+  if (!erro) return null;
+  const mensagens: Record<string, string> = {
+    "guiche-invalido": "O guichê informado não está habilitado nas configurações da unidade.",
+    "sem-fila": "Não há senhas aguardando chamada neste momento.",
+    "senha-indisponivel": "Essa senha não está mais disponível para a ação. A fila pode ter sido atualizada por outro guichê.",
+    "falha-consulta": "Não foi possível consultar a fila agora. Atualize a página e tente novamente.",
+    "falha-atualizacao": "Não foi possível atualizar a senha. O erro técnico foi registrado para análise.",
+  };
+  return mensagens[erro] ?? "Não foi possível concluir a ação da fila. O erro técnico foi registrado para análise.";
+}
+
+function GuicheSelect({ guiches, compact = false, disabled = false }: { guiches: string[]; compact?: boolean; disabled?: boolean }) {
+  return <select name="ponto_atendimento" required defaultValue="" disabled={disabled} className={`ui-input ${compact ? "h-9 w-36 py-1.5" : "min-w-44"} disabled:cursor-not-allowed disabled:opacity-60`}>
     <option value="" disabled>Selecionar guichê</option>
     {guiches.map((guiche) => <option key={guiche} value={guiche}>{guiche}</option>)}
   </select>;
@@ -54,16 +66,17 @@ export default async function SenhasPage({ searchParams }: { searchParams: Promi
     : { data: [], error: null };
 
   if (setoresError || senhasError || pacientesError) {
-    console.error("[senhas] falha ao carregar fila da recepcao", { setores: setoresError?.message, senhas: senhasError?.message, pacientes: pacientesError?.message, unidadeId, hoje });
+    console.error("[senhas] falha ao carregar fila da recepcao", { setores: setoresError?.code, senhas: senhasError?.code, pacientes: pacientesError?.code, unidadeId, hoje });
   }
 
   const pacientesPorId = new Map((pacientes ?? []).map((p) => [p.id, p]));
   const aguardando = (senhas ?? []).filter((s) => s.status === "aguardando").length;
   const chamadas = (senhas ?? []).filter((s) => s.status === "chamada").length;
   const identificadas = (senhas ?? []).filter((s) => Boolean(s.paciente_id)).length;
+  const mensagemErro = mensagemErroFila(erro);
 
   return <SectionPage eyebrow="Recepção / Senhas" title="Fila de Senhas · Recepção" description="As senhas emitidas no Totem aparecem automaticamente nesta fila. Emergência, preferencial e normal são priorizadas na chamada.">
-    {erro ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{erro === "guiche-invalido" ? "O guichê informado não está habilitado nas configurações da unidade." : "Não foi possível concluir a ação da fila."}</div> : null}
+    {mensagemErro ? <div className={`rounded-xl border p-4 text-sm ${erro === "sem-fila" ? "border-sky-200 bg-sky-50 text-sky-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{mensagemErro}</div> : null}
     {setoresError || senhasError || pacientesError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">A fila não pôde ser atualizada completamente. O erro técnico foi registrado no servidor.</div> : null}
     {!recepcao ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">O setor Recepção não está configurado para esta unidade.</div> : null}
 
@@ -76,8 +89,8 @@ export default async function SenhasPage({ searchParams }: { searchParams: Promi
 
     <section className="ui-card mt-5 p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div><h2 className="flex items-center gap-2 font-semibold text-slate-900"><TicketCheck className="size-5 text-brand-700"/>Recepção</h2><p className="mt-1 text-sm text-slate-500">Selecione um dos {quantidadeGuiches} guichês configurados e chame a próxima senha.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><QueueAutoRefresh/>{recepcao ? <form action={chamarProximaSenha} className="flex flex-col gap-2 sm:flex-row"><input type="hidden" name="setor_id" value={recepcao.id}/><GuicheSelect guiches={guiches}/><button className="ui-button-primary"><BellRing className="size-4"/> Chamar próxima</button></form> : null}</div>
+        <div><h2 className="flex items-center gap-2 font-semibold text-slate-900"><TicketCheck className="size-5 text-brand-700"/>Recepção</h2><p className="mt-1 text-sm text-slate-500">{aguardando > 0 ? `Selecione um dos ${quantidadeGuiches} guichês configurados e chame a próxima senha.` : "Aguardando uma nova senha do Totem. A fila será atualizada automaticamente."}</p></div>
+        <div className="flex flex-wrap items-center gap-2"><QueueAutoRefresh/>{recepcao ? <form action={chamarProximaSenha} className="flex flex-col gap-2 sm:flex-row"><input type="hidden" name="setor_id" value={recepcao.id}/><GuicheSelect guiches={guiches} disabled={aguardando === 0}/><button disabled={aguardando === 0} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><BellRing className="size-4"/> {aguardando > 0 ? "Chamar próxima" : "Fila sem espera"}</button></form> : null}</div>
       </div>
     </section>
 
