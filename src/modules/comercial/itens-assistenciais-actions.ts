@@ -30,7 +30,7 @@ function decimal(value: string | null) {
   return Number.isFinite(number) ? number : null;
 }
 
-function tussForCategoria(categoria: string) {
+function familiaTuss(categoria: string) {
   if (["diaria", "taxa", "gas_medicinal"].includes(categoria)) return 18;
   if (["material", "opme"].includes(categoria)) return 19;
   if (categoria === "medicamento") return 20;
@@ -38,13 +38,30 @@ function tussForCategoria(categoria: string) {
   return null;
 }
 
-function normalizarTabelaTuss(categoria: string, raw: string | null) {
-  const esperada = tussForCategoria(categoria);
-  if (!raw) return esperada;
-  const parsed = Number(raw);
-  if (![18, 19, 20, 22].includes(parsed)) return null;
-  if (esperada !== null && parsed !== esperada) return null;
-  return parsed;
+function resolveTiss(categoria: string, codigoTuss: string | null, codigoProprio: string | null) {
+  if (categoria === "pacote") {
+    return {
+      tabelaTissCodigo: "98",
+      familia: null,
+      codigoTuss: null,
+      codigoProprio,
+    };
+  }
+  const familia = familiaTuss(categoria);
+  if (codigoTuss && familia) {
+    return {
+      tabelaTissCodigo: String(familia),
+      familia,
+      codigoTuss,
+      codigoProprio: null,
+    };
+  }
+  return {
+    tabelaTissCodigo: "00",
+    familia,
+    codigoTuss: null,
+    codigoProprio,
+  };
 }
 
 function bool(value: string | null) {
@@ -96,15 +113,21 @@ export async function salvarItemAssistencial(formData: FormData) {
   const descricao = text(formData, "descricao");
   if (!codigoInterno || !descricao || !categorias.has(categoria)) redirect(`${route}?erro=campos`);
 
-  const tabelaTuss = normalizarTabelaTuss(categoria, text(formData, "tabela_tuss"));
-  if (text(formData, "tabela_tuss") && tabelaTuss === null) redirect(`${route}?erro=tuss-categoria`);
+  const codigoTuss = text(formData, "codigo_tuss");
+  const codigoProprio = text(formData, "codigo_tabela_propria");
+  const tiss = resolveTiss(categoria, codigoTuss, codigoProprio);
+  if (["00", "98"].includes(tiss.tabelaTissCodigo) && (!tiss.codigoProprio || tiss.codigoProprio.length > 10)) {
+    redirect(`${route}?erro=codigo-proprio`);
+  }
 
   const payload = {
     empresa_id: empresaId,
     codigo_interno: codigoInterno,
     categoria,
-    tabela_tuss: tabelaTuss,
-    codigo_tuss: text(formData, "codigo_tuss"),
+    tabela_tiss_codigo: tiss.tabelaTissCodigo,
+    familia_tuss: tiss.familia,
+    codigo_tuss: tiss.codigoTuss,
+    codigo_tabela_propria: tiss.codigoProprio,
     descricao,
     unidade_medida: text(formData, "unidade_medida"),
     fabricante: text(formData, "fabricante"),
@@ -175,9 +198,10 @@ export async function importarItensAssistenciais(formData: FormData) {
       rejeitados += 1;
       continue;
     }
-    const tabelaRaw = value(cells, "tabela_tuss", "tabela_tiss", "tabela");
-    const tabelaTuss = normalizarTabelaTuss(categoria, tabelaRaw || null);
-    if (tabelaRaw && tabelaTuss === null) {
+    const codigoTuss = value(cells, "codigo_tuss", "tuss") || null;
+    const codigoProprio = value(cells, "codigo_tabela_propria", "codigo_proprio", "codigo_operadora") || null;
+    const tiss = resolveTiss(categoria, codigoTuss, codigoProprio);
+    if (["00", "98"].includes(tiss.tabelaTissCodigo) && (!tiss.codigoProprio || tiss.codigoProprio.length > 10)) {
       rejeitados += 1;
       continue;
     }
@@ -185,8 +209,10 @@ export async function importarItensAssistenciais(formData: FormData) {
       empresa_id: empresaId,
       codigo_interno: codigoInterno,
       categoria,
-      tabela_tuss: tabelaTuss,
-      codigo_tuss: value(cells, "codigo_tuss", "tuss") || null,
+      tabela_tiss_codigo: tiss.tabelaTissCodigo,
+      familia_tuss: tiss.familia,
+      codigo_tuss: tiss.codigoTuss,
+      codigo_tabela_propria: tiss.codigoProprio,
       descricao,
       unidade_medida: value(cells, "unidade_medida", "unidade") || null,
       fabricante: value(cells, "fabricante", "laboratorio") || null,
