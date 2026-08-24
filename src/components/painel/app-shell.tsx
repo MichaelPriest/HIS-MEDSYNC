@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { brand } from "@/config/brand";
 import { canAccessNavigation } from "@/lib/permissions/navigation";
+import { ContextualShortcuts } from "@/components/painel/contextual-shortcuts";
 
 type Icon = typeof UsersRound;
 type NavItem = { href: string; label: string; icon: Icon };
@@ -339,9 +340,23 @@ function WorkspaceBar({
   );
 }
 
+function UserAvatar({ photoUrl, initial, size }: { photoUrl?: string | null; initial: string; size: "sm" | "md" }) {
+  const dimensions = size === "sm" ? "size-8 rounded-lg" : "size-10 rounded-xl";
+  return (
+    <span
+      aria-hidden="true"
+      className={`grid shrink-0 place-items-center bg-gradient-to-br from-brand-100 to-cyan-100 bg-cover bg-center font-bold text-brand-800 ${dimensions}`}
+      style={photoUrl ? { backgroundImage: `url(${photoUrl})` } : undefined}
+    >
+      {photoUrl ? null : initial}
+    </span>
+  );
+}
+
 function UserMenu({
   email,
   userName,
+  userPhotoUrl,
   unidadeNome,
   empresaNome,
   profileNames,
@@ -350,6 +365,7 @@ function UserMenu({
 }: {
   email?: string | null;
   userName: string;
+  userPhotoUrl?: string | null;
   unidadeNome?: string | null;
   empresaNome?: string | null;
   profileNames: readonly string[];
@@ -364,7 +380,7 @@ function UserMenu({
   return (
     <details className="relative">
       <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border border-[#e1e8f1] bg-white p-1.5 pr-2 text-sm shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-100 to-cyan-100 font-bold text-brand-800">{initial}</span>
+        <UserAvatar photoUrl={userPhotoUrl} initial={initial} size="sm" />
         <span className="hidden min-w-0 text-left md:block">
           <span className="block max-w-36 truncate text-xs font-bold text-slate-800">{userName}</span>
           <span className="block max-w-36 truncate text-[10px] text-slate-400">{primaryProfile}</span>
@@ -375,7 +391,7 @@ function UserMenu({
       <div className="absolute right-0 mt-2 w-[19rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/12">
         <div className="border-b border-slate-100 bg-slate-50/70 p-4">
           <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-100 to-cyan-100 text-sm font-black text-brand-800">{initial}</span>
+            <UserAvatar photoUrl={userPhotoUrl} initial={initial} size="md" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-black text-slate-900">{userName}</p>
               <p className="mt-0.5 truncate text-xs text-slate-500">{email ?? "E-mail não informado"}</p>
@@ -413,6 +429,7 @@ export function AppShell({
   children,
   email,
   userName = "Usuário",
+  userPhotoUrl,
   unidadeId,
   unidadeNome,
   empresaNome,
@@ -423,6 +440,7 @@ export function AppShell({
   children: React.ReactNode;
   email?: string | null;
   userName?: string;
+  userPhotoUrl?: string | null;
   unidadeId?: string | null;
   unidadeNome?: string | null;
   empresaNome?: string | null;
@@ -478,13 +496,14 @@ export function AppShell({
               <button onClick={() => setMobileSearchOpen((value) => !value)} aria-label="Abrir busca" className="rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 xl:hidden"><Search className="size-4" /></button>
 
               {canOpenEmergency ? <Link href="/assistencial/urgencia" className="hidden items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100 2xl:inline-flex"><Siren className="size-4" />Urgência</Link> : null}
-              {canCreateAttendance ? <Link href="/atendimentos/novo" className="hidden items-center gap-1.5 rounded-xl bg-brand-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-brand-800 lg:inline-flex"><Plus className="size-4" />Novo atendimento</Link> : null}
+              {canCreateAttendance ? <Link href="/atendimentos" className="hidden items-center gap-1.5 rounded-xl bg-brand-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-brand-800 lg:inline-flex"><Plus className="size-4" />Novo atendimento</Link> : null}
 
               {unidadeNome ? <div className="hidden max-w-48 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 2xl:flex"><MapPin className="size-3.5 shrink-0 text-brand-600" /><span className="truncate">{unidadeNome}</span></div> : null}
 
               <UserMenu
                 email={email}
                 userName={userName}
+                userPhotoUrl={userPhotoUrl}
                 unidadeNome={unidadeNome}
                 empresaNome={empresaNome}
                 profileNames={profileNames}
@@ -504,6 +523,7 @@ export function AppShell({
           ) : null}
 
           <WorkspaceBar pathname={pathname} grantedPermissions={grantedPermissions} />
+          <ContextualShortcuts pathname={pathname} grantedPermissions={grantedPermissions} />
         </header>
 
         <main className="mx-auto w-full max-w-[1700px] px-4 py-4 sm:px-6 sm:py-5 xl:px-8 xl:py-6">{children}</main>
