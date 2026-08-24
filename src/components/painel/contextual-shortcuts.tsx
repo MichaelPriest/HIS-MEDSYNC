@@ -76,34 +76,52 @@ const rules: ShortcutRule[] = [
     path: "/prontuario",
     shortcuts: [
       { href: "/prescricao", label: "Prescrição", icon: Pill },
-      { href: "/internacao", label: "Internação", icon: BedDouble },
       { href: "/assistencial/urgencia", label: "Urgência", icon: Siren },
       { href: "/assistencial", label: "Central assistencial", icon: Activity },
+      { href: "/internacao", label: "Internação", icon: BedDouble },
     ],
   },
   {
     path: "/assistencial/urgencia",
     shortcuts: [
-      { href: "/triagem", label: "Triagem", icon: HeartPulse },
+      { href: "/fila-medica", label: "Fila médica", icon: Stethoscope },
       { href: "/prontuario", label: "Prontuário", icon: ClipboardCheck },
+      { href: "/prescricao", label: "Prescrição", icon: Pill },
       { href: "/internacao", label: "Internação", icon: BedDouble },
-      { href: "/internacao/nir", label: "NIR", icon: Hospital },
+    ],
+  },
+  {
+    path: "/internacao/altas",
+    shortcuts: [
+      { href: "/internacao", label: "Painel da internação", icon: Hospital },
+      { href: "/internacao/leitos", label: "Mapa de leitos", icon: BedDouble },
+      { href: "/internacao/nir", label: "NIR / Gestão de leitos", icon: Hospital },
+      { href: "/prontuario", label: "Prontuário", icon: ClipboardCheck },
+    ],
+  },
+  {
+    path: "/internacao/leitos",
+    shortcuts: [
+      { href: "/internacao", label: "Painel da internação", icon: Hospital },
+      { href: "/internacao/nir", label: "NIR / Gestão de leitos", icon: Hospital },
+      { href: "/internacao/altas", label: "Central de altas", icon: ClipboardCheck },
     ],
   },
   {
     path: "/internacao/nir",
     shortcuts: [
-      { href: "/internacao", label: "Mapa de leitos", icon: BedDouble },
-      { href: "/prontuario", label: "Prontuário", icon: ClipboardCheck },
-      { href: "/assistencial/urgencia", label: "Urgência", icon: Siren },
+      { href: "/internacao", label: "Painel da internação", icon: Hospital },
+      { href: "/internacao/leitos", label: "Mapa de leitos", icon: BedDouble },
+      { href: "/internacao/altas", label: "Central de altas", icon: ClipboardCheck },
     ],
   },
   {
     path: "/internacao",
     shortcuts: [
+      { href: "/internacao/leitos", label: "Mapa de leitos", icon: BedDouble },
       { href: "/internacao/nir", label: "NIR / Gestão de leitos", icon: Hospital },
+      { href: "/internacao/altas", label: "Central de altas", icon: ClipboardCheck },
       { href: "/prontuario", label: "Prontuário", icon: ClipboardCheck },
-      { href: "/assistencial/urgencia", label: "Urgência", icon: Siren },
     ],
   },
   {
