@@ -117,16 +117,22 @@ export async function emitirSenhaTotem(formData: FormData) {
 
 async function efetivarChamada(senhaId: string, pontoInformado: string) {
   const { supabase, user, unidadeId } = await getAssistencialContext();
-  const { data: config } = await supabase.from("configuracoes_painel_chamadas").select("quantidade_guiches").eq("unidade_id", unidadeId).maybeSingle();
+  const { data: config, error: configError } = await supabase.from("configuracoes_painel_chamadas").select("quantidade_guiches").eq("unidade_id", unidadeId).maybeSingle();
+  if (configError) console.error("[senhas] falha ao consultar configuracao de guiches", { code: configError.code, unidadeId });
+
   const quantidade = Math.max(1, Math.min(Number(config?.quantidade_guiches ?? 3), 30));
   const ponto = normalizarGuiche(pontoInformado, quantidade);
   if (!ponto) redirect("/senhas?erro=guiche-invalido");
 
-  const { data: atual } = await supabase.from("senhas_atendimento").select("id,primeira_chamada_em").eq("id", senhaId).eq("unidade_id", unidadeId).maybeSingle();
-  if (!atual) redirect("/senhas?erro=1");
+  const { data: atual, error: atualError } = await supabase.from("senhas_atendimento").select("id,primeira_chamada_em,status").eq("id", senhaId).eq("unidade_id", unidadeId).maybeSingle();
+  if (atualError) {
+    console.error("[senhas] falha ao consultar senha para chamada", { code: atualError.code, unidadeId });
+    redirect("/senhas?erro=falha-consulta");
+  }
+  if (!atual || String(atual.status) !== "aguardando") redirect("/senhas?erro=senha-indisponivel");
 
   const now = new Date().toISOString();
-  const { error } = await supabase.from("senhas_atendimento").update({
+  const { data: atualizada, error } = await supabase.from("senhas_atendimento").update({
     status: "chamada",
     ponto_atendimento: ponto,
     primeira_chamada_em: atual.primeira_chamada_em || now,
@@ -134,16 +140,20 @@ async function efetivarChamada(senhaId: string, pontoInformado: string) {
     chamado_por: user.id,
     updated_by: user.id,
     updated_at: now,
-  }).eq("id", senhaId);
+  }).eq("id", senhaId).eq("unidade_id", unidadeId).eq("status", "aguardando").select("id").maybeSingle();
 
-  if (error) redirect("/senhas?erro=1");
+  if (error) {
+    console.error("[senhas] falha ao atualizar chamada", { code: error.code, unidadeId });
+    redirect("/senhas?erro=falha-atualizacao");
+  }
+  if (!atualizada) redirect("/senhas?erro=senha-indisponivel");
   revalidatePath("/senhas");
 }
 
 export async function chamarSenha(formData: FormData) {
   const senhaId = String(formData.get("senha_id") ?? "").trim();
   const ponto = String(formData.get("ponto_atendimento") ?? "").trim();
-  if (!senhaId || !ponto) redirect("/senhas?erro=1");
+  if (!senhaId || !ponto) redirect("/senhas?erro=senha-indisponivel");
   await efetivarChamada(senhaId, ponto);
 }
 
@@ -151,10 +161,15 @@ export async function chamarProximaSenha(formData: FormData) {
   const { supabase, unidadeId } = await getAssistencialContext();
   const ponto = String(formData.get("ponto_atendimento") ?? "").trim();
   const setorId = String(formData.get("setor_id") ?? "").trim();
-  if (!ponto || !setorId) redirect("/senhas?erro=1");
+  if (!ponto || !setorId) redirect("/senhas?erro=senha-indisponivel");
 
   const hoje = dataSaoPaulo();
-  const { data: fila } = await supabase.from("senhas_atendimento").select("id,prioridade,sequencial").eq("unidade_id", unidadeId).eq("setor_id", setorId).eq("data_referencia", hoje).eq("status", "aguardando").limit(200);
+  const { data: fila, error: filaError } = await supabase.from("senhas_atendimento").select("id,prioridade,sequencial").eq("unidade_id", unidadeId).eq("setor_id", setorId).eq("data_referencia", hoje).eq("status", "aguardando").limit(200);
+  if (filaError) {
+    console.error("[senhas] falha ao consultar proxima senha", { code: filaError.code, unidadeId });
+    redirect("/senhas?erro=falha-consulta");
+  }
+
   const peso: Record<string, number> = { emergencia: 0, preferencial: 1, normal: 2 };
   const proxima = (fila ?? []).sort((a, b) => (peso[String(a.prioridade)] ?? 9) - (peso[String(b.prioridade)] ?? 9) || Number(a.sequencial) - Number(b.sequencial))[0];
   if (!proxima) redirect("/senhas?erro=sem-fila");
@@ -164,10 +179,25 @@ export async function chamarProximaSenha(formData: FormData) {
 export async function iniciarAtendimentoSenha(formData: FormData) {
   const { supabase, user, unidadeId } = await getAssistencialContext();
   const senhaId = String(formData.get("senha_id") ?? "").trim();
-  if (!senhaId) redirect("/senhas?erro=1");
-  const { data: senha } = await supabase.from("senhas_atendimento").select("id,status").eq("id", senhaId).eq("unidade_id", unidadeId).maybeSingle();
-  if (!senha || !["chamada", "aguardando"].includes(String(senha.status))) redirect("/senhas?erro=1");
-  const { error } = await supabase.from("senhas_atendimento").update({ status: "em_atendimento", iniciado_em: new Date().toISOString(), updated_by: user.id }).eq("id", senhaId);
-  if (error) redirect("/senhas?erro=1");
+  if (!senhaId) redirect("/senhas?erro=senha-indisponivel");
+
+  const { data: senha, error: senhaError } = await supabase.from("senhas_atendimento").select("id,status").eq("id", senhaId).eq("unidade_id", unidadeId).maybeSingle();
+  if (senhaError) {
+    console.error("[senhas] falha ao consultar senha para admissao", { code: senhaError.code, unidadeId });
+    redirect("/senhas?erro=falha-consulta");
+  }
+  if (!senha || !["chamada", "aguardando"].includes(String(senha.status))) redirect("/senhas?erro=senha-indisponivel");
+
+  const { data: atualizada, error } = await supabase.from("senhas_atendimento").update({
+    status: "em_atendimento",
+    iniciado_em: new Date().toISOString(),
+    updated_by: user.id,
+  }).eq("id", senhaId).eq("unidade_id", unidadeId).in("status", ["chamada", "aguardando"]).select("id").maybeSingle();
+
+  if (error) {
+    console.error("[senhas] falha ao iniciar admissao", { code: error.code, unidadeId });
+    redirect("/senhas?erro=falha-atualizacao");
+  }
+  if (!atualizada) redirect("/senhas?erro=senha-indisponivel");
   redirect(asRoute(`/atendimentos/novo?senha=${encodeURIComponent(senhaId)}`));
 }
