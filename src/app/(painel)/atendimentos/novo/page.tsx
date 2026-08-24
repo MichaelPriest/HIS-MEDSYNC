@@ -19,7 +19,7 @@ const ERROS: Record<string, string> = {
   "falha-cadastro": "Não foi possível concluir a admissão. Nenhuma etapa parcial foi mantida; tente novamente.",
 };
 
-type Search = { erro?: string; senha?: string; agendamento?: string };
+type Search = { erro?: string; senha?: string; agendamento?: string; paciente?: string; cadastro?: string };
 
 type AgendaInicial = {
   id: string;
@@ -34,7 +34,7 @@ type AgendaInicial = {
 };
 
 export default async function NovoAtendimentoPage({ searchParams }: { searchParams: Promise<Search> }) {
-  const { erro, senha: senhaId, agendamento: agendamentoId } = await searchParams;
+  const { erro, senha: senhaId, agendamento: agendamentoId, paciente: pacienteRetornoId, cadastro } = await searchParams;
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
 
   if ((!senhaId && !agendamentoId) || (senhaId && agendamentoId)) redirect("/atendimentos?erro=origem-admissao-invalida");
@@ -54,7 +54,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
     if (senhaError) console.error("[admissao] falha ao validar senha", { code: senhaError.code });
     if (!data || data.atendimento_id || data.status !== "em_atendimento") redirect("/senhas?erro=senha-invalida");
     senha = { id: data.id, senha: data.senha, ponto_atendimento: data.ponto_atendimento };
-    sourcePatientId = data.paciente_id;
+    sourcePatientId = data.paciente_id ?? pacienteRetornoId ?? null;
   } else if (agendamentoId) {
     const [{ data, error: agendaError }, { data: atendimentoExistente }] = await Promise.all([
       supabase
@@ -100,11 +100,14 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
   const description = isAgenda
     ? "Check-in confirmado na Agenda. Revise os dados administrativos e abra o episódio sem necessidade de senha do Totem."
     : `Admissão vinculada à senha do Totem${senha?.ponto_atendimento ? ` · ${senha.ponto_atendimento}` : ""}.`;
+  const admissionReturn = senhaId ? `/atendimentos/novo?senha=${encodeURIComponent(senhaId)}` : null;
+  const createPatientHref = admissionReturn ? `/pacientes/novo?retorno=${encodeURIComponent(admissionReturn)}` : null;
 
   return <SectionPage eyebrow={isAgenda ? "Agenda / Check-in / Admissão" : "Recepção / Admissão"} title={title} description={description}>
     {mensagemErro ? <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{mensagemErro}</div> : null}
+    {cadastro === "parcial" ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">O paciente foi criado e já está selecionado, mas algum contato/endereço complementar não pôde ser salvo. Revise o cadastro depois da admissão.</div> : null}
     <div className="mb-4 rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm text-brand-950">
-      {isAgenda ? <><strong>Check-in da Agenda validado.</strong> O paciente agendado está bloqueado para preservar o vínculo correto com RA/prontuário.</> : <><strong>Senha {senha?.senha}</strong> validada. {initialPatient ? "O paciente identificado no Totem já foi selecionado automaticamente." : "Pesquise o paciente por nome, CPF, RA ou número de registro."}</>}
+      {isAgenda ? <><strong>Check-in da Agenda validado.</strong> O paciente agendado está bloqueado para preservar o vínculo correto com RA/prontuário.</> : <><strong>Senha {senha?.senha}</strong> validada. {initialPatient ? (pacienteRetornoId && !senhaId ? "O paciente cadastrado foi selecionado automaticamente." : "O paciente está selecionado e a admissão pode continuar.") : "Pesquise o paciente por nome, CPF, RA ou número de registro; se ele ainda não existir, use “Cadastrar paciente”."}</>}
     </div>
     <AdmissionForm
       action={action}
@@ -121,6 +124,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
       initialTipoAtendimento={agenda?.tipo_atendimento ?? (isAgenda ? "ambulatorial" : null)}
       initialOrigem={isAgenda ? "agenda" : null}
       cancelHref={isAgenda ? "/agenda" : "/senhas"}
+      createPatientHref={createPatientHref}
       submitLabel={isAgenda ? "Abrir atendimento agendado" : "Abrir atendimento"}
     />
   </SectionPage>;
