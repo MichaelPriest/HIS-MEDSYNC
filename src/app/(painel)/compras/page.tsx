@@ -1,37 +1,102 @@
+import Link from "next/link";
+import { FileText, GitCompareArrows, PackageCheck, Plus, ShoppingCart } from "lucide-react";
 import { ActionPanel } from "@/components/painel/action-panel";
 import { SectionPage } from "@/components/painel/section-page";
-import { createClient } from "@/lib/supabase/server";
-import { adicionarFornecedorCotacao, aprovarFornecedorCotacao, criarCotacaoCompra, criarSolicitacaoCompra } from "@/modules/corporativo/actions";
+import { asRoute } from "@/lib/route-cast";
+import { requireAnyPermission } from "@/lib/permissions/server";
+import { criarSolicitacaoCompra } from "@/modules/compras/actions";
 
-function one<T>(r:T|T[]|null){return Array.isArray(r)?r[0]??null:r;}
+function one<T>(value: T | T[] | null) { return Array.isArray(value) ? value[0] ?? null : value; }
 
-export default async function ComprasPage(){
-  const supabase=await createClient();
-  const [{data:sols},{data:pedidos},{data:cotacoes},{data:fornecedores}]=await Promise.all([
-    supabase.from("compras_solicitacoes").select("id,numero,setor,prioridade,status,justificativa,created_at").order("created_at",{ascending:false}).limit(100),
-    supabase.from("compras_pedidos").select("id,numero,data_pedido,previsao_entrega,valor_total,status,fornecedor:fornecedores(nome_fantasia,razao_social)").order("created_at",{ascending:false}).limit(100),
-    supabase.from("compras_cotacoes").select("id,numero,status,validade,solicitacao:compras_solicitacoes(numero,setor),fornecedores:compras_cotacao_fornecedores(id,fornecedor_id,valor_total,prazo_entrega_dias,condicao_pagamento,frete,selecionado,fornecedor:fornecedores(nome_fantasia,razao_social))").order("created_at",{ascending:false}).limit(50),
-    supabase.from("fornecedores").select("id,nome_fantasia,razao_social").eq("ativo",true).order("nome_fantasia")
+export default async function ComprasPage({ searchParams }: { searchParams: Promise<{ pedido?: string; erro?: string }> }) {
+  const sp = await searchParams;
+  const { supabase, empresaId, unidadeId } = await requireAnyPermission([
+    "compras.visualizar",
+    "compras.solicitar",
+    "compras.cotar",
+    "compras.aprovar",
+    "compras.gerenciar",
   ]);
-  const abertas=(sols??[]).filter(s=>!["concluida","cancelada"].includes(s.status)).length;
-  const cotacoesAbertas=(cotacoes??[]).filter(c=>!["aprovada","cancelada"].includes(c.status)).length;
+  const [{ data: solicitacoes }, { data: cotacoes }, { data: pedidos }, solicitarGrant] = await Promise.all([
+    supabase.from("compras_solicitacoes")
+      .select("id,numero,setor,prioridade,status,justificativa,created_at,itens:compras_solicitacao_itens(id)")
+      .eq("empresa_id", empresaId).eq("unidade_id", unidadeId)
+      .order("created_at", { ascending: false }).limit(100),
+    supabase.from("compras_cotacoes")
+      .select("id,numero,status,validade,created_at,solicitacao:compras_solicitacoes(numero,setor),itens:compras_cotacao_itens(id),fornecedores:compras_cotacao_fornecedores(id,itens_cotados,itens_total,selecionado)")
+      .eq("empresa_id", empresaId).eq("unidade_id", unidadeId)
+      .order("created_at", { ascending: false }).limit(80),
+    supabase.from("compras_pedidos")
+      .select("id,numero,data_pedido,previsao_entrega,valor_total,status,fornecedor:fornecedores(nome_fantasia,razao_social)")
+      .eq("empresa_id", empresaId).eq("unidade_id", unidadeId)
+      .order("created_at", { ascending: false }).limit(80),
+    supabase.rpc("tem_permissao", { p_empresa: empresaId, p_unidade: unidadeId, p_codigo: "compras.solicitar" }),
+  ]);
+  const canRequest = solicitarGrant.data === true && !solicitarGrant.error;
+  const abertas = (solicitacoes ?? []).filter((item) => !["recebida", "cancelada"].includes(item.status)).length;
+  const cotacoesAbertas = (cotacoes ?? []).filter((item) => !["convertida_pedido", "cancelada", "reprovada"].includes(item.status)).length;
 
-  return <SectionPage eyebrow="Gestão / Suprimentos" title="Compras" description="Solicitação → cotação → aprovação → pedido, em uma única área de trabalho.">
-    <section className="grid gap-3 sm:grid-cols-3"><Kpi label="Solicitações abertas" value={abertas}/><Kpi label="Cotações em andamento" value={cotacoesAbertas}/><Kpi label="Pedidos" value={pedidos?.length??0}/></section>
+  return (
+    <SectionPage
+      eyebrow="Gestão / Suprimentos"
+      title="Compras"
+      description="Solicitação por catálogo mestre → cotação item a item → comparação de fornecedores → aprovação → pedido."
+    >
+      {sp.pedido ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Pedido {sp.pedido} gerado a partir da cotação aprovada.</div> : null}
+      {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Não foi possível concluir a operação de Compras.</div> : null}
 
-    <div className="mt-5">
-      <ActionPanel title="Nova operação de compras" description="Abra uma solicitação ou inicie a cotação de uma solicitação existente.">
-        <div className="grid gap-5 xl:grid-cols-2">
-          <form action={criarSolicitacaoCompra} className="rounded-2xl border border-slate-200 bg-white p-4"><h3 className="font-bold text-slate-900">Nova solicitação</h3><div className="mt-4 grid gap-3 md:grid-cols-2"><input name="setor" className="ui-input" placeholder="Setor solicitante"/><select name="prioridade" className="ui-input"><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select><input name="justificativa" className="ui-input md:col-span-2" placeholder="Justificativa"/><div className="md:col-span-2 flex justify-end"><button className="ui-button-primary">Criar solicitação</button></div></div></form>
-          <form action={criarCotacaoCompra} className="rounded-2xl border border-slate-200 bg-white p-4"><h3 className="font-bold text-slate-900">Abrir cotação</h3><div className="mt-4 grid gap-3"><select name="solicitacao_id" required defaultValue="" className="ui-input"><option value="">Selecione a solicitação</option>{sols?.filter(s=>["solicitada","aprovada","em_cotacao"].includes(s.status)).map(s=><option key={s.id} value={s.id}>{s.numero} · {s.setor||"Sem setor"}</option>)}</select><div className="grid gap-3 md:grid-cols-2"><input name="validade" type="date" className="ui-input"/><input name="observacoes" className="ui-input" placeholder="Observações"/></div><div className="flex justify-end"><button className="ui-button-primary">Criar cotação</button></div></div></form>
-        </div>
-      </ActionPanel>
-    </div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Solicitações abertas" value={abertas} icon={<FileText className="size-5" />} />
+        <Kpi label="Cotações em andamento" value={cotacoesAbertas} icon={<GitCompareArrows className="size-5" />} />
+        <Kpi label="Pedidos" value={pedidos?.length ?? 0} icon={<ShoppingCart className="size-5" />} />
+        <Kpi label="Catálogo" value="MATMED" icon={<PackageCheck className="size-5" />} />
+      </section>
 
-    <section className="ui-card mt-5 overflow-hidden"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">Cotações comparativas</h2><p className="mt-1 text-xs text-slate-500">Adicione propostas e aprove o fornecedor sem sair da mesma tela.</p></div><div className="divide-y divide-slate-100">{cotacoes?.length?cotacoes.map(c=>{const s=one(c.solicitacao);const propostas=Array.isArray(c.fornecedores)?c.fornecedores:[];return <details key={c.id} className="group"><summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-5 hover:bg-slate-50"><div><b>{c.numero}</b><p className="text-sm text-slate-500">{s?.numero??"—"} · {s?.setor??"—"} · {propostas.length} proposta(s)</p></div><span className="text-xs font-semibold capitalize text-brand-700">{c.status.replaceAll("_"," ")}</span></summary><div className="border-t border-slate-100 bg-slate-50/40 p-5"><form action={adicionarFornecedorCotacao} className="grid gap-2 lg:grid-cols-[1fr_150px_120px_180px_120px_auto]"><input type="hidden" name="cotacao_id" value={c.id}/><select name="fornecedor_id" required defaultValue="" className="ui-input"><option value="">Fornecedor</option>{fornecedores?.map(f=><option key={f.id} value={f.id}>{f.nome_fantasia||f.razao_social}</option>)}</select><input name="valor_total" placeholder="Valor" className="ui-input"/><input name="frete" placeholder="Frete" className="ui-input"/><input name="condicao_pagamento" placeholder="Pagamento" className="ui-input"/><input name="prazo_entrega_dias" type="number" placeholder="Prazo dias" className="ui-input"/><button className="ui-button-secondary">Adicionar</button></form><div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{propostas.map(p=>{const f=one(p.fornecedor);return <div key={p.id} className={`rounded-xl border p-4 ${p.selecionado?"border-emerald-300 bg-emerald-50":"border-slate-200 bg-white"}`}><div className="flex justify-between gap-2"><b>{f?.nome_fantasia||f?.razao_social||"Fornecedor"}</b>{p.selecionado?<span className="text-xs font-semibold text-emerald-700">Selecionado</span>:null}</div><p className="mt-2 text-lg font-bold">R$ {(Number(p.valor_total||0)+Number(p.frete||0)).toLocaleString("pt-BR",{minimumFractionDigits:2})}</p><p className="text-xs text-slate-500">Prazo {p.prazo_entrega_dias??"—"} dias · {p.condicao_pagamento||"Sem condição"}</p>{!p.selecionado?<form action={aprovarFornecedorCotacao} className="mt-3"><input type="hidden" name="cotacao_id" value={c.id}/><input type="hidden" name="fornecedor_id" value={p.fornecedor_id}/><button className="ui-button-secondary">Aprovar fornecedor</button></form>:null}</div>})}</div></div></details>}):<p className="p-6 text-sm text-slate-500">Nenhuma cotação.</p>}</div></section>
+      {canRequest ? <div className="mt-5">
+        <ActionPanel title="Nova solicitação" description="Crie o cabeçalho e depois selecione materiais, medicamentos, OPME e gases diretamente do catálogo mestre.">
+          <form action={criarSolicitacaoCompra} className="grid gap-3 md:grid-cols-[1fr_180px_2fr_auto]">
+            <input name="setor" className="ui-input" placeholder="Setor solicitante" required />
+            <select name="prioridade" className="ui-input" defaultValue="normal"><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select>
+            <input name="justificativa" className="ui-input" placeholder="Justificativa / necessidade" />
+            <button className="ui-button-primary inline-flex items-center gap-2"><Plus className="size-4" />Criar</button>
+          </form>
+        </ActionPanel>
+      </div> : null}
 
-    <div className="mt-5 grid gap-5 xl:grid-cols-2"><section className="ui-card overflow-hidden"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold">Solicitações</h2></div><div className="divide-y divide-slate-100">{sols?.length?sols.map(s=><div key={s.id} className="p-4"><div className="flex justify-between gap-3"><strong>{s.numero}</strong><span className="text-xs font-semibold text-brand-700">{s.status.replaceAll("_"," ")}</span></div><p className="mt-1 text-sm text-slate-500">{s.setor||"Sem setor"} · Prioridade {s.prioridade}</p><p className="mt-1 text-sm text-slate-600">{s.justificativa||"Sem justificativa"}</p></div>):<p className="p-6 text-sm text-slate-500">Nenhuma solicitação.</p>}</div></section><section className="ui-card overflow-hidden"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold">Pedidos</h2></div><div className="divide-y divide-slate-100">{pedidos?.length?pedidos.map(p=>{const f=one(p.fornecedor);return <div key={p.id} className="p-4"><div className="flex justify-between gap-3"><strong>{p.numero}</strong><span className="text-xs font-semibold text-brand-700">{p.status}</span></div><p className="mt-1 text-sm text-slate-500">{f?.nome_fantasia||f?.razao_social||"Fornecedor"}</p><p className="mt-1 text-sm font-medium">R$ {Number(p.valor_total||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}</p></div>}):<p className="p-6 text-sm text-slate-500">Nenhum pedido.</p>}</div></section></div>
-  </SectionPage>;
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.05fr_1fr]">
+        <section className="ui-card overflow-hidden">
+          <header className="border-b border-slate-100 px-5 py-4"><h2 className="font-black text-slate-900">Solicitações</h2><p className="mt-1 text-xs text-slate-500">Abra a solicitação para montar a lista com itens do catálogo.</p></header>
+          <div className="divide-y divide-slate-100">
+            {solicitacoes?.length ? solicitacoes.map((s) => {
+              const itens = Array.isArray(s.itens) ? s.itens.length : 0;
+              return <div key={s.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><strong>{s.numero}</strong><Status value={s.status} /></div><p className="mt-1 text-sm text-slate-500">{s.setor || "Sem setor"} · {itens} item(ns) · prioridade {s.prioridade}</p><p className="mt-1 line-clamp-1 text-xs text-slate-400">{s.justificativa || "Sem justificativa"}</p></div><Link href={asRoute(`/compras/solicitacoes/${s.id}`)} className="btn-secondary">Abrir solicitação</Link></div>;
+            }) : <p className="p-6 text-sm text-slate-500">Nenhuma solicitação.</p>}
+          </div>
+        </section>
+
+        <section className="ui-card overflow-hidden">
+          <header className="border-b border-slate-100 px-5 py-4"><h2 className="font-black text-slate-900">Cotações</h2><p className="mt-1 text-xs text-slate-500">Comparativo item a item, cobertura e fornecedor vencedor.</p></header>
+          <div className="divide-y divide-slate-100">
+            {cotacoes?.length ? cotacoes.map((c) => {
+              const solicitacao = one(c.solicitacao);
+              const itens = Array.isArray(c.itens) ? c.itens.length : 0;
+              const fornecedores = Array.isArray(c.fornecedores) ? c.fornecedores : [];
+              const completos = fornecedores.filter((f) => f.itens_total > 0 && f.itens_cotados >= f.itens_total).length;
+              return <div key={c.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><strong>{c.numero}</strong><Status value={c.status} /></div><p className="mt-1 text-sm text-slate-500">{solicitacao?.numero || "—"} · {itens} item(ns) · {fornecedores.length} fornecedor(es)</p><p className="mt-1 text-xs text-slate-400">{completos} proposta(s) com cobertura completa</p></div><Link href={asRoute(`/compras/cotacoes/${c.id}`)} className="btn-secondary">Abrir comparativo</Link></div>;
+            }) : <p className="p-6 text-sm text-slate-500">Nenhuma cotação.</p>}
+          </div>
+        </section>
+      </div>
+
+      <section className="ui-card mt-5 overflow-hidden">
+        <header className="border-b border-slate-100 px-5 py-4"><h2 className="font-black text-slate-900">Pedidos gerados</h2><p className="mt-1 text-xs text-slate-500">Pedidos convertidos das cotações aprovadas.</p></header>
+        <div className="divide-y divide-slate-100">{pedidos?.length ? pedidos.map((p) => { const fornecedor = one(p.fornecedor); return <div key={p.id} className="grid gap-2 p-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-center"><div><strong>{p.numero}</strong><p className="text-xs text-slate-500">{fornecedor?.nome_fantasia || fornecedor?.razao_social || "Fornecedor"}</p></div><div className="text-sm text-slate-600">Pedido {p.data_pedido || "—"} · entrega {p.previsao_entrega || "—"}</div><Status value={p.status} /><strong>R$ {Number(p.valor_total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>; }) : <p className="p-6 text-sm text-slate-500">Nenhum pedido.</p>}</div>
+      </section>
+    </SectionPage>
+  );
 }
 
-function Kpi({label,value}:{label:string;value:number}){return <div className="his-kpi"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-2 text-3xl font-black text-slate-950">{value}</p></div>}
+function Kpi({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
+  return <div className="his-kpi"><div className="flex items-center justify-between text-slate-400"><p className="text-xs font-bold uppercase tracking-wider">{label}</p>{icon}</div><p className="mt-2 text-3xl font-black text-slate-950">{value}</p></div>;
+}
+function Status({ value }: { value: string }) { return <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold capitalize text-slate-600">{value.replaceAll("_", " ")}</span>; }
