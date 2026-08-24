@@ -40,9 +40,16 @@ import {
   X,
 } from "lucide-react";
 import { brand } from "@/config/brand";
+import { canAccessNavigation } from "@/lib/permissions/navigation";
 
 type NavItem = { href: string; label: string; icon: typeof UsersRound };
-type NavGroup = { key: string; label: string; shortLabel: string; icon: typeof UsersRound; items: NavItem[] };
+type NavGroup = {
+  key: string;
+  label: string;
+  shortLabel: string;
+  icon: typeof UsersRound;
+  items: NavItem[];
+};
 
 const jornadaNav: NavItem[] = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
@@ -120,7 +127,9 @@ function pathMatches(pathname: string, item: NavItem) {
 }
 
 function activeItem(pathname: string) {
-  return [...allNav].sort((a, b) => b.href.length - a.href.length).find((item) => pathMatches(pathname, item)) ?? null;
+  return [...allNav]
+    .sort((a, b) => b.href.length - a.href.length)
+    .find((item) => pathMatches(pathname, item)) ?? null;
 }
 
 function activeGroup(pathname: string) {
@@ -136,11 +145,26 @@ function currentTitle(pathname: string) {
   return activeItem(pathname)?.label ?? "MedSync HIS";
 }
 
-function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; unidadeId?: string | null }) {
+function visibleItems(group: NavGroup, grantedPermissions: readonly string[] | null) {
+  return group.items.filter((item) => canAccessNavigation(grantedPermissions, item.href));
+}
+
+function SidebarContent({
+  onNavigate,
+  unidadeId,
+  grantedPermissions,
+}: {
+  onNavigate?: () => void;
+  unidadeId?: string | null;
+  grantedPermissions: readonly string[] | null;
+}) {
   const pathname = usePathname();
   const selected = activeItem(pathname);
   const selectedGroup = activeGroup(pathname);
   const [openGroup, setOpenGroup] = useState<string | null>(() => selectedGroup?.key ?? "jornada");
+  const allowedGroups = navGroups
+    .map((group) => ({ ...group, items: visibleItems(group, grantedPermissions) }))
+    .filter((group) => group.items.length > 0);
 
   const navLink = (item: NavItem) => {
     const active = selected?.href === item.href;
@@ -154,7 +178,9 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
         className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white/[0.12] text-white shadow-sm" : "text-white/62 hover:bg-white/[0.07] hover:text-white"}`}
       >
         {active ? <span className="absolute -left-3 h-7 w-1 rounded-r-full bg-cyan-400" /> : null}
-        <span className={`grid size-8 place-items-center rounded-lg transition ${active ? "bg-white/10 text-cyan-300" : "text-white/42 group-hover:text-white/75"}`}><Icon className="size-4" /></span>
+        <span className={`grid size-8 place-items-center rounded-lg transition ${active ? "bg-white/10 text-cyan-300" : "text-white/42 group-hover:text-white/75"}`}>
+          <Icon className="size-4" />
+        </span>
         <span className="truncate">{item.label}</span>
       </Link>
     );
@@ -172,7 +198,9 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
           aria-expanded={open}
           className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${active ? "bg-white/[0.08] text-white" : "text-white/68 hover:bg-white/[0.07] hover:text-white"}`}
         >
-          <span className={`grid size-8 place-items-center rounded-lg ${active ? "text-cyan-300" : "text-white/45"}`}><Icon className="size-4" /></span>
+          <span className={`grid size-8 place-items-center rounded-lg ${active ? "text-cyan-300" : "text-white/45"}`}>
+            <Icon className="size-4" />
+          </span>
           <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
           {open ? <ChevronDown className="size-4 text-white/35" /> : <ChevronRight className="size-4 text-white/35" />}
         </button>
@@ -195,7 +223,11 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
     </Link>
   );
 
-  const sectionLabel = (label: string) => <p className="px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">{label}</p>;
+  const sectionLabel = (label: string) => (
+    <p className="px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">{label}</p>
+  );
+
+  const canUseReceptionTerminals = canAccessNavigation(grantedPermissions, "/senhas");
 
   return (
     <div className="flex h-full flex-col bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,.20),_transparent_30%),linear-gradient(180deg,#0b1f44_0%,#07162f_100%)]">
@@ -215,12 +247,14 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
           {navLink({ href: "/painel", label: "Visão geral", icon: LayoutDashboard })}
         </nav>
 
-        <div className="mt-5 border-t border-white/[0.07] pt-5">
-          {sectionLabel("Áreas de trabalho")}
-          <div className="mt-3 space-y-1">{navGroups.map(navGroup)}</div>
-        </div>
+        {allowedGroups.length ? (
+          <div className="mt-5 border-t border-white/[0.07] pt-5">
+            {sectionLabel("Áreas de trabalho")}
+            <div className="mt-3 space-y-1">{allowedGroups.map(navGroup)}</div>
+          </div>
+        ) : null}
 
-        {unidadeId ? (
+        {unidadeId && canUseReceptionTerminals ? (
           <div className="mt-6 border-t border-white/[0.07] pt-5">
             {sectionLabel("Terminais")}
             <div className="mt-3 space-y-2">
@@ -234,8 +268,14 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
       <div className="border-t border-white/[0.08] p-4">
         <div className="rounded-2xl border border-white/[0.09] bg-white/[0.055] p-3.5 backdrop-blur">
           <div className="flex items-center gap-3">
-            <span className="relative grid size-9 place-items-center rounded-xl bg-cyan-400/10 text-cyan-300"><ShieldCheck className="size-4" /><span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-[#0b1f44] bg-emerald-400" /></span>
-            <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-white/90">Ambiente hospitalar</p><p className="mt-0.5 truncate text-[11px] text-white/38">Conexão protegida</p></div>
+            <span className="relative grid size-9 place-items-center rounded-xl bg-cyan-400/10 text-cyan-300">
+              <ShieldCheck className="size-4" />
+              <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-[#0b1f44] bg-emerald-400" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-white/90">Ambiente hospitalar</p>
+              <p className="mt-0.5 truncate text-[11px] text-white/38">Acesso conforme perfil</p>
+            </div>
           </div>
         </div>
       </div>
@@ -243,10 +283,20 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
   );
 }
 
-function WorkspaceBar({ pathname }: { pathname: string }) {
+function WorkspaceBar({
+  pathname,
+  grantedPermissions,
+}: {
+  pathname: string;
+  grantedPermissions: readonly string[] | null;
+}) {
   const group = activeGroup(pathname);
   const selected = activeItem(pathname);
   if (!group) return null;
+
+  const items = visibleItems(group, grantedPermissions);
+  if (!items.length) return null;
+
   const GroupIcon = group.icon;
   return (
     <div className="border-t border-slate-100 bg-white">
@@ -254,26 +304,57 @@ function WorkspaceBar({ pathname }: { pathname: string }) {
         <span className="sticky left-0 z-10 mr-1 inline-flex shrink-0 items-center gap-1.5 bg-white pr-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
           <GroupIcon className="size-3.5" />{group.shortLabel}
         </span>
-        {group.items.map((item) => {
+        {items.map((item) => {
           const active = selected?.href === item.href;
           const Icon = item.icon;
-          return <Link key={item.href} href={item.href as Route} aria-current={active ? "page" : undefined} className={`inline-flex h-11 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-semibold transition ${active ? "border-brand-600 text-brand-800" : "border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-800"}`}><Icon className="size-3.5" />{item.label}</Link>;
+          return (
+            <Link
+              key={item.href}
+              href={item.href as Route}
+              aria-current={active ? "page" : undefined}
+              className={`inline-flex h-11 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-semibold transition ${active ? "border-brand-600 text-brand-800" : "border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-800"}`}
+            >
+              <Icon className="size-3.5" />{item.label}
+            </Link>
+          );
         })}
       </div>
     </div>
   );
 }
 
-export function AppShell({ children, email, unidadeId, logoutAction }: { children: React.ReactNode; email?: string | null; unidadeId?: string | null; logoutAction: (formData: FormData) => void | Promise<void> }) {
+export function AppShell({
+  children,
+  email,
+  unidadeId,
+  grantedPermissions = null,
+  logoutAction,
+}: {
+  children: React.ReactNode;
+  email?: string | null;
+  unidadeId?: string | null;
+  grantedPermissions?: readonly string[] | null;
+  logoutAction: (formData: FormData) => void | Promise<void>;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const title = currentTitle(pathname);
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] lg:grid lg:grid-cols-[18rem_1fr]">
-      <aside className="hidden text-white lg:sticky lg:top-0 lg:block lg:h-screen"><SidebarContent unidadeId={unidadeId} /></aside>
+      <aside className="hidden text-white lg:sticky lg:top-0 lg:block lg:h-screen">
+        <SidebarContent unidadeId={unidadeId} grantedPermissions={grantedPermissions} />
+      </aside>
 
-      {mobileOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button aria-label="Fechar menu" className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} /><aside className="relative h-full w-[18rem] max-w-[88vw] text-white shadow-2xl"><button aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"><X className="size-5" /></button><SidebarContent unidadeId={unidadeId} onNavigate={() => setMobileOpen(false)} /></aside></div> : null}
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button aria-label="Fechar menu" className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="relative h-full w-[18rem] max-w-[88vw] text-white shadow-2xl">
+            <button aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"><X className="size-5" /></button>
+            <SidebarContent unidadeId={unidadeId} grantedPermissions={grantedPermissions} onNavigate={() => setMobileOpen(false)} />
+          </aside>
+        </div>
+      ) : null}
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b border-[#e4eaf2] bg-white/95 backdrop-blur-xl">
@@ -308,7 +389,7 @@ export function AppShell({ children, email, unidadeId, logoutAction }: { childre
               </details>
             </div>
           </div>
-          <WorkspaceBar pathname={pathname} />
+          <WorkspaceBar pathname={pathname} grantedPermissions={grantedPermissions} />
         </header>
 
         <main className="mx-auto w-full max-w-[1700px] px-4 py-4 sm:px-6 sm:py-5 xl:px-8 xl:py-6">{children}</main>
