@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAnyPermission } from "@/lib/permissions/server";
+import { requirePermission } from "@/lib/permissions/server";
 import { asRoute } from "@/lib/route-cast";
 
 function text(formData: FormData, key: string) {
@@ -27,7 +27,7 @@ function go(atendimentoId: string, query: string): never {
 }
 
 async function resolveProfissional(
-  supabase: Awaited<ReturnType<typeof requireAnyPermission>>["supabase"],
+  supabase: Awaited<ReturnType<typeof requirePermission>>["supabase"],
   userId: string,
   email: string | undefined,
   empresaId: string,
@@ -57,18 +57,16 @@ async function resolveProfissional(
 }
 
 export async function criarPrescricaoMedica(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await requireAnyPermission([
-    "prescricao.criar",
-    "prontuario.evoluir",
-  ]);
+  const { supabase, user, empresaId, unidadeId } = await requirePermission("prescricao.criar");
   const atendimentoId = text(formData, "atendimento_id");
   const item = text(formData, "item");
-  if (!atendimentoId || !item || !unidadeId) go(atendimentoId ?? "", "erro=campos");
+  if (!atendimentoId) redirect("/prontuario?erro=atendimento");
+  if (!item || !unidadeId) go(atendimentoId, "erro=campos");
 
   const [{ data: atendimento }, profissional] = await Promise.all([
     supabase
       .from("atendimentos")
-      .select("id,status")
+      .select("id")
       .eq("id", atendimentoId)
       .eq("empresa_id", empresaId)
       .eq("unidade_id", unidadeId)
@@ -120,13 +118,11 @@ export async function criarPrescricaoMedica(formData: FormData) {
 }
 
 export async function assinarPrescricaoMedica(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await requireAnyPermission([
-    "prescricao.assinar",
-    "prontuario.assinar",
-  ]);
+  const { supabase, user, empresaId, unidadeId } = await requirePermission("prescricao.assinar");
   const atendimentoId = text(formData, "atendimento_id");
   const prescricaoId = text(formData, "prescricao_id");
-  if (!atendimentoId || !prescricaoId || !unidadeId) go(atendimentoId ?? "", "erro=prescricao");
+  if (!atendimentoId) redirect("/prontuario?erro=atendimento");
+  if (!prescricaoId || !unidadeId) go(atendimentoId, "erro=prescricao");
 
   const profissional = await resolveProfissional(supabase, user.id, user.email ?? undefined, empresaId);
   if (!profissional) go(atendimentoId, "erro=profissional");
@@ -139,6 +135,8 @@ export async function assinarPrescricaoMedica(formData: FormData) {
     .eq("empresa_id", empresaId)
     .eq("unidade_id", unidadeId)
     .eq("profissional_id", profissional.id)
+    .eq("status", "rascunho")
+    .is("assinado_em", null)
     .maybeSingle();
   if (!prescricao) go(atendimentoId, "erro=prescricao");
 
@@ -148,15 +146,19 @@ export async function assinarPrescricaoMedica(formData: FormData) {
     go(atendimentoId, "erro=assinatura");
   }
 
+  let aviso: "aprazamento" | "farmacia" | null = null;
   if (prescricao.tipo === "medicamento") {
     const { error: scheduleError } = await supabase.rpc("gerar_aprazamentos_prescricao", {
       p_prescricao_id: prescricaoId,
       p_horizonte_dias: 2,
     });
-    if (scheduleError) console.error("[prontuario.prescricao] aprazamento", { code: scheduleError.code });
+    if (scheduleError) {
+      aviso = "aprazamento";
+      console.error("[prontuario.prescricao] aprazamento", { code: scheduleError.code });
+    }
 
     const encounter = Array.isArray(prescricao.atendimento) ? prescricao.atendimento[0] : prescricao.atendimento;
-    const { data: fila } = await supabase
+    const { data: fila, error: filaLookupError } = await supabase
       .from("filas_setoriais")
       .select("id")
       .eq("atendimento_id", atendimentoId)
@@ -166,8 +168,11 @@ export async function assinarPrescricaoMedica(formData: FormData) {
       .limit(1)
       .maybeSingle();
 
-    if (!fila && encounter?.paciente_id) {
-      await supabase.from("filas_setoriais").insert({
+    if (filaLookupError) {
+      aviso = "farmacia";
+      console.error("[prontuario.prescricao] consultar fila farmacia", { code: filaLookupError.code });
+    } else if (!fila && encounter?.paciente_id) {
+      const { error: filaInsertError } = await supabase.from("filas_setoriais").insert({
         empresa_id: empresaId,
         unidade_id: unidadeId,
         atendimento_id: atendimentoId,
@@ -180,24 +185,27 @@ export async function assinarPrescricaoMedica(formData: FormData) {
         created_by: user.id,
         updated_by: user.id,
       });
+      if (filaInsertError) {
+        aviso = "farmacia";
+        console.error("[prontuario.prescricao] criar fila farmacia", { code: filaInsertError.code });
+      }
     }
   }
 
   revalidatePath(`/prontuario/${atendimentoId}`);
   revalidatePath(`/prontuario/${atendimentoId}/prescricao`);
   revalidatePath("/setores/farmacia");
-  go(atendimentoId, "sucesso=assinada");
+  revalidatePath("/assistencial/medicamentos");
+  go(atendimentoId, `sucesso=assinada${aviso ? `&aviso=${aviso}` : ""}`);
 }
 
 export async function suspenderPrescricaoMedica(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await requireAnyPermission([
-    "prescricao.suspender",
-    "prontuario.evoluir",
-  ]);
+  const { supabase, user, empresaId, unidadeId } = await requirePermission("prescricao.suspender");
   const atendimentoId = text(formData, "atendimento_id");
   const prescricaoId = text(formData, "prescricao_id");
   const motivo = text(formData, "motivo");
-  if (!atendimentoId || !prescricaoId || !motivo || !unidadeId) go(atendimentoId ?? "", "erro=suspensao");
+  if (!atendimentoId) redirect("/prontuario?erro=atendimento");
+  if (!prescricaoId || !motivo || !unidadeId) go(atendimentoId, "erro=suspensao");
 
   const profissional = await resolveProfissional(supabase, user.id, user.email ?? undefined, empresaId);
   if (!profissional) go(atendimentoId, "erro=profissional");
@@ -210,6 +218,7 @@ export async function suspenderPrescricaoMedica(formData: FormData) {
     .eq("empresa_id", empresaId)
     .eq("unidade_id", unidadeId)
     .eq("profissional_id", profissional.id)
+    .eq("status", "ativa")
     .maybeSingle();
   if (!prescricao) go(atendimentoId, "erro=prescricao");
 
@@ -224,5 +233,7 @@ export async function suspenderPrescricaoMedica(formData: FormData) {
 
   revalidatePath(`/prontuario/${atendimentoId}`);
   revalidatePath(`/prontuario/${atendimentoId}/prescricao`);
+  revalidatePath("/setores/farmacia");
+  revalidatePath("/assistencial/medicamentos");
   go(atendimentoId, "sucesso=suspensa");
 }
