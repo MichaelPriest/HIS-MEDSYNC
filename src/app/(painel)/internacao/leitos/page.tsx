@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BedDouble, Building2, DoorOpen, Filter, LockKeyhole, RefreshCw, Search, ShieldCheck, Sparkles, UserRoundCheck } from "lucide-react";
+import { BedDouble, Building2, DoorOpen, Filter, LockKeyhole, Search, ShieldCheck, Sparkles, UserRoundCheck } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { requireAnyPermission } from "@/lib/permissions/server";
 import { bloquearLeito, cancelarReservaLeito, concluirHigienizacaoLeito, desbloquearLeito, iniciarHigienizacaoLeito, reservarLeito } from "@/modules/internacao/actions";
