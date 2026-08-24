@@ -2,15 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { permissions, type Permission } from "@/lib/permissions/catalog";
 import { requirePermission } from "@/lib/permissions/server";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
-function isPermission(value: string): value is Permission {
-  return (permissions as readonly string[]).includes(value);
+function permissionCode(value: FormDataEntryValue) {
+  const code = String(value).trim();
+  return /^[a-z]+[a-z0-9_.]+$/.test(code) ? code : null;
 }
 
 async function auditAccessChange({
@@ -100,15 +100,28 @@ export async function atualizarPermissoesPerfil(formData: FormData) {
     redirect("/configuracoes/acessos?erro=admin-sincronizado");
   }
 
+  // O catálogo persistido em public.permissoes é a fonte de verdade. O catálogo
+  // TypeScript cobre apenas códigos referenciados diretamente pelo código da app;
+  // permissões válidas já existentes no banco não podem ser descartadas ao salvar.
   const selectedCodes = [...new Set(
-    formData.getAll("permissoes").map(String).filter(isPermission),
+    formData
+      .getAll("permissoes")
+      .map(permissionCode)
+      .filter((code): code is string => Boolean(code)),
   )];
 
   const { data: permissionRows, error: permissionError } = selectedCodes.length
-    ? await supabase.from("permissoes").select("id,codigo").in("codigo", selectedCodes).eq("ativo", true)
+    ? await supabase
+        .from("permissoes")
+        .select("id,codigo")
+        .in("codigo", selectedCodes)
+        .eq("ativo", true)
     : { data: [], error: null };
 
   if (permissionError) redirect(`/configuracoes/acessos?erro=permissoes#perfil-${perfilId}`);
+  if ((permissionRows ?? []).length !== selectedCodes.length) {
+    redirect(`/configuracoes/acessos?erro=permissao-invalida#perfil-${perfilId}`);
+  }
 
   const { data: atuais, error: atuaisError } = await supabase
     .from("perfil_permissoes")
