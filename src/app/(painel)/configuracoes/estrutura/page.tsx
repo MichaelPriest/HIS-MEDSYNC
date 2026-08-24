@@ -1,4 +1,4 @@
-import { BedDouble, Building2, Hospital, Layers3, MapPinned, Plus, Stairs, Workflow } from "lucide-react";
+import { BedDouble, Building2, Hospital, Layers3, MapPinned, Plus, Workflow } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { requirePermission } from "@/lib/permissions/server";
 import { alternarEstruturaFisica, criarEstruturaFisica } from "@/modules/estrutura/actions";
@@ -135,7 +135,7 @@ export default async function EstruturaHospitalarPage({ searchParams }: { search
 
     <div className="mt-6 grid gap-4 md:grid-cols-3">
       <Hint icon={Building2} title="Hierarquia flexível" text="Blocos, andares e alas organizam os setores sem limitar o desenho físico do hospital." />
-      <Hint icon={Stairs} title="Leitos e salas" text="Leitos e salas cirúrgicas poderão ser vinculados diretamente ao local físico cadastrado." />
+      <Hint icon={Layers3} title="Leitos e salas" text="Leitos e salas cirúrgicas poderão ser vinculados diretamente ao local físico cadastrado." />
       <Hint icon={Hospital} title="Setores operacionais" text="UTI, centro cirúrgico, enfermaria e outros setores podem ser sincronizados para uso assistencial." />
     </div>
   </SectionPage>;
