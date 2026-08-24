@@ -1,13 +1,13 @@
 # Estado real da implementação
 
-Atualizado em 2026-08-23.
+Atualizado em 2026-08-24.
 
 Este documento separa **estrutura criada**, **funcionalidade inicial** e **módulo ainda não homologado**. O MedSync HIS continua em desenvolvimento e não deve ser considerado pronto para produção hospitalar apenas porque determinado menu/tabela existe.
 
 | Área | Estado atual | Próximos pontos críticos |
 |---|---|---|
 | Fundação / Auth / multiempresa | Funcional em evolução | permissões granulares, auditoria e testes RLS completos |
-| Interface / navegação | Funcional | refinamento por perfil e acessibilidade |
+| Interface / navegação | Funcional em evolução; consolidação por jornadas em validação no PR #5 | refinamento por perfil, acessibilidade, busca global ampliada e testes de usabilidade |
 | Pacientes / Profissionais / Convênios | Funcional em evolução | validações, documentos, contratos e fluxos especializados |
 | Totem / Senhas / Recepção | Base funcional | regras operacionais, impressão e homologação de painéis |
 | Atendimento / ADT | Base funcional | completar regras de episódios e documentos |
