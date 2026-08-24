@@ -21,18 +21,25 @@ export function SectionPage({
 }: SectionPageProps) {
   return (
     <div className="ui-page-enter space-y-6">
-      <section className="ui-scale-in relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/[0.03] sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-20 size-48 rounded-full bg-brand-100/50 blur-3xl transition-transform duration-700 ease-out hover:scale-110" />
-        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="ui-fade-up">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">{eyebrow}</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{description}</p>
+      <section className="relative overflow-hidden rounded-[22px] border border-[#e4eaf2] bg-white px-5 py-5 shadow-his-card sm:px-6 sm:py-6">
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-cyan-400 via-brand-500 to-brand-700" />
+        <div className="pointer-events-none absolute -right-20 -top-24 size-56 rounded-full bg-brand-100/55 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 right-28 size-44 rounded-full bg-cyan-100/45 blur-3xl" />
+
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 ui-fade-up">
+            <div className="flex items-center gap-2">
+              <span className="size-1.5 rounded-full bg-cyan-500" />
+              <p className="his-eyebrow">{eyebrow}</p>
+            </div>
+            <h1 className="his-title mt-2">{title}</h1>
+            <p className="his-muted mt-2 max-w-3xl text-sm leading-6">{description}</p>
           </div>
+
           {primaryActionLabel && primaryActionHref ? (
             <Link
               href={primaryActionHref}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-brand-900 hover:shadow-md active:translate-y-0 active:scale-[.985]"
+              className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-900 to-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-900/10 transition hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[.985]"
             >
               <Plus className="size-4" />
               {primaryActionLabel}
@@ -44,11 +51,9 @@ export function SectionPage({
 
       <div className="ui-stagger">
         {children ?? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/[0.03]">
+          <section className="his-card p-6">
             <h2 className="font-semibold text-slate-900">Estrutura preparada</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Esta tela está pronta para receber os casos de uso e dados autorizados do módulo. Nenhum dado clínico fictício é exibido.
-            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Esta tela está pronta para receber os casos de uso e dados autorizados do módulo.</p>
           </section>
         )}
       </div>
