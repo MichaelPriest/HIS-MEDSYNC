@@ -8,13 +8,11 @@ export default async function PainelChamadasPage({ params, searchParams }: { par
   const { unidadeId } = await params;
   const { setor } = await searchParams;
   const supabase = await createClient();
-  const { data: cfg } = await supabase.from("configuracoes_painel_chamadas").select("modo,recepcao_chama_todos").eq("unidade_id", unidadeId).maybeSingle();
+  const { data: cfg } = await supabase.from("configuracoes_painel_chamadas").select("modo,recepcao_chama_todos,tocar_audio").eq("unidade_id", unidadeId).maybeSingle();
   const modoSetorial = cfg?.modo === "setorial" && !cfg?.recepcao_chama_todos;
   const { data } = await supabase.rpc("listar_painel_chamadas", { p_unidade_id: unidadeId });
   let chamadas = (Array.isArray(data) ? data : []) as Chamada[];
 
-  // Um link com ?setor= sempre representa um painel exclusivo daquele setor,
-  // independentemente de a configuração geral da unidade ser integrada ou setorial.
   if (setor) {
     const alvo = setor.toLowerCase();
     chamadas = chamadas.filter((item) => item.setor_codigo?.toLowerCase() === alvo || item.setor_nome?.toLowerCase() === alvo);
@@ -37,6 +35,7 @@ export default async function PainelChamadasPage({ params, searchParams }: { par
             </div>
           </div>
           <PanelAutoRefresh
+            habilitado={cfg?.tocar_audio !== false}
             chamada={atual ? {
               senha: atual.senha,
               nome: atual.nome_chamada,
