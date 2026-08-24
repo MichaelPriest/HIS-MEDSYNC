@@ -9,7 +9,7 @@ export function QueueAutoRefresh({
   unidadeId,
   heartbeatMs = 60000,
 }: {
-  unidadeId: string;
+  unidadeId?: string;
   heartbeatMs?: number;
 }) {
   const router = useRouter();
@@ -35,18 +35,26 @@ export function QueueAutoRefresh({
       debounceTimer = window.setTimeout(() => refreshQueue(), 180);
     };
 
-    const channel = supabase
-      .channel(`fila-recepcao:${unidadeId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
+    // Na Recepção observamos senhas_atendimento filtradas pela unidade. O mesmo
+    // componente já era usado nas filas setoriais; sem unidade explícita ele
+    // observa filas_setoriais e deixa o RLS limitar os eventos autorizados.
+    const table = unidadeId ? "senhas_atendimento" : "filas_setoriais";
+    const postgresConfig = unidadeId
+      ? {
+          event: "*" as const,
           schema: "public",
-          table: "senhas_atendimento",
+          table,
           filter: `unidade_id=eq.${unidadeId}`,
-        },
-        scheduleRefresh,
-      )
+        }
+      : {
+          event: "*" as const,
+          schema: "public",
+          table,
+        };
+
+    const channel = supabase
+      .channel(`fila-tempo-real:${table}:${unidadeId ?? "escopo-rls"}`)
+      .on("postgres_changes", postgresConfig, scheduleRefresh)
       .subscribe();
 
     // Fallback de segurança caso o websocket seja interrompido. É muito menos
