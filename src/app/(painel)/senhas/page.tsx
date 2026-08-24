@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { BellRing, Clock3, PlayCircle, TicketCheck, UserCheck } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { QueueAutoRefresh } from "@/components/senhas/queue-auto-refresh";
+import { asRoute } from "@/lib/route-cast";
 import { chamarProximaSenha, chamarSenha, iniciarAtendimentoSenha } from "@/modules/senhas/actions";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
@@ -57,7 +59,7 @@ export default async function SenhasPage({ searchParams }: { searchParams: Promi
   const recepcao = setores?.find((item) => item.codigo === "recepcao");
 
   const { data: senhas, error: senhasError } = recepcao
-    ? await supabase.from("senhas_atendimento").select("id,senha,prioridade,status,emitida_em,ponto_atendimento,paciente_id,sequencial").eq("unidade_id", unidadeId).eq("setor_id", recepcao.id).eq("data_referencia", hoje).in("status", ["aguardando", "chamada", "em_atendimento"]).order("sequencial")
+    ? await supabase.from("senhas_atendimento").select("id,senha,prioridade,status,emitida_em,ponto_atendimento,paciente_id,atendimento_id,sequencial").eq("unidade_id", unidadeId).eq("setor_id", recepcao.id).eq("data_referencia", hoje).in("status", ["aguardando", "chamada", "em_atendimento"]).order("sequencial")
     : { data: [], error: null };
 
   const pacienteIds = [...new Set((senhas ?? []).map((s) => s.paciente_id).filter((id): id is string => Boolean(id)))];
@@ -73,18 +75,20 @@ export default async function SenhasPage({ searchParams }: { searchParams: Promi
   const aguardando = (senhas ?? []).filter((s) => s.status === "aguardando").length;
   const chamadas = (senhas ?? []).filter((s) => s.status === "chamada").length;
   const identificadas = (senhas ?? []).filter((s) => Boolean(s.paciente_id)).length;
+  const emAdmissao = (senhas ?? []).filter((s) => s.status === "em_atendimento" && !s.atendimento_id).length;
   const mensagemErro = mensagemErroFila(erro);
 
   return <SectionPage eyebrow="Recepção / Senhas" title="Fila de Senhas · Recepção" description="As senhas emitidas no Totem aparecem automaticamente nesta fila. Emergência, preferencial e normal são priorizadas na chamada.">
     {mensagemErro ? <div className={`rounded-xl border p-4 text-sm ${erro === "sem-fila" ? "border-sky-200 bg-sky-50 text-sky-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{mensagemErro}</div> : null}
     {setoresError || senhasError || pacientesError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">A fila não pôde ser atualizada completamente. O erro técnico foi registrado no servidor.</div> : null}
     {!recepcao ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">O setor Recepção não está configurado para esta unidade.</div> : null}
+    {emAdmissao > 0 ? <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800"><strong>{emAdmissao} admissão(ões) em andamento.</strong> Se você saiu para cadastrar um paciente ou consultar outro módulo, use “Continuar admissão” na própria senha.</div> : null}
 
     <section className="mt-4 grid gap-3 sm:grid-cols-4">
       <div className="ui-card p-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Aguardando</p><p className="mt-2 text-3xl font-black text-brand-950">{aguardando}</p></div>
       <div className="ui-card p-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Chamadas</p><p className="mt-2 text-3xl font-black text-violet-700">{chamadas}</p></div>
+      <div className="ui-card p-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Em admissão</p><p className="mt-2 text-3xl font-black text-amber-700">{emAdmissao}</p></div>
       <div className="ui-card p-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Identificadas por CPF</p><p className="mt-2 text-3xl font-black text-emerald-700">{identificadas}</p></div>
-      <div className="ui-card p-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Guichês ativos</p><p className="mt-2 text-3xl font-black text-cyan-700">{quantidadeGuiches}</p></div>
     </section>
 
     <section className="ui-card mt-5 p-5">
@@ -98,7 +102,7 @@ export default async function SenhasPage({ searchParams }: { searchParams: Promi
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5"><div><h2 className="font-semibold text-slate-900">Fila atual</h2><p className="text-sm text-slate-500">Atualização em tempo real · sincronização de segurança a cada 60 s · {hoje.split("-").reverse().join("/")}</p></div><span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">{senhas?.length ?? 0} na fila</span></div>
       {senhas?.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Senha</th><th className="px-5 py-3">Paciente</th><th className="px-5 py-3">Prioridade</th><th className="px-5 py-3">Emissão</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Destino</th><th className="px-5 py-3 text-right">Ações</th></tr></thead><tbody className="divide-y divide-slate-100">{senhas.map((item) => {
         const paciente = item.paciente_id ? pacientesPorId.get(item.paciente_id) : null;
-        return <tr key={item.id} className="hover:bg-slate-50"><td className="px-5 py-4 text-xl font-black text-brand-950">{item.senha}</td><td className="px-5 py-4">{paciente ? <div><div className="flex items-center gap-1.5 font-semibold text-emerald-800"><UserCheck className="size-4"/>{paciente.nome_social || paciente.nome_completo}</div><div className="mt-0.5 text-xs text-slate-400">{mascararCpf(paciente.cpf)}</div></div> : <span className="text-slate-400">Não identificado</span>}</td><td className="px-5 py-4 capitalize text-slate-600">{item.prioridade}</td><td className="px-5 py-4 text-slate-600"><span className="inline-flex items-center gap-1.5"><Clock3 className="size-3.5"/>{horaSaoPaulo(item.emitida_em)}</span></td><td className="px-5 py-4"><span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">{String(item.status).replaceAll("_", " ")}</span></td><td className="px-5 py-4 font-medium text-slate-600">{item.ponto_atendimento || "—"}</td><td className="px-5 py-4"><div className="flex justify-end gap-2">{item.status === "aguardando" ? <form action={chamarSenha} className="flex gap-2"><input type="hidden" name="senha_id" value={item.id}/><GuicheSelect guiches={guiches} compact/><button className="btn-secondary"><BellRing className="size-4"/> Chamar</button></form> : null}{item.status === "chamada" ? <form action={iniciarAtendimentoSenha}><input type="hidden" name="senha_id" value={item.id}/><button className="ui-button-primary"><PlayCircle className="size-4"/> Iniciar admissão</button></form> : null}</div></td></tr>;
+        return <tr key={item.id} className="hover:bg-slate-50"><td className="px-5 py-4 text-xl font-black text-brand-950">{item.senha}</td><td className="px-5 py-4">{paciente ? <div><div className="flex items-center gap-1.5 font-semibold text-emerald-800"><UserCheck className="size-4"/>{paciente.nome_social || paciente.nome_completo}</div><div className="mt-0.5 text-xs text-slate-400">{mascararCpf(paciente.cpf)}</div></div> : <span className="text-slate-400">Não identificado</span>}</td><td className="px-5 py-4 capitalize text-slate-600">{item.prioridade}</td><td className="px-5 py-4 text-slate-600"><span className="inline-flex items-center gap-1.5"><Clock3 className="size-3.5"/>{horaSaoPaulo(item.emitida_em)}</span></td><td className="px-5 py-4"><span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">{String(item.status).replaceAll("_", " ")}</span></td><td className="px-5 py-4 font-medium text-slate-600">{item.ponto_atendimento || "—"}</td><td className="px-5 py-4"><div className="flex justify-end gap-2">{item.status === "aguardando" ? <form action={chamarSenha} className="flex gap-2"><input type="hidden" name="senha_id" value={item.id}/><GuicheSelect guiches={guiches} compact/><button className="btn-secondary"><BellRing className="size-4"/> Chamar</button></form> : null}{item.status === "chamada" ? <form action={iniciarAtendimentoSenha}><input type="hidden" name="senha_id" value={item.id}/><button className="ui-button-primary"><PlayCircle className="size-4"/> Iniciar admissão</button></form> : null}{item.status === "em_atendimento" && !item.atendimento_id ? <Link href={asRoute(`/atendimentos/novo?senha=${encodeURIComponent(item.id)}`)} className="ui-button-primary"><PlayCircle className="size-4"/> Continuar admissão</Link> : null}</div></td></tr>;
       })}</tbody></table></div> : <div className="p-10 text-center text-sm text-slate-500">Nenhuma senha aguardando na Recepção.</div>}
     </section>
   </SectionPage>;
