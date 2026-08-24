@@ -6,10 +6,11 @@ Este documento separa **estrutura criada**, **funcionalidade inicial** e **módu
 
 | Área | Estado atual | Próximos pontos críticos |
 |---|---|---|
-| Fundação / Auth / multiempresa | Funcional em evolução; RBAC granular, navegação por perfil, central de acessos, hardening inicial de RPCs sensíveis e testes automatizados ampliados desde o PR #6 | proteção granular progressiva dos RPCs restantes, testes RLS multi-tenant completos e break-glass clínico |
+| Fundação / Auth / multiempresa | Funcional em evolução; RBAC granular, navegação por perfil, central de acessos, hardening inicial de RPCs sensíveis e testes automatizados ampliados desde o PR #6; helpers RLS otimizados no PR #13 sem alterar a matriz de acesso | proteção granular progressiva dos RPCs restantes, testes RLS multi-tenant completos e break-glass clínico |
 | Interface / navegação | Funcional em evolução; áreas de trabalho e contexto do episódio no PR #5, RBAC no shell no PR #6, reorganização de sidebar/topbar/menu no PR #8 e avatar real + atalhos contextuais no PR #9 | acessibilidade, busca global ampliada, troca controlada de unidade e testes de usabilidade autenticados |
 | Pacientes / Profissionais / Convênios | Funcional em evolução | validações, documentos, contratos e fluxos especializados |
-| Totem / Senhas / Recepção | Base funcional; abertura do atendimento encaminha o episódio para a fila operacional de Triagem e os atalhos contextuais aproximam cadastro de paciente/atendimento da Recepção no PR #9 | impressão, SLA, regras de prioridade, rate limit/abuso dos endpoints públicos e homologação dos painéis |
+| Agenda | Em evolução no PR #14; visão diária/semanal, filtros, confirmação, check-in direto, atendido, falta, cancelamento com motivo, encaixe, retorno, especialidade, local, convênio/plano e identificação de cirurgia eletiva; busca de paciente sob demanda e bloqueio de conflito de profissional/local | grade de disponibilidade, bloqueios/feriados, recorrência, lembretes/confirmação externa, edição/reagendamento, integração completa da cirurgia eletiva com pré-admissão e centro cirúrgico |
+| Totem / Senhas / Recepção | Base funcional; abertura do atendimento por demanda espontânea encaminha o episódio para a fila operacional de Triagem e os atalhos contextuais aproximam cadastro de paciente/atendimento da Recepção no PR #9 | impressão, SLA, regras de prioridade, rate limit/abuso dos endpoints públicos e homologação dos painéis |
 | Atendimento / ADT | Base funcional; indicador do episódio `Atendimento a RN` integrado à admissão e ao snapshot TISS no PR #9 | completar regras ADT, transferências, documentos e validações específicas por tipo de episódio |
 | Central de Guias | Base funcional; UX consolidada por fila/status no PR #5 | integração automática com solicitações e operadoras |
 | Triagem / Fila médica | Base funcional ampliada no PR #9; lista apenas atendimentos abertos sem triagem concluída, permite chamar/rechamar no painel e, na conclusão, retira o paciente da fila de Triagem e encaminha para a fila médica por especialidade | protocolos/escalas configuráveis, SLA, reclassificação e homologação clínica/operacional |
@@ -19,7 +20,7 @@ Este documento separa **estrutura criada**, **funcionalidade inicial** e **módu
 | Farmácia | Parcial | dispensação, devolução, estoque e rastreabilidade |
 | Laboratório / Imagem | Parcial | execução, resultados/laudos e liberação |
 | Internação / NIR | Parcial; admissão contextual, mapa de leitos e primeira fila NIR/gestão de leitos integrados no PR #7 | regulação interna completa, prioridades, reservas, transferências, censo, diárias e alta |
-| Estrutura hospitalar | Base funcional no PR #9; hierarquia `bloco → andar → ala → setor/sala`, com tipos para UTI, centro cirúrgico, centro obstétrico, pronto-socorro, enfermaria, ambulatório e apoio, além de vínculos preparados para setores, leitos e salas cirúrgicas | mapear estrutura física real de cada unidade, vincular todos os leitos/salas, regras de capacidade e homologação operacional |
+| Estrutura hospitalar | Base funcional no PR #9; hierarquia `bloco → andar → ala → setor/sala`, com tipos para UTI, centro cirúrgico, centro obstétrico, pronto-socorro, enfermaria, ambulatório e apoio, além de vínculos preparados para setores, leitos e salas cirúrgicas | exibir/vincular leitos reais por ala e estrutura, mapear estrutura física real de cada unidade, regras de capacidade e homologação operacional |
 | Compras | Base funcional; UX consolidada por operação no PR #5 | alçadas, pedido automático, recebimento parcial/divergência |
 | Almoxarifado | Base funcional; UX consolidada em visão operacional no PR #5 | inventário, requisições, reposição, rastreabilidade |
 | Comercial / Credenciamento | Base avançada | alimentar contratos reais e regras específicas |
@@ -34,7 +35,7 @@ Este documento separa **estrutura criada**, **funcionalidade inicial** e **módu
 | Financeiro | Parcial; integrado visualmente ao ciclo da receita no PR #5 | baixas, retenções, conciliação, contas a pagar e caixa |
 | NFS-e | Estrutura | adapters reais das prefeituras/provedores utilizados |
 | Diretoria | Base | KPIs, filtros, metas, drill-down e governança |
-| Centro Cirúrgico / CME | Não concluído; estrutura física já admite centro cirúrgico/obstétrico e vínculo futuro de salas | desenvolver fluxo assistencial completo, agenda, intraoperatório, RPA, CME e OPME |
+| Centro Cirúrgico / CME | Não concluído; estrutura física já admite centro cirúrgico/obstétrico, vínculo de salas e a Agenda passa a identificar cirurgia eletiva no PR #14 | desenvolver pré-admissão cirúrgica, agenda de sala/equipe, intraoperatório, RPA, CME e OPME |
 | Nutrição / Hemoterapia etc. | Não iniciado/concluído | definir escopo e implementar |
 
 ## Segurança e autorização
@@ -43,7 +44,7 @@ O PR #6 introduziu catálogo granular de permissões, navegação por perfil e u
 
 O shell continua usando o RBAC apenas para apresentação e descoberta das áreas. O RLS permanece como fronteira definitiva de autorização. O PR #8 adicionou requisitos explícitos de navegação para Urgência/Emergência e NIR. O PR #9 acrescenta a configuração de Estrutura Hospitalar sob `estrutura.visualizar|criar|editar`, com RLS forçado, isolamento por empresa/unidade e sem DELETE pelo cliente.
 
-Em 2026-08-24, as migrations pendentes do P0/P1 foram aplicadas em ordem no projeto Supabase principal e validadas após aplicação. Foram verificados RLS/privilegios da nova estrutura, colunas do indicador RN, vínculos de leitos/salas/setores e EXECUTE dos wrappers sensíveis. Os endpoints públicos de Totem/Painel permanecem públicos apenas onde o fluxo de terminal exige; eles ainda precisam de revisão contínua de minimização de dados, limitação de abuso e observabilidade.
+Em 2026-08-24, as migrations pendentes do P0/P1 foram aplicadas em ordem no projeto Supabase principal e validadas após aplicação. Foram verificados RLS/privilegios da nova estrutura, colunas do indicador RN, vínculos de leitos/salas/setores e EXECUTE dos wrappers sensíveis. O PR #13 converteu os helpers booleanos usados pelas policies para execução fechada sem recursão de RLS, mantendo `auth.uid()` e o mesmo escopo por empresa/unidade; o benchmark de `tem_permissao()` caiu de aproximadamente 135 ms para 7 ms. Os endpoints públicos de Totem/Painel permanecem públicos apenas onde o fluxo de terminal exige; eles ainda precisam de revisão contínua de minimização de dados, limitação de abuso e observabilidade.
 
 O CI executa `lint`, `typecheck`, testes unitários, `build`, instalação do Chromium e smoke E2E público com Playwright. O endurecimento dos RPCs `SECURITY DEFINER` continua sendo incremental e deve preservar apenas endpoints públicos intencionais e exigir permissão funcional explícita nos fluxos autenticados sensíveis.
 
@@ -55,9 +56,15 @@ O faturamento de convênio deve respeitar a cadeia:
 
 A conta não deve pular Auditoria ou Contas Médicas. XML preliminar não deve ser tratado como TISS homologado enquanto não houver validação pelos schemas oficiais aplicáveis.
 
-A jornada de atendimento ambulatorial/urgência parte do mesmo episódio:
+A jornada de demanda espontânea/urgência parte do mesmo episódio:
 
 `Totem/Senha → Recepção/abertura do atendimento → Triagem → chamada no painel → conclusão da Triagem → fila médica por especialidade → Prontuário/Assistência`.
+
+Para **paciente com agendamento comum**, o Totem não é obrigatório. O fluxo previsto é:
+
+`Agenda → confirmação → check-in direto → admissão/atendimento → assistência/prontuário`.
+
+A **cirurgia eletiva** é a exceção tratada como programação especializada: o agendamento identifica o caso e o encaminha para pré-admissão e Centro Cirúrgico, onde sala, equipe, anestesia e demais etapas devem ser controladas pelo módulo cirúrgico.
 
 Concluir a Triagem encerra apenas a etapa/fila de Triagem; não encerra o atendimento hospitalar.
 
