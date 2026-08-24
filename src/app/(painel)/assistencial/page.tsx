@@ -120,9 +120,9 @@ export default async function AssistencialPage() {
             </div>
             <div className="divide-y divide-slate-100">
               {group.slugs.map((slug) => {
-                const module = moduleMap.get(slug);
-                if (!module) return null;
-                const [, title, description, Icon, , href] = module;
+                const moduleItem = moduleMap.get(slug);
+                if (!moduleItem) return null;
+                const [, title, description, Icon, , href] = moduleItem;
                 const count = countMap.get(slug);
                 return (
                   <Link key={slug} href={href as Route} className="group flex items-center gap-4 px-5 py-4 transition hover:bg-slate-50 sm:px-6">
