@@ -92,13 +92,6 @@ function escolherVozPtBr() {
     .sort((a, b) => pontuarVoz(b) - pontuarVoz(a))[0] ?? null;
 }
 
-function textoDaChamada(chamada?: ChamadaVoz | null) {
-  if (!chamada?.senha) return "";
-
-  const senhaFal falha_placeholder = "";
-  return senhaFal;
-}
-
 function montarTextoDaChamada(chamada?: ChamadaVoz | null) {
   if (!chamada?.senha) return "";
   const senha = senhaPorExtenso(chamada.senha);
