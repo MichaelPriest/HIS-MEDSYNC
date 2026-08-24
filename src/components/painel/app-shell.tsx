@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  FileText,
   FlaskConical,
   FolderCog,
   Handshake,
@@ -41,20 +42,13 @@ import {
 import { brand } from "@/config/brand";
 
 type NavItem = { href: string; label: string; icon: typeof UsersRound };
-type NavGroup = { key: string; label: string; icon: typeof UsersRound; items: NavItem[] };
-
-const cadastroNav: NavItem[] = [
-  { href: "/pacientes", label: "Pacientes", icon: UsersRound },
-  { href: "/profissionais", label: "Profissionais", icon: Stethoscope },
-  { href: "/convenios", label: "Convênios", icon: Building2 },
-  { href: "/catalogos", label: "Catálogos", icon: BookOpenCheck },
-];
+type NavGroup = { key: string; label: string; shortLabel: string; icon: typeof UsersRound; items: NavItem[] };
 
 const jornadaNav: NavItem[] = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
-  { href: "/senhas", label: "Recepção e senhas", icon: TicketCheck },
+  { href: "/senhas", label: "Recepção", icon: TicketCheck },
   { href: "/atendimentos", label: "Atendimentos", icon: ClipboardList },
-  { href: "/central-guias", label: "Central de guias", icon: ClipboardCheck },
+  { href: "/central-guias", label: "Guias", icon: ClipboardCheck },
   { href: "/autorizacoes", label: "Autorizações", icon: ShieldCheck },
   { href: "/triagem", label: "Triagem", icon: HeartPulse },
   { href: "/fila-medica", label: "Fila médica", icon: Stethoscope },
@@ -72,22 +66,35 @@ const setoresNav: NavItem[] = [
   { href: "/setores/farmacia", label: "Farmácia", icon: Pill },
   { href: "/setores/laboratorio", label: "Laboratório", icon: FlaskConical },
   { href: "/setores/imagem", label: "Imagem", icon: ScanLine },
-  { href: "/setores/internacao", label: "Fila de internação", icon: BedDouble },
+  { href: "/setores/internacao", label: "Internação", icon: BedDouble },
+];
+
+const cadastroNav: NavItem[] = [
+  { href: "/pacientes", label: "Pacientes", icon: UsersRound },
+  { href: "/profissionais", label: "Profissionais", icon: Stethoscope },
+  { href: "/convenios", label: "Convênios", icon: Building2 },
+  { href: "/catalogos", label: "Catálogos", icon: BookOpenCheck },
+  { href: "/comercial", label: "Credenciamento", icon: Handshake },
+  { href: "/comercial/procedimentos", label: "Procedimentos", icon: ClipboardList },
+  { href: "/comercial/regras", label: "Regras contratuais", icon: ShieldCheck },
+  { href: "/comercial/tabelas", label: "Tabelas comerciais", icon: ReceiptText },
 ];
 
 const gestaoNav: NavItem[] = [
+  { href: "/diretoria", label: "Diretoria", icon: LayoutDashboard },
+  { href: "/ged", label: "GED", icon: FileText },
   { href: "/compras", label: "Compras", icon: ShoppingCart },
-  { href: "/almoxarifado", label: "Almoxarifado / estoque", icon: Boxes },
-  { href: "/auditoria", label: "Auditoria de contas", icon: ShieldCheck },
-  { href: "/comercial", label: "Comercial / credenciamento", icon: Handshake },
+  { href: "/almoxarifado", label: "Estoque", icon: Boxes },
 ];
 
-const financeiroNav: NavItem[] = [
+const receitaNav: NavItem[] = [
+  { href: "/auditoria", label: "Auditoria", icon: ShieldCheck },
+  { href: "/contas-medicas", label: "Contas médicas", icon: ClipboardCheck },
   { href: "/faturamento", label: "Pré-faturamento", icon: ReceiptText },
   { href: "/faturamento/lotes", label: "Lotes TISS", icon: ReceiptText },
   { href: "/faturamento/glosas", label: "Glosas e recursos", icon: ReceiptText },
-  { href: "/financeiro", label: "Contas a receber", icon: WalletCards },
-  { href: "/financeiro/notas-fiscais", label: "Notas fiscais / NFS-e", icon: ReceiptText },
+  { href: "/financeiro", label: "Recebimentos", icon: WalletCards },
+  { href: "/financeiro/notas-fiscais", label: "Notas fiscais", icon: FileText },
 ];
 
 const configuracaoNav: NavItem[] = [
@@ -97,45 +104,53 @@ const configuracaoNav: NavItem[] = [
 ];
 
 const navGroups: NavGroup[] = [
-  { key: "jornada", label: "Jornada do paciente", icon: HeartPulse, items: jornadaNav },
-  { key: "assistencia", label: "Assistência clínica", icon: Stethoscope, items: assistenciaNav },
-  { key: "setores", label: "Filas setoriais", icon: ClipboardList, items: setoresNav },
-  { key: "cadastros", label: "Cadastros", icon: FolderCog, items: cadastroNav },
-  { key: "gestao", label: "Gestão hospitalar", icon: Building2, items: gestaoNav },
-  { key: "financeiro", label: "Faturamento e financeiro", icon: WalletCards, items: financeiroNav },
-  { key: "configuracoes", label: "Configurações", icon: MonitorCog, items: configuracaoNav },
+  { key: "jornada", label: "Jornada do paciente", shortLabel: "Jornada", icon: HeartPulse, items: jornadaNav },
+  { key: "assistencia", label: "Assistência clínica", shortLabel: "Assistência", icon: Stethoscope, items: assistenciaNav },
+  { key: "setores", label: "Execução por setor", shortLabel: "Setores", icon: ClipboardList, items: setoresNav },
+  { key: "cadastros", label: "Cadastros e contratos", shortLabel: "Cadastros", icon: FolderCog, items: cadastroNav },
+  { key: "gestao", label: "Gestão e suprimentos", shortLabel: "Gestão", icon: Building2, items: gestaoNav },
+  { key: "receita", label: "Ciclo da receita", shortLabel: "Receita", icon: WalletCards, items: receitaNav },
+  { key: "configuracoes", label: "Configurações", shortLabel: "Config.", icon: MonitorCog, items: configuracaoNav },
 ];
 
 const allNav = navGroups.flatMap((group) => group.items);
 
-function isItemActive(pathname: string, item: NavItem) {
+function pathMatches(pathname: string, item: NavItem) {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function activeGroupKey(pathname: string) {
-  return navGroups.find((group) => group.items.some((item) => isItemActive(pathname, item)))?.key ?? null;
+function activeItem(pathname: string) {
+  return [...allNav].sort((a, b) => b.href.length - a.href.length).find((item) => pathMatches(pathname, item)) ?? null;
+}
+
+function activeGroup(pathname: string) {
+  const item = activeItem(pathname);
+  if (!item) return null;
+  return navGroups.find((group) => group.items.some((candidate) => candidate.href === item.href)) ?? null;
 }
 
 function currentTitle(pathname: string) {
   if (pathname === "/painel") return "Visão geral";
   if (pathname.startsWith("/manual")) return "Manual do sistema";
   if (pathname.startsWith("/meu-perfil")) return "Meu perfil";
-  const item = [...allNav].sort((a, b) => b.href.length - a.href.length).find((nav) => isItemActive(pathname, nav));
-  return item?.label ?? "MedSync HIS";
+  return activeItem(pathname)?.label ?? "MedSync HIS";
 }
 
 function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; unidadeId?: string | null }) {
   const pathname = usePathname();
-  const [openGroup, setOpenGroup] = useState<string | null>(() => activeGroupKey(pathname) ?? "jornada");
+  const selected = activeItem(pathname);
+  const selectedGroup = activeGroup(pathname);
+  const [openGroup, setOpenGroup] = useState<string | null>(() => selectedGroup?.key ?? "jornada");
 
   const navLink = (item: NavItem) => {
-    const active = isItemActive(pathname, item);
+    const active = selected?.href === item.href;
     const Icon = item.icon;
     return (
       <Link
         key={item.href}
         href={item.href as Route}
         onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
         className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white/[0.12] text-white shadow-sm" : "text-white/62 hover:bg-white/[0.07] hover:text-white"}`}
       >
         {active ? <span className="absolute -left-3 h-7 w-1 rounded-r-full bg-cyan-400" /> : null}
@@ -146,7 +161,7 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
   };
 
   const navGroup = (group: NavGroup) => {
-    const active = group.items.some((item) => isItemActive(pathname, item));
+    const active = selectedGroup?.key === group.key;
     const open = openGroup === group.key;
     const Icon = group.icon;
     return (
@@ -228,6 +243,27 @@ function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; un
   );
 }
 
+function WorkspaceBar({ pathname }: { pathname: string }) {
+  const group = activeGroup(pathname);
+  const selected = activeItem(pathname);
+  if (!group) return null;
+  const GroupIcon = group.icon;
+  return (
+    <div className="border-t border-slate-100 bg-white">
+      <div className="flex min-h-11 items-center gap-2 overflow-x-auto px-4 sm:px-6 xl:px-8">
+        <span className="sticky left-0 z-10 mr-1 inline-flex shrink-0 items-center gap-1.5 bg-white pr-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+          <GroupIcon className="size-3.5" />{group.shortLabel}
+        </span>
+        {group.items.map((item) => {
+          const active = selected?.href === item.href;
+          const Icon = item.icon;
+          return <Link key={item.href} href={item.href as Route} aria-current={active ? "page" : undefined} className={`inline-flex h-11 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-semibold transition ${active ? "border-brand-600 text-brand-800" : "border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-800"}`}><Icon className="size-3.5" />{item.label}</Link>;
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function AppShell({ children, email, unidadeId, logoutAction }: { children: React.ReactNode; email?: string | null; unidadeId?: string | null; logoutAction: (formData: FormData) => void | Promise<void> }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -241,7 +277,7 @@ export function AppShell({ children, email, unidadeId, logoutAction }: { childre
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b border-[#e4eaf2] bg-white/95 backdrop-blur-xl">
-          <div className="flex h-[72px] items-center gap-3 px-4 sm:px-6 xl:px-8">
+          <div className="flex h-16 items-center gap-3 px-4 sm:px-6 xl:px-8">
             <button onClick={() => setMobileOpen(true)} aria-label="Abrir menu" className="rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 lg:hidden"><Menu className="size-5" /></button>
 
             <div className="min-w-0">
@@ -252,12 +288,11 @@ export function AppShell({ children, email, unidadeId, logoutAction }: { childre
             <div className="hidden min-w-0 flex-1 justify-center lg:flex">
               <form action="/atendimentos" method="get" className="relative w-full max-w-lg">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <input name="q" aria-label="Busca global" placeholder="Buscar paciente, RA, CPF ou atendimento..." className="h-11 w-full rounded-2xl border border-[#e1e8f1] bg-[#f7f9fc] pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100" />
+                <input name="q" aria-label="Busca global" placeholder="Paciente, CPF, CNS, RA ou atendimento..." className="h-10 w-full rounded-xl border border-[#e1e8f1] bg-[#f7f9fc] pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100" />
               </form>
             </div>
 
             <div className="ml-auto flex items-center gap-2.5">
-              <span className="hidden items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700 md:inline-flex"><span className="size-1.5 rounded-full bg-emerald-500" />Online</span>
               <details className="relative">
                 <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-xl border border-[#e1e8f1] bg-white px-2 py-1.5 text-sm shadow-sm hover:bg-slate-50">
                   <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-brand-100 to-cyan-100 font-bold text-brand-800">{email?.slice(0, 1).toUpperCase() || "U"}</span>
@@ -273,9 +308,10 @@ export function AppShell({ children, email, unidadeId, logoutAction }: { childre
               </details>
             </div>
           </div>
+          <WorkspaceBar pathname={pathname} />
         </header>
 
-        <main className="mx-auto w-full max-w-[1700px] px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7">{children}</main>
+        <main className="mx-auto w-full max-w-[1700px] px-4 py-4 sm:px-6 sm:py-5 xl:px-8 xl:py-6">{children}</main>
       </div>
     </div>
   );
