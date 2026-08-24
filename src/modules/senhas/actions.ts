@@ -14,7 +14,7 @@ function erroTotem(message?: string | null, code?: string | null) {
   if (msg.includes("TOTEM_PRIORIDADE_INVALIDA")) return "prioridade-invalida";
   if (msg.includes("TOTEM_CPF_INVALIDO")) return "cpf-invalido";
   if (msg.includes("TOTEM_CPF_NAO_LOCALIZADO")) return "cpf-nao-localizado";
-  if (code === "PGRST202" || code === "42883" || msg.toLowerCase().includes("function") && msg.toLowerCase().includes("not found")) return "rpc-indisponivel";
+  if (code === "PGRST202" || code === "42883" || (msg.toLowerCase().includes("function") && msg.toLowerCase().includes("not found"))) return "rpc-indisponivel";
   if (code === "42501" || msg.toLowerCase().includes("permission denied")) return "permissao-rpc";
   return "falha-emissao";
 }
@@ -56,7 +56,7 @@ export async function emitirSenhaTotem(formData: FormData) {
     p_cpf: acao === "identificar" ? cpf : null,
   });
 
-  let emitida = primeiraLinha(v2.data) as { senha?: unknown; identificado?: unknown } | null;
+  const emitida = primeiraLinha(v2.data) as { senha?: unknown; identificado?: unknown } | null;
   let senha = emitida?.senha ? String(emitida.senha) : null;
   let identificado = Boolean(emitida?.identificado);
   let erroFinal = v2.error;
