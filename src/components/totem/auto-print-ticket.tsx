@@ -1,7 +1,7 @@
 "use client";
 
 import { Printer } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type AutoPrintTicketProps = {
   senha: string;
@@ -10,6 +10,11 @@ type AutoPrintTicketProps = {
 
 export function AutoPrintTicket({ senha, identificado = false }: AutoPrintTicketProps) {
   const impresso = useRef(false);
+  const [emitidoEm, setEmitidoEm] = useState("");
+
+  useEffect(() => {
+    setEmitidoEm(new Date().toLocaleString("pt-BR"));
+  }, [senha]);
 
   useEffect(() => {
     if (!senha || impresso.current) return;
@@ -19,7 +24,7 @@ export function AutoPrintTicket({ senha, identificado = false }: AutoPrintTicket
     if (sessionStorage.getItem(chave) === "1") return;
     sessionStorage.setItem(chave, "1");
 
-    const timer = window.setTimeout(() => window.print(), 450);
+    const timer = window.setTimeout(() => window.print(), 550);
     return () => window.clearTimeout(timer);
   }, [senha]);
 
@@ -43,7 +48,7 @@ export function AutoPrintTicket({ senha, identificado = false }: AutoPrintTicket
         <div className="totem-print-divider" />
         <div className="totem-print-message">Aguarde a chamada no painel.</div>
         {identificado ? <div className="totem-print-small">Cadastro identificado</div> : null}
-        <div className="totem-print-small">{new Date().toLocaleString("pt-BR")}</div>
+        {emitidoEm ? <div className="totem-print-small">{emitidoEm}</div> : null}
       </section>
     </>
   );
