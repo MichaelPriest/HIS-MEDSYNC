@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { Permission } from "./catalog";
 import { createClient } from "@/lib/supabase/server";
 
-export async function requirePermission(required: Permission) {
+async function resolvePermissionContext() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,13 +32,30 @@ export async function requirePermission(required: Permission) {
   const unidadeId = unidade?.unidade_id ?? null;
   if (!empresaId) redirect("/painel");
 
-  const { data: allowed, error } = await supabase.rpc("tem_permissao", {
-    p_empresa: empresaId,
-    p_unidade: unidadeId,
-    p_codigo: required,
-  });
-
-  if (error || allowed !== true) redirect("/painel?erro=acesso-negado");
-
   return { supabase, user, empresaId, unidadeId };
+}
+
+export async function requireAnyPermission(required: readonly Permission[]) {
+  const context = await resolvePermissionContext();
+  if (!required.length) redirect("/painel?erro=acesso-negado");
+
+  const checks = await Promise.all(
+    required.map((permission) =>
+      context.supabase.rpc("tem_permissao", {
+        p_empresa: context.empresaId,
+        p_unidade: context.unidadeId,
+        p_codigo: permission,
+      }),
+    ),
+  );
+
+  if (!checks.some(({ data, error }) => !error && data === true)) {
+    redirect("/painel?erro=acesso-negado");
+  }
+
+  return context;
+}
+
+export async function requirePermission(required: Permission) {
+  return requireAnyPermission([required]);
 }
