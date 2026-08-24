@@ -12,6 +12,8 @@ export const navigationRequirements: Record<string, readonly Permission[]> = {
   "/assistencial/urgencia": ["emergencia.visualizar", "emergencia.gerenciar", "emergencia.reavaliar"],
   "/assistencial": ["assistencial.visualizar", "prontuario.visualizar"],
   "/prescricao": ["prescricao.visualizar", "prescricao.criar"],
+  "/internacao/altas": ["internacao.visualizar", "internacao.gerenciar"],
+  "/internacao/leitos": ["internacao.visualizar", "leitos.gerenciar"],
   "/internacao/nir": ["internacao.visualizar", "internacao.gerenciar", "internacao.movimentar"],
   "/internacao": ["internacao.visualizar"],
   "/setores/enfermagem": ["enfermagem.visualizar"],
