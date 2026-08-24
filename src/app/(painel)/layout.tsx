@@ -3,6 +3,13 @@ import { AppShell } from "@/components/painel/app-shell";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/modules/auth/actions";
 
+type NamedRow = { nome: string | null };
+type CompanyRow = { nome_fantasia: string | null; razao_social: string | null };
+
+function one<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const {
@@ -11,20 +18,24 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   if (!user) redirect("/login");
 
-  const { data: unidade } = await supabase
-    .from("usuario_unidades")
-    .select("empresa_id,unidade_id")
-    .eq("usuario_id", user.id)
-    .eq("ativo", true)
-    .limit(1)
-    .maybeSingle();
+  const [{ data: usuario }, { data: unidade }] = await Promise.all([
+    supabase.from("usuarios").select("nome").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("usuario_unidades")
+      .select("empresa_id,unidade_id,unidade:unidades(nome),empresa:empresas(nome_fantasia,razao_social)")
+      .eq("usuario_id", user.id)
+      .eq("ativo", true)
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   let grantedPermissions: string[] | null = null;
+  let profileNames: string[] = [];
 
   if (unidade?.empresa_id) {
     const perfisQuery = supabase
       .from("usuario_perfis")
-      .select("perfil_id")
+      .select("perfil_id,perfil:perfis(nome)")
       .eq("usuario_id", user.id)
       .eq("empresa_id", unidade.empresa_id)
       .eq("ativo", true);
@@ -37,6 +48,13 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
     const { data: perfis, error: perfisError } = await perfisQuery;
     const perfilIds = [...new Set((perfis ?? []).map((item) => item.perfil_id))];
+
+    if (!perfisError) {
+      profileNames = [...new Set((perfis ?? []).flatMap((item) => {
+        const perfil = one(item.perfil as NamedRow | NamedRow[] | null);
+        return perfil?.nome ? [perfil.nome] : [];
+      }))];
+    }
 
     if (!perfisError && perfilIds.length > 0) {
       const { data: grants, error: grantsError } = await supabase
@@ -57,10 +75,17 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     }
   }
 
+  const unidadeAtual = one(unidade?.unidade as NamedRow | NamedRow[] | null);
+  const empresaAtual = one(unidade?.empresa as CompanyRow | CompanyRow[] | null);
+
   return (
     <AppShell
       email={user.email}
+      userName={usuario?.nome ?? user.email?.split("@")[0] ?? "Usuário"}
       unidadeId={unidade?.unidade_id ?? null}
+      unidadeNome={unidadeAtual?.nome ?? null}
+      empresaNome={empresaAtual?.nome_fantasia ?? empresaAtual?.razao_social ?? null}
+      profileNames={profileNames}
       grantedPermissions={grantedPermissions}
       logoutAction={logout}
     >

@@ -22,18 +22,25 @@ import {
   Handshake,
   HeartPulse,
   HelpCircle,
+  Hospital,
   Landmark,
   LayoutDashboard,
+  LogOut,
+  MapPin,
   Menu,
   MonitorCog,
   Pill,
+  Plus,
   ReceiptText,
   ScanLine,
   Search,
+  Settings,
   ShieldCheck,
   ShoppingCart,
+  Siren,
   Stethoscope,
   TicketCheck,
+  UserCog,
   UserRound,
   UsersRound,
   WalletCards,
@@ -42,38 +49,53 @@ import {
 import { brand } from "@/config/brand";
 import { canAccessNavigation } from "@/lib/permissions/navigation";
 
-type NavItem = { href: string; label: string; icon: typeof UsersRound };
+type Icon = typeof UsersRound;
+type NavItem = { href: string; label: string; icon: Icon };
 type NavGroup = {
   key: string;
   label: string;
   shortLabel: string;
-  icon: typeof UsersRound;
+  icon: Icon;
   items: NavItem[];
 };
 
-const jornadaNav: NavItem[] = [
+const inicioItem: NavItem = { href: "/painel", label: "Visão geral", icon: LayoutDashboard };
+
+const atendimentoNav: NavItem[] = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
-  { href: "/senhas", label: "Recepção", icon: TicketCheck },
+  { href: "/senhas", label: "Recepção e senhas", icon: TicketCheck },
   { href: "/atendimentos", label: "Atendimentos", icon: ClipboardList },
-  { href: "/central-guias", label: "Guias", icon: ClipboardCheck },
-  { href: "/autorizacoes", label: "Autorizações", icon: ShieldCheck },
   { href: "/triagem", label: "Triagem", icon: HeartPulse },
   { href: "/fila-medica", label: "Fila médica", icon: Stethoscope },
   { href: "/prontuario", label: "Prontuário", icon: ClipboardCheck },
 ];
 
 const assistenciaNav: NavItem[] = [
-  { href: "/assistencial", label: "Central Assistencial", icon: Activity },
+  { href: "/assistencial/urgencia", label: "Urgência / Emergência", icon: Siren },
   { href: "/prescricao", label: "Prescrição", icon: Pill },
   { href: "/internacao", label: "Internação e leitos", icon: BedDouble },
+  { href: "/internacao/nir", label: "NIR / Gestão de leitos", icon: Hospital },
+  { href: "/assistencial", label: "Central Assistencial", icon: Activity },
 ];
 
 const setoresNav: NavItem[] = [
   { href: "/setores/enfermagem", label: "Enfermagem", icon: Activity },
   { href: "/setores/farmacia", label: "Farmácia", icon: Pill },
   { href: "/setores/laboratorio", label: "Laboratório", icon: FlaskConical },
-  { href: "/setores/imagem", label: "Imagem", icon: ScanLine },
-  { href: "/setores/internacao", label: "Internação", icon: BedDouble },
+  { href: "/setores/imagem", label: "Diagnóstico por imagem", icon: ScanLine },
+  { href: "/setores/internacao", label: "Fila da internação", icon: BedDouble },
+];
+
+const receitaNav: NavItem[] = [
+  { href: "/central-guias", label: "Guias", icon: ClipboardCheck },
+  { href: "/autorizacoes", label: "Autorizações", icon: ShieldCheck },
+  { href: "/auditoria", label: "Auditoria", icon: ShieldCheck },
+  { href: "/contas-medicas", label: "Contas médicas", icon: ClipboardCheck },
+  { href: "/faturamento", label: "Pré-faturamento", icon: ReceiptText },
+  { href: "/faturamento/lotes", label: "Lotes TISS", icon: ReceiptText },
+  { href: "/faturamento/glosas", label: "Glosas e recursos", icon: ReceiptText },
+  { href: "/financeiro", label: "Recebimentos", icon: WalletCards },
+  { href: "/financeiro/notas-fiscais", label: "Notas fiscais", icon: FileText },
 ];
 
 const cadastroNav: NavItem[] = [
@@ -89,36 +111,26 @@ const cadastroNav: NavItem[] = [
 
 const gestaoNav: NavItem[] = [
   { href: "/diretoria", label: "Diretoria", icon: LayoutDashboard },
-  { href: "/ged", label: "GED", icon: FileText },
   { href: "/compras", label: "Compras", icon: ShoppingCart },
   { href: "/almoxarifado", label: "Estoque", icon: Boxes },
-];
-
-const receitaNav: NavItem[] = [
-  { href: "/auditoria", label: "Auditoria", icon: ShieldCheck },
-  { href: "/contas-medicas", label: "Contas médicas", icon: ClipboardCheck },
-  { href: "/faturamento", label: "Pré-faturamento", icon: ReceiptText },
-  { href: "/faturamento/lotes", label: "Lotes TISS", icon: ReceiptText },
-  { href: "/faturamento/glosas", label: "Glosas e recursos", icon: ReceiptText },
-  { href: "/financeiro", label: "Recebimentos", icon: WalletCards },
-  { href: "/financeiro/notas-fiscais", label: "Notas fiscais", icon: FileText },
+  { href: "/ged", label: "GED", icon: FileText },
 ];
 
 const configuracaoNav: NavItem[] = [
-  { href: "/configuracoes/acessos", label: "Usuários e acessos", icon: UsersRound },
+  { href: "/configuracoes/acessos", label: "Usuários e acessos", icon: UserCog },
   { href: "/configuracoes/paineis", label: "Painéis e chamadas", icon: MonitorCog },
   { href: "/configuracoes/tiss-webservices", label: "Webservices TISS", icon: Cable },
   { href: "/configuracoes/nfse", label: "Prefeituras / NFS-e", icon: Landmark },
 ];
 
 const navGroups: NavGroup[] = [
-  { key: "jornada", label: "Jornada do paciente", shortLabel: "Jornada", icon: HeartPulse, items: jornadaNav },
+  { key: "atendimento", label: "Atendimento", shortLabel: "Atendimento", icon: HeartPulse, items: atendimentoNav },
   { key: "assistencia", label: "Assistência clínica", shortLabel: "Assistência", icon: Stethoscope, items: assistenciaNav },
   { key: "setores", label: "Execução por setor", shortLabel: "Setores", icon: ClipboardList, items: setoresNav },
+  { key: "receita", label: "Faturamento e receita", shortLabel: "Receita", icon: WalletCards, items: receitaNav },
   { key: "cadastros", label: "Cadastros e contratos", shortLabel: "Cadastros", icon: FolderCog, items: cadastroNav },
   { key: "gestao", label: "Gestão e suprimentos", shortLabel: "Gestão", icon: Building2, items: gestaoNav },
-  { key: "receita", label: "Ciclo da receita", shortLabel: "Receita", icon: WalletCards, items: receitaNav },
-  { key: "configuracoes", label: "Configurações", shortLabel: "Config.", icon: MonitorCog, items: configuracaoNav },
+  { key: "configuracoes", label: "Configurações", shortLabel: "Config.", icon: Settings, items: configuracaoNav },
 ];
 
 const allNav = navGroups.flatMap((group) => group.items);
@@ -128,6 +140,7 @@ function pathMatches(pathname: string, item: NavItem) {
 }
 
 function activeItem(pathname: string) {
+  if (pathname === inicioItem.href) return inicioItem;
   return [...allNav]
     .sort((a, b) => b.href.length - a.href.length)
     .find((item) => pathMatches(pathname, item)) ?? null;
@@ -135,12 +148,11 @@ function activeItem(pathname: string) {
 
 function activeGroup(pathname: string) {
   const item = activeItem(pathname);
-  if (!item) return null;
+  if (!item || item.href === inicioItem.href) return null;
   return navGroups.find((group) => group.items.some((candidate) => candidate.href === item.href)) ?? null;
 }
 
 function currentTitle(pathname: string) {
-  if (pathname === "/painel") return "Visão geral";
   if (pathname.startsWith("/manual")) return "Manual do sistema";
   if (pathname.startsWith("/meu-perfil")) return "Meu perfil";
   return activeItem(pathname)?.label ?? "MedSync HIS";
@@ -150,37 +162,43 @@ function visibleItems(group: NavGroup, grantedPermissions: readonly string[] | n
   return group.items.filter((item) => canAccessNavigation(grantedPermissions, item.href));
 }
 
+function hasGrant(grantedPermissions: readonly string[] | null, permission: string) {
+  return grantedPermissions === null || grantedPermissions.includes(permission);
+}
+
 function SidebarContent({
   onNavigate,
   unidadeId,
+  unidadeNome,
   grantedPermissions,
 }: {
   onNavigate?: () => void;
   unidadeId?: string | null;
+  unidadeNome?: string | null;
   grantedPermissions: readonly string[] | null;
 }) {
   const pathname = usePathname();
   const selected = activeItem(pathname);
   const selectedGroup = activeGroup(pathname);
-  const [openGroup, setOpenGroup] = useState<string | null>(() => selectedGroup?.key ?? "jornada");
+  const [openGroup, setOpenGroup] = useState<string | null>(() => selectedGroup?.key ?? "atendimento");
   const allowedGroups = navGroups
     .map((group) => ({ ...group, items: visibleItems(group, grantedPermissions) }))
     .filter((group) => group.items.length > 0);
 
   const navLink = (item: NavItem) => {
     const active = selected?.href === item.href;
-    const Icon = item.icon;
+    const ItemIcon = item.icon;
     return (
       <Link
         key={item.href}
         href={item.href as Route}
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
-        className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white/[0.12] text-white shadow-sm" : "text-white/62 hover:bg-white/[0.07] hover:text-white"}`}
+        className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-white/[0.13] text-white shadow-sm" : "text-white/62 hover:bg-white/[0.07] hover:text-white"}`}
       >
         {active ? <span className="absolute -left-3 h-7 w-1 rounded-r-full bg-cyan-400" /> : null}
-        <span className={`grid size-8 place-items-center rounded-lg transition ${active ? "bg-white/10 text-cyan-300" : "text-white/42 group-hover:text-white/75"}`}>
-          <Icon className="size-4" />
+        <span className={`grid size-8 shrink-0 place-items-center rounded-lg transition ${active ? "bg-cyan-300/10 text-cyan-300" : "text-white/42 group-hover:text-white/75"}`}>
+          <ItemIcon className="size-4" />
         </span>
         <span className="truncate">{item.label}</span>
       </Link>
@@ -190,7 +208,7 @@ function SidebarContent({
   const navGroup = (group: NavGroup) => {
     const active = selectedGroup?.key === group.key;
     const open = openGroup === group.key;
-    const Icon = group.icon;
+    const GroupIcon = group.icon;
     return (
       <div key={group.key}>
         <button
@@ -199,18 +217,18 @@ function SidebarContent({
           aria-expanded={open}
           className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${active ? "bg-white/[0.08] text-white" : "text-white/68 hover:bg-white/[0.07] hover:text-white"}`}
         >
-          <span className={`grid size-8 place-items-center rounded-lg ${active ? "text-cyan-300" : "text-white/45"}`}>
-            <Icon className="size-4" />
+          <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${active ? "text-cyan-300" : "text-white/45"}`}>
+            <GroupIcon className="size-4" />
           </span>
           <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
           {open ? <ChevronDown className="size-4 text-white/35" /> : <ChevronRight className="size-4 text-white/35" />}
         </button>
-        {open ? <div className="ml-7 mt-1.5 space-y-1 border-l border-white/[0.08] pl-2.5">{group.items.map(navLink)}</div> : null}
+        {open ? <div className="ml-7 mt-1 space-y-1 border-l border-white/[0.08] pl-2.5">{group.items.map(navLink)}</div> : null}
       </div>
     );
   };
 
-  const terminalLink = (href: Route, label: string, Icon: typeof ScanLine) => (
+  const terminalLink = (href: Route, label: string, TerminalIcon: Icon) => (
     <Link
       href={href}
       target="_blank"
@@ -218,7 +236,7 @@ function SidebarContent({
       onClick={onNavigate}
       className="group flex items-center gap-3 rounded-xl border border-cyan-300/10 bg-cyan-300/[0.055] px-3 py-2.5 text-sm font-semibold text-cyan-50/80 transition hover:border-cyan-300/20 hover:bg-cyan-300/[0.10] hover:text-white"
     >
-      <span className="grid size-8 place-items-center rounded-lg bg-cyan-300/10 text-cyan-300"><Icon className="size-4" /></span>
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-cyan-300/10 text-cyan-300"><TerminalIcon className="size-4" /></span>
       <span className="truncate">{label}</span>
       <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-cyan-200/35">Abrir</span>
     </Link>
@@ -232,50 +250,47 @@ function SidebarContent({
 
   return (
     <div className="flex h-full flex-col bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,.20),_transparent_30%),linear-gradient(180deg,#0b1f44_0%,#07162f_100%)]">
-      <div className="border-b border-white/[0.08] px-5 py-5">
+      <div className="border-b border-white/[0.08] px-5 py-4.5">
         <Link href="/painel" onClick={onNavigate} className="flex items-center gap-3.5">
-          <span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-500 text-white shadow-lg shadow-blue-950/30"><HeartPulse className="size-5.5" /></span>
+          <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 text-white shadow-lg shadow-blue-950/30"><HeartPulse className="size-5" /></span>
           <span className="min-w-0">
             <strong className="block truncate text-[17px] font-bold tracking-tight text-white">{brand.shortName}</strong>
-            <span className="mt-0.5 block truncate text-[10px] font-semibold uppercase tracking-[0.17em] text-cyan-100/45">Hospital Information System</span>
+            <span className="mt-0.5 block truncate text-[9px] font-semibold uppercase tracking-[0.17em] text-cyan-100/45">Hospital Information System</span>
           </span>
         </Link>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-5">
+      <div className="flex-1 overflow-y-auto px-3 py-4">
         {sectionLabel("Início")}
-        <nav className="mt-3 space-y-1" aria-label="Navegação principal">
-          {navLink({ href: "/painel", label: "Visão geral", icon: LayoutDashboard })}
+        <nav className="mt-2 space-y-1" aria-label="Navegação principal">
+          {navLink(inicioItem)}
         </nav>
 
         {allowedGroups.length ? (
-          <div className="mt-5 border-t border-white/[0.07] pt-5">
+          <div className="mt-4 border-t border-white/[0.07] pt-4">
             {sectionLabel("Áreas de trabalho")}
-            <div className="mt-3 space-y-1">{allowedGroups.map(navGroup)}</div>
+            <div className="mt-2 space-y-1">{allowedGroups.map(navGroup)}</div>
           </div>
         ) : null}
 
         {unidadeId && canUseReceptionTerminals ? (
-          <div className="mt-6 border-t border-white/[0.07] pt-5">
+          <div className="mt-5 border-t border-white/[0.07] pt-4">
             {sectionLabel("Terminais")}
-            <div className="mt-3 space-y-2">
-              {terminalLink(`/totem/${unidadeId}` as Route, "Abrir Totem", ScanLine)}
-              {terminalLink(`/painel-chamadas/${unidadeId}` as Route, "Painel de Chamadas", MonitorCog)}
+            <div className="mt-2 space-y-2">
+              {terminalLink(`/totem/${unidadeId}` as Route, "Totem de senhas", ScanLine)}
+              {terminalLink(`/painel-chamadas/${unidadeId}` as Route, "Painel de chamadas", MonitorCog)}
             </div>
           </div>
         ) : null}
       </div>
 
-      <div className="border-t border-white/[0.08] p-4">
-        <div className="rounded-2xl border border-white/[0.09] bg-white/[0.055] p-3.5 backdrop-blur">
-          <div className="flex items-center gap-3">
-            <span className="relative grid size-9 place-items-center rounded-xl bg-cyan-400/10 text-cyan-300">
-              <ShieldCheck className="size-4" />
-              <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-[#0b1f44] bg-emerald-400" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-white/90">Ambiente hospitalar</p>
-              <p className="mt-0.5 truncate text-[11px] text-white/38">Acesso conforme perfil</p>
+      <div className="border-t border-white/[0.08] p-3.5">
+        <div className="rounded-xl border border-white/[0.09] bg-white/[0.055] px-3 py-2.5 backdrop-blur">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-cyan-400/10 text-cyan-300"><MapPin className="size-4" /></span>
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-bold uppercase tracking-wider text-white/35">Unidade atual</p>
+              <p className="mt-0.5 truncate text-xs font-semibold text-white/85">{unidadeNome ?? "Unidade hospitalar"}</p>
             </div>
           </div>
         </div>
@@ -300,22 +315,22 @@ function WorkspaceBar({
 
   const GroupIcon = group.icon;
   return (
-    <div className="border-t border-slate-100 bg-white">
-      <div className="flex min-h-11 items-center gap-2 overflow-x-auto px-4 sm:px-6 xl:px-8">
-        <span className="sticky left-0 z-10 mr-1 inline-flex shrink-0 items-center gap-1.5 bg-white pr-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+    <div className="border-t border-slate-100 bg-slate-50/70">
+      <div className="flex min-h-10 items-center gap-1.5 overflow-x-auto px-4 sm:px-6 xl:px-8">
+        <span className="sticky left-0 z-10 mr-1 inline-flex shrink-0 items-center gap-1.5 bg-slate-50/95 pr-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
           <GroupIcon className="size-3.5" />{group.shortLabel}
         </span>
         {items.map((item) => {
           const active = selected?.href === item.href;
-          const Icon = item.icon;
+          const ItemIcon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href as Route}
               aria-current={active ? "page" : undefined}
-              className={`inline-flex h-11 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-semibold transition ${active ? "border-brand-600 text-brand-800" : "border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-800"}`}
+              className={`inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs font-semibold transition ${active ? "border-brand-600 text-brand-800" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"}`}
             >
-              <Icon className="size-3.5" />{item.label}
+              <ItemIcon className="size-3.5" />{item.label}
             </Link>
           );
         })}
@@ -324,27 +339,109 @@ function WorkspaceBar({
   );
 }
 
+function UserMenu({
+  email,
+  userName,
+  unidadeNome,
+  empresaNome,
+  profileNames,
+  grantedPermissions,
+  logoutAction,
+}: {
+  email?: string | null;
+  userName: string;
+  unidadeNome?: string | null;
+  empresaNome?: string | null;
+  profileNames: readonly string[];
+  grantedPermissions: readonly string[] | null;
+  logoutAction: (formData: FormData) => void | Promise<void>;
+}) {
+  const initial = (userName || email || "U").slice(0, 1).toUpperCase();
+  const primaryProfile = profileNames[0] ?? "Usuário";
+  const canManageAccess = canAccessNavigation(grantedPermissions, "/configuracoes/acessos");
+  const canOpenSettings = canAccessNavigation(grantedPermissions, "/configuracoes/paineis");
+
+  return (
+    <details className="relative">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border border-[#e1e8f1] bg-white p-1.5 pr-2 text-sm shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-100 to-cyan-100 font-bold text-brand-800">{initial}</span>
+        <span className="hidden min-w-0 text-left md:block">
+          <span className="block max-w-36 truncate text-xs font-bold text-slate-800">{userName}</span>
+          <span className="block max-w-36 truncate text-[10px] text-slate-400">{primaryProfile}</span>
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-slate-400" />
+      </summary>
+
+      <div className="absolute right-0 mt-2 w-[19rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/12">
+        <div className="border-b border-slate-100 bg-slate-50/70 p-4">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-100 to-cyan-100 text-sm font-black text-brand-800">{initial}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-black text-slate-900">{userName}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-500">{email ?? "E-mail não informado"}</p>
+              {profileNames.length ? (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {profileNames.slice(0, 2).map((profile) => <span key={profile} className="rounded-md bg-brand-50 px-2 py-1 text-[10px] font-bold text-brand-700">{profile}</span>)}
+                  {profileNames.length > 2 ? <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500">+{profileNames.length - 2}</span> : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-xs">
+            <p className="flex items-center gap-2 font-semibold text-slate-700"><Building2 className="size-3.5 text-slate-400" />{empresaNome ?? "Empresa"}</p>
+            <p className="mt-1.5 flex items-center gap-2 text-slate-500"><MapPin className="size-3.5 text-slate-400" />{unidadeNome ?? "Unidade não identificada"}</p>
+          </div>
+        </div>
+
+        <div className="p-2">
+          <Link href="/meu-perfil" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><UserRound className="size-4 text-slate-400" />Meu perfil</Link>
+          {canManageAccess ? <Link href="/configuracoes/acessos" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><UserCog className="size-4 text-slate-400" />Usuários e acessos</Link> : null}
+          {canOpenSettings ? <Link href="/configuracoes/paineis" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><Settings className="size-4 text-slate-400" />Configurações do sistema</Link> : null}
+          <Link href="/manual" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><HelpCircle className="size-4 text-slate-400" />Manual do sistema</Link>
+          <div className="my-1 h-px bg-slate-100" />
+          <form action={logoutAction}>
+            <button className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"><LogOut className="size-4" />Sair do sistema</button>
+          </form>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 export function AppShell({
   children,
   email,
+  userName = "Usuário",
   unidadeId,
+  unidadeNome,
+  empresaNome,
+  profileNames = [],
   grantedPermissions = null,
   logoutAction,
 }: {
   children: React.ReactNode;
   email?: string | null;
+  userName?: string;
   unidadeId?: string | null;
+  unidadeNome?: string | null;
+  empresaNome?: string | null;
+  profileNames?: readonly string[];
   grantedPermissions?: readonly string[] | null;
   logoutAction: (formData: FormData) => void | Promise<void>;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const pathname = usePathname();
   const title = currentTitle(pathname);
+  const group = activeGroup(pathname);
+  const canCreateAttendance = hasGrant(grantedPermissions, "atendimentos.abrir");
+  const canOpenEmergency = canAccessNavigation(grantedPermissions, "/assistencial/urgencia");
 
   return (
-    <div className="min-h-screen bg-[#f4f7fb] lg:grid lg:grid-cols-[18rem_1fr]">
+    <div className="min-h-screen bg-[#f4f7fb] lg:grid lg:grid-cols-[17.5rem_1fr]">
       <aside className="hidden text-white lg:sticky lg:top-0 lg:block lg:h-screen">
-        <SidebarContent unidadeId={unidadeId} grantedPermissions={grantedPermissions} />
+        <SidebarContent unidadeId={unidadeId} unidadeNome={unidadeNome} grantedPermissions={grantedPermissions} />
       </aside>
 
       {mobileOpen ? (
@@ -352,44 +449,60 @@ export function AppShell({
           <button aria-label="Fechar menu" className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <aside className="relative h-full w-[18rem] max-w-[88vw] text-white shadow-2xl">
             <button aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"><X className="size-5" /></button>
-            <SidebarContent unidadeId={unidadeId} grantedPermissions={grantedPermissions} onNavigate={() => setMobileOpen(false)} />
+            <SidebarContent unidadeId={unidadeId} unidadeNome={unidadeNome} grantedPermissions={grantedPermissions} onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
       ) : null}
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b border-[#e4eaf2] bg-white/95 backdrop-blur-xl">
-          <div className="flex h-16 items-center gap-3 px-4 sm:px-6 xl:px-8">
+          <div className="flex h-[68px] items-center gap-3 px-4 sm:px-6 xl:px-8">
             <button onClick={() => setMobileOpen(true)} aria-label="Abrir menu" className="rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 lg:hidden"><Menu className="size-5" /></button>
 
-            <div className="min-w-0">
-              <p className="hidden text-[10px] font-bold uppercase tracking-[0.17em] text-slate-400 sm:block">MedSync · HIS</p>
-              <h2 className="truncate text-[15px] font-bold text-slate-800 sm:text-base">{title}</h2>
+            <div className="min-w-0 shrink-0">
+              <div className="hidden items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:flex">
+                <span>{group?.shortLabel ?? "MedSync HIS"}</span>
+                {group ? <><ChevronRight className="size-3" /><span className="text-brand-600">Área atual</span></> : null}
+              </div>
+              <h2 className="truncate text-[15px] font-black text-slate-850 sm:text-base">{title}</h2>
             </div>
 
-            <div className="hidden min-w-0 flex-1 justify-center lg:flex">
-              <form action="/atendimentos" method="get" className="relative w-full max-w-lg">
+            <div className="hidden min-w-0 flex-1 justify-center xl:flex">
+              <form action="/atendimentos" method="get" className="relative w-full max-w-xl">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <input name="q" aria-label="Busca global" placeholder="Paciente, CPF, CNS, RA ou atendimento..." className="h-10 w-full rounded-xl border border-[#e1e8f1] bg-[#f7f9fc] pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100" />
+                <input name="q" aria-label="Busca global" placeholder="Buscar paciente, CPF, CNS, RA ou atendimento..." className="h-10 w-full rounded-xl border border-[#e1e8f1] bg-[#f7f9fc] pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100" />
               </form>
             </div>
 
-            <div className="ml-auto flex items-center gap-2.5">
-              <details className="relative">
-                <summary className="flex cursor-pointer list-none items-center gap-2.5 rounded-xl border border-[#e1e8f1] bg-white px-2 py-1.5 text-sm shadow-sm hover:bg-slate-50">
-                  <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-brand-100 to-cyan-100 font-bold text-brand-800">{email?.slice(0, 1).toUpperCase() || "U"}</span>
-                  <span className="hidden max-w-44 truncate text-slate-700 sm:block">{email || "Usuário"}</span>
-                  <ChevronDown className="size-4 text-slate-400" />
-                </summary>
-                <div className="absolute right-0 mt-2 w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-900/10">
-                  <Link href="/meu-perfil" className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><UserRound className="size-4" /> Meu Perfil</Link>
-                  <Link href="/manual" className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"><HelpCircle className="size-4" /> Manual do sistema</Link>
-                  <div className="my-1 h-px bg-slate-100" />
-                  <form action={logoutAction}><button className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-rose-600 hover:bg-rose-50">Sair do sistema</button></form>
-                </div>
-              </details>
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={() => setMobileSearchOpen((value) => !value)} aria-label="Abrir busca" className="rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50 xl:hidden"><Search className="size-4" /></button>
+
+              {canOpenEmergency ? <Link href="/assistencial/urgencia" className="hidden items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-100 2xl:inline-flex"><Siren className="size-4" />Urgência</Link> : null}
+              {canCreateAttendance ? <Link href="/atendimentos/novo" className="hidden items-center gap-1.5 rounded-xl bg-brand-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-brand-800 lg:inline-flex"><Plus className="size-4" />Novo atendimento</Link> : null}
+
+              {unidadeNome ? <div className="hidden max-w-48 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 2xl:flex"><MapPin className="size-3.5 shrink-0 text-brand-600" /><span className="truncate">{unidadeNome}</span></div> : null}
+
+              <UserMenu
+                email={email}
+                userName={userName}
+                unidadeNome={unidadeNome}
+                empresaNome={empresaNome}
+                profileNames={profileNames}
+                grantedPermissions={grantedPermissions}
+                logoutAction={logoutAction}
+              />
             </div>
           </div>
+
+          {mobileSearchOpen ? (
+            <div className="border-t border-slate-100 px-4 py-3 sm:px-6 xl:hidden">
+              <form action="/atendimentos" method="get" className="relative">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <input autoFocus name="q" aria-label="Busca global" placeholder="Paciente, CPF, CNS, RA ou atendimento..." className="h-10 w-full rounded-xl border border-[#e1e8f1] bg-[#f7f9fc] pl-10 pr-4 text-sm text-slate-700 outline-none focus:border-brand-300 focus:bg-white focus:ring-4 focus:ring-brand-100" />
+              </form>
+            </div>
+          ) : null}
+
           <WorkspaceBar pathname={pathname} grantedPermissions={grantedPermissions} />
         </header>
 
