@@ -119,6 +119,7 @@ const gestaoNav: NavItem[] = [
 
 const configuracaoNav: NavItem[] = [
   { href: "/configuracoes/acessos", label: "Usuários e acessos", icon: UserCog },
+  { href: "/configuracoes/estrutura", label: "Estrutura hospitalar", icon: Building2 },
   { href: "/configuracoes/paineis", label: "Painéis e chamadas", icon: MonitorCog },
   { href: "/configuracoes/tiss-webservices", label: "Webservices TISS", icon: Cable },
   { href: "/configuracoes/nfse", label: "Prefeituras / NFS-e", icon: Landmark },
