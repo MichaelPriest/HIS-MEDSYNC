@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { asRoute } from "@/lib/route-cast";
 import { createClient } from "@/lib/supabase/server";
 import { uploadFotoCadastro } from "@/modules/cadastros/fotos";
 import { parseAddresses, parseEmails, parsePhones, validateRequiredContacts } from "@/modules/cadastros/parse-contact-sections";
@@ -23,8 +24,32 @@ function erroCadastro(code?: string | null) {
   return "falha-cadastro";
 }
 
+function retornoAdmissaoSeguro(raw: FormDataEntryValue | null, pacienteId?: string, cadastro?: "parcial") {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value, "https://medsync.local");
+    const senha = url.searchParams.get("senha");
+    if (url.pathname !== "/atendimentos/novo" || !senha || !/^[0-9a-f-]{36}$/i.test(senha)) return null;
+    const query = new URLSearchParams({ senha });
+    if (pacienteId) query.set("paciente", pacienteId);
+    if (cadastro) query.set("cadastro", cadastro);
+    return asRoute(`/atendimentos/novo?${query.toString()}`);
+  } catch {
+    return null;
+  }
+}
+
+function novoPacienteErro(erro: string, retorno: FormDataEntryValue | null) {
+  const retornoSeguro = retornoAdmissaoSeguro(retorno);
+  const query = new URLSearchParams({ erro });
+  if (retornoSeguro) query.set("retorno", retornoSeguro);
+  return asRoute(`/pacientes/novo?${query.toString()}`);
+}
+
 export async function criarPaciente(formData: FormData) {
   const supabase = await createClient();
+  const retorno = formData.get("retorno");
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
@@ -36,7 +61,7 @@ export async function criarPaciente(formData: FormData) {
     .limit(1)
     .maybeSingle();
 
-  if (vinculoError || !vinculo) redirect("/pacientes/novo?erro=sem-empresa");
+  if (vinculoError || !vinculo) redirect(novoPacienteErro("sem-empresa", retorno));
 
   const { data: podeCriar, error: permissaoError } = await supabase.rpc("tem_permissao", {
     p_empresa: vinculo.empresa_id,
@@ -53,10 +78,10 @@ export async function criarPaciente(formData: FormData) {
       details: permissaoError.details,
       hint: permissaoError.hint,
     });
-    redirect("/pacientes/novo?erro=falha-permissao");
+    redirect(novoPacienteErro("falha-permissao", retorno));
   }
 
-  if (!podeCriar) redirect("/pacientes/novo?erro=sem-permissao");
+  if (!podeCriar) redirect(novoPacienteErro("sem-permissao", retorno));
 
   const nomeCompleto = String(formData.get("nome_completo") ?? "").trim();
   const dataNascimento = String(formData.get("data_nascimento") ?? "");
@@ -64,7 +89,7 @@ export async function criarPaciente(formData: FormData) {
   const phones = parsePhones(formData);
   const addresses = parseAddresses(formData);
   if (nomeCompleto.length < 2 || !dataNascimento || !validateRequiredContacts(emails, phones, addresses)) {
-    redirect("/pacientes/novo?erro=campos-obrigatorios");
+    redirect(novoPacienteErro("campos-obrigatorios", retorno));
   }
 
   const sexoInformado = optional(formData.get("sexo")) || "nao_informado";
@@ -75,7 +100,7 @@ export async function criarPaciente(formData: FormData) {
     fotoPath = await uploadFotoCadastro({ supabase, empresaId: vinculo.empresa_id, modulo: "pacientes", file: formData.get("foto") });
   } catch (error) {
     const code = error instanceof Error ? error.message : "foto-upload";
-    redirect(`/pacientes/novo?erro=${code}`);
+    redirect(novoPacienteErro(code, retorno));
   }
 
   const { data: paciente, error } = await supabase.from("pacientes").insert({
@@ -113,7 +138,7 @@ export async function criarPaciente(formData: FormData) {
       hint: error?.hint,
     });
 
-    redirect(`/pacientes/novo?erro=${erroCadastro(error?.code)}`);
+    redirect(novoPacienteErro(erroCadastro(error?.code), retorno));
   }
 
   const [emailResult, phoneResult, addressResult] = await Promise.all([
@@ -130,8 +155,12 @@ export async function criarPaciente(formData: FormData) {
       phoneCode: phoneResult.error?.code,
       addressCode: addressResult.error?.code,
     });
+    const retornoParcial = retornoAdmissaoSeguro(retorno, paciente.id, "parcial");
+    if (retornoParcial) redirect(retornoParcial);
     redirect("/pacientes?sucesso=parcial");
   }
 
+  const retornoCompleto = retornoAdmissaoSeguro(retorno, paciente.id);
+  if (retornoCompleto) redirect(retornoCompleto);
   redirect("/pacientes?sucesso=cadastrado");
 }
