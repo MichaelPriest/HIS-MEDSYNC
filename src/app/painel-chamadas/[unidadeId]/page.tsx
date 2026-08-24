@@ -1,4 +1,4 @@
-import { BellRing, HeartPulse, UserRound } from "lucide-react";
+import { BellRing, HeartPulse, MapPin, UserRound, Volume2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PanelAutoRefresh } from "@/components/senhas/panel-auto-refresh";
 
@@ -13,15 +13,63 @@ export default async function PainelChamadasPage({ params, searchParams }: { par
   const { data } = await supabase.rpc("listar_painel_chamadas", { p_unidade_id: unidadeId });
   let chamadas = (Array.isArray(data) ? data : []) as Chamada[];
   if (modoSetorial && setor) chamadas = chamadas.filter((item) => item.setor_codigo === setor || item.setor_nome?.toLowerCase() === setor.toLowerCase());
+
   const atual = chamadas[0] ?? null;
   const tituloAtual = atual?.identificado && atual?.nome_chamada ? atual.nome_chamada : atual?.senha ?? "—";
   const nomePainel = modoSetorial ? (atual?.setor_nome || setor || "Setor") : "Todos os setores";
-  return <main className="min-h-screen bg-brand-950 p-6 text-white sm:p-10"><PanelAutoRefresh/><div className="mx-auto max-w-7xl">
-    <header className="flex items-center justify-between gap-4"><div className="flex items-center gap-3"><span className="grid size-12 place-items-center rounded-2xl bg-white text-brand-950"><HeartPulse className="size-6"/></span><div><h1 className="text-2xl font-bold">Painel de Chamadas · {nomePainel}</h1><p className="text-sm text-white/50">{modoSetorial ? "Painel configurado para chamadas separadas por setor." : "Painel integrado configurado para exibir chamadas de todos os setores."}</p></div></div><BellRing className="size-8 text-white/50"/></header>
-    <section className="mt-10 grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
-      <div className="rounded-[2rem] bg-white p-8 text-center text-brand-950 shadow-2xl sm:p-12"><p className="text-sm font-bold uppercase tracking-[0.28em] text-brand-600">Chamada atual</p><div className="mt-5 flex items-center justify-center gap-3">{atual?.identificado ? <UserRound className="size-10 text-brand-600"/> : null}<div className={`${atual?.identificado ? "text-5xl sm:text-7xl" : "text-8xl sm:text-9xl"} font-black tracking-tight`}>{tituloAtual}</div></div>{atual?.identificado ? <p className="mt-4 text-2xl font-bold text-brand-700">Senha {atual?.senha}</p> : null}<p className="mt-7 text-2xl font-bold">{atual?.ponto_atendimento || "Aguarde a próxima chamada"}</p><p className="mt-2 text-base text-slate-500">{atual?.setor_nome ?? "Recepção"}</p></div>
-      <aside className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur"><h2 className="text-sm font-bold uppercase tracking-[0.18em] text-white/45">Últimas chamadas</h2><div className="mt-5 space-y-3">{chamadas.slice(1).map((item, index) => <div key={`${item.senha}-${index}`} className="rounded-2xl border border-white/10 bg-white/5 p-4"><div className="flex items-center justify-between gap-3"><strong className="text-xl">{item.identificado && item.nome_chamada ? item.nome_chamada : item.senha}</strong><span className="text-xs text-white/45">{item.ultima_chamada_em ? new Date(item.ultima_chamada_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : ""}</span></div>{item.identificado ? <p className="mt-1 text-xs font-semibold text-white/50">Senha {item.senha}</p> : null}<p className="mt-1 text-sm text-white/70">{item.ponto_atendimento || item.setor_nome}</p></div>)}{chamadas.length <= 1 ? <p className="rounded-2xl bg-white/5 p-5 text-sm text-white/45">Nenhuma chamada anterior neste painel.</p> : null}</div></aside>
-    </section>
-    <p className="mt-8 text-center text-sm text-white/40">Fluxo: Recepção → autorização do convênio quando necessária → triagem define especialidade → fila do profissional logado da especialidade.</p>
-  </div></main>;
+
+  return (
+    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,.24),_transparent_26%),linear-gradient(145deg,#07162f_0%,#0b1f44_55%,#10295a_100%)] p-5 text-white sm:p-8 lg:p-10">
+      <PanelAutoRefresh />
+      <div className="mx-auto max-w-7xl ui-page-enter">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-6">
+          <div className="flex items-center gap-4">
+            <span className="grid size-13 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-500 text-white shadow-xl shadow-blue-950/30"><HeartPulse className="size-6" /></span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200/50">MedSync · Painel de Chamadas</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{nomePainel}</h1>
+              <p className="mt-1 text-sm text-white/45">{modoSetorial ? "Chamadas organizadas por setor." : "Painel integrado com chamadas de todos os setores."}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-xs font-semibold text-white/65 backdrop-blur"><Volume2 className="size-4 text-cyan-300" />Áudio de chamadas ativo</div>
+        </header>
+
+        <section className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.45fr)]">
+          <div className="relative overflow-hidden rounded-[32px] bg-white p-8 text-center text-[#0b1f44] shadow-2xl shadow-black/20 sm:p-12 lg:p-14">
+            <div className="pointer-events-none absolute -right-20 -top-20 size-56 rounded-full bg-brand-100 blur-3xl" />
+            <div className="relative">
+              <p className="text-[11px] font-black uppercase tracking-[0.28em] text-brand-600">Chamada atual</p>
+              <div className="mt-8 flex items-center justify-center gap-4">
+                {atual?.identificado ? <span className="grid size-14 place-items-center rounded-2xl bg-brand-50 text-brand-600"><UserRound className="size-7" /></span> : null}
+                <div className={`${atual?.identificado ? "text-5xl sm:text-7xl" : "text-8xl sm:text-[8.5rem]"} font-black leading-none tracking-tight`}>{tituloAtual}</div>
+              </div>
+              {atual?.identificado ? <p className="mt-5 text-2xl font-black text-brand-700">Senha {atual?.senha}</p> : null}
+
+              <div className="mx-auto mt-9 max-w-xl rounded-[22px] border border-slate-100 bg-slate-50 p-5 sm:p-6">
+                <div className="flex items-center justify-center gap-2 text-slate-400"><MapPin className="size-4" /><span className="text-xs font-bold uppercase tracking-[0.14em]">Dirija-se para</span></div>
+                <p className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">{atual?.ponto_atendimento || "Aguarde a próxima chamada"}</p>
+                <p className="mt-2 text-sm font-semibold text-slate-500">{atual?.setor_nome ?? "Recepção"}</p>
+              </div>
+            </div>
+          </div>
+
+          <aside className="rounded-[28px] border border-white/10 bg-white/[0.055] p-5 backdrop-blur-xl sm:p-6">
+            <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Histórico</p><h2 className="mt-1 text-lg font-bold">Últimas chamadas</h2></div><span className="grid size-10 place-items-center rounded-xl bg-white/[0.07] text-cyan-300"><BellRing className="size-5" /></span></div>
+            <div className="mt-5 space-y-3">
+              {chamadas.slice(1).map((item, index) => (
+                <div key={`${item.senha}-${index}`} className="rounded-2xl border border-white/[0.08] bg-white/[0.05] p-4 transition hover:bg-white/[0.08]">
+                  <div className="flex items-start justify-between gap-3"><strong className="text-lg leading-tight">{item.identificado && item.nome_chamada ? item.nome_chamada : item.senha}</strong><span className="shrink-0 rounded-lg bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/40">{item.ultima_chamada_em ? new Date(item.ultima_chamada_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }) : ""}</span></div>
+                  {item.identificado ? <p className="mt-1 text-xs font-semibold text-cyan-200/55">Senha {item.senha}</p> : null}
+                  <p className="mt-2 text-sm text-white/55">{item.ponto_atendimento || item.setor_nome}</p>
+                </div>
+              ))}
+              {chamadas.length <= 1 ? <p className="rounded-2xl border border-white/[0.06] bg-white/[0.035] p-5 text-sm text-white/40">Nenhuma chamada anterior neste painel.</p> : null}
+            </div>
+          </aside>
+        </section>
+
+        <footer className="mt-7 flex items-center justify-center gap-2 text-center text-xs text-white/30"><span className="size-1.5 rounded-full bg-cyan-400/60" />Acompanhe a senha no painel e aguarde a orientação da equipe.</footer>
+      </div>
+    </main>
+  );
 }
