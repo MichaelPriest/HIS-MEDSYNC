@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Boxes, Database, FileUp, PackageOpen, Pill, Search, ShieldCheck } from "lucide-react";
+import { Boxes, Database, FileUp, PackageOpen, Search, ShieldCheck } from "lucide-react";
 import { ActionPanel } from "@/components/painel/action-panel";
 import { SectionPage } from "@/components/painel/section-page";
 import { requireAnyPermission } from "@/lib/permissions/server";
