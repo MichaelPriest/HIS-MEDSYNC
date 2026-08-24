@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/painel/app-shell";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/modules/auth/actions";
+import { criarUrlFotoAssinada } from "@/modules/cadastros/fotos";
 
 type NamedRow = { nome: string | null };
 type CompanyRow = { nome_fantasia: string | null; razao_social: string | null };
@@ -19,7 +20,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   if (!user) redirect("/login");
 
   const [{ data: usuario }, { data: unidade }] = await Promise.all([
-    supabase.from("usuarios").select("nome").eq("id", user.id).maybeSingle(),
+    supabase.from("usuarios").select("nome,foto_path").eq("id", user.id).maybeSingle(),
     supabase
       .from("usuario_unidades")
       .select("empresa_id,unidade_id,unidade:unidades(nome),empresa:empresas(nome_fantasia,razao_social)")
@@ -77,11 +78,13 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   const unidadeAtual = one(unidade?.unidade as NamedRow | NamedRow[] | null);
   const empresaAtual = one(unidade?.empresa as CompanyRow | CompanyRow[] | null);
+  const userPhotoUrl = await criarUrlFotoAssinada(supabase, usuario?.foto_path ?? null);
 
   return (
     <AppShell
       email={user.email}
       userName={usuario?.nome ?? user.email?.split("@")[0] ?? "Usuário"}
+      userPhotoUrl={userPhotoUrl}
       unidadeId={unidade?.unidade_id ?? null}
       unidadeNome={unidadeAtual?.nome ?? null}
       empresaNome={empresaAtual?.nome_fantasia ?? empresaAtual?.razao_social ?? null}
