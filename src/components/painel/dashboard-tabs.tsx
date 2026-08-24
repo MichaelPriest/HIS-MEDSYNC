@@ -37,6 +37,13 @@ const metricStyle = {
   profissionais: { Icon: Stethoscope, wrap: "bg-emerald-50 text-emerald-700", line: "from-emerald-500 to-teal-400" },
 };
 
+const quickLinks: Array<{ href: Route; label: string; Icon: typeof TicketCheck }> = [
+  { href: "/senhas" as Route, label: "Recepção", Icon: TicketCheck },
+  { href: "/atendimentos" as Route, label: "Atendimentos", Icon: ClipboardList },
+  { href: "/agenda" as Route, label: "Agenda", Icon: CalendarClock },
+  { href: "/pacientes" as Route, label: "Pacientes", Icon: UsersRound },
+];
+
 function statusClass(status: string) {
   if (status === "em_atendimento") return "bg-blue-50 text-blue-700 ring-blue-600/10";
   if (status === "em_espera") return "bg-amber-50 text-amber-700 ring-amber-600/10";
@@ -84,7 +91,7 @@ export function DashboardTabs({
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.55fr)]">
         <article className="his-card overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4.5 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
             <div>
               <p className="his-eyebrow">Operação assistencial</p>
               <h2 className="mt-1 text-lg font-bold text-slate-900">Atendimentos recentes</h2>
@@ -125,15 +132,10 @@ export function DashboardTabs({
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-200/65">Acesso rápido</p>
             <h2 className="mt-1 text-lg font-bold">Fluxo operacional</h2>
             <div className="mt-5 grid grid-cols-2 gap-2.5">
-              {[
-                ["/senhas", "Recepção", TicketCheck],
-                ["/atendimentos", "Atendimentos", ClipboardList],
-                ["/agenda", "Agenda", CalendarClock],
-                ["/pacientes", "Pacientes", UsersRound],
-              ].map(([href, label, Icon]) => (
-                <Link key={String(href)} href={href as Route} className="group rounded-2xl border border-white/10 bg-white/[0.065] p-3.5 hover:bg-white/[0.11]">
+              {quickLinks.map(({ href, label, Icon }) => (
+                <Link key={href} href={href} className="group rounded-2xl border border-white/10 bg-white/[0.065] p-3.5 hover:bg-white/[0.11]">
                   <Icon className="size-4.5 text-cyan-300" />
-                  <p className="mt-3 text-xs font-semibold text-white/90">{String(label)}</p>
+                  <p className="mt-3 text-xs font-semibold text-white/90">{label}</p>
                   <ArrowUpRight className="mt-2 size-3.5 text-white/30 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white/60" />
                 </Link>
               ))}
