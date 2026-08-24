@@ -95,7 +95,7 @@ function currentTitle(pathname: string) {
   return "MedSync HIS";
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate, unidadeId }: { onNavigate?: () => void; unidadeId?: string | null }) {
   const pathname = usePathname();
   const cadastrosAtivo = cadastroNav.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
   const [cadastrosOpen, setCadastrosOpen] = useState(true);
@@ -116,6 +116,20 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </Link>
     );
   };
+
+  const terminalLink = (href: Route, label: string, Icon: typeof ScanLine) => (
+    <Link
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={onNavigate}
+      className="group flex items-center gap-3 rounded-xl border border-cyan-300/10 bg-cyan-300/[0.055] px-3 py-2.5 text-sm font-semibold text-cyan-50/80 transition hover:border-cyan-300/20 hover:bg-cyan-300/[0.10] hover:text-white"
+    >
+      <span className="grid size-8 place-items-center rounded-lg bg-cyan-300/10 text-cyan-300"><Icon className="size-4" /></span>
+      <span className="truncate">{label}</span>
+      <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-cyan-200/35">Abrir</span>
+    </Link>
+  );
 
   const sectionLabel = (label: string) => <p className="px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">{label}</p>;
 
@@ -150,6 +164,16 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         </nav>
 
+        {unidadeId ? (
+          <div className="mt-6 border-t border-white/[0.07] pt-5">
+            {sectionLabel("Terminais")}
+            <div className="mt-3 space-y-2">
+              {terminalLink(`/totem/${unidadeId}` as Route, "Abrir Totem", ScanLine)}
+              {terminalLink(`/painel-chamadas/${unidadeId}` as Route, "Painel de Chamadas", MonitorCog)}
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-6 border-t border-white/[0.07] pt-5">{sectionLabel("Assistencial")}<div className="mt-3 space-y-1">{assistencialNav.map(navLink)}</div></div>
         <div className="mt-6 border-t border-white/[0.07] pt-5">{sectionLabel("Filas por setor")}<div className="mt-3 space-y-1">{setoresNav.map(navLink)}</div></div>
         <div className="mt-6 border-t border-white/[0.07] pt-5">{sectionLabel("Corporativo")}<div className="mt-3 space-y-1">{corporativoNav.map(navLink)}</div></div>
@@ -177,16 +201,16 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function AppShell({ children, email, logoutAction }: { children: React.ReactNode; email?: string | null; logoutAction: (formData: FormData) => void | Promise<void> }) {
+export function AppShell({ children, email, unidadeId, logoutAction }: { children: React.ReactNode; email?: string | null; unidadeId?: string | null; logoutAction: (formData: FormData) => void | Promise<void> }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const title = currentTitle(pathname);
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] lg:grid lg:grid-cols-[18rem_1fr]">
-      <aside className="hidden text-white lg:sticky lg:top-0 lg:block lg:h-screen"><SidebarContent /></aside>
+      <aside className="hidden text-white lg:sticky lg:top-0 lg:block lg:h-screen"><SidebarContent unidadeId={unidadeId} /></aside>
 
-      {mobileOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button aria-label="Fechar menu" className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} /><aside className="relative h-full w-[18rem] max-w-[88vw] text-white shadow-2xl"><button aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"><X className="size-5" /></button><SidebarContent onNavigate={() => setMobileOpen(false)} /></aside></div> : null}
+      {mobileOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button aria-label="Fechar menu" className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} /><aside className="relative h-full w-[18rem] max-w-[88vw] text-white shadow-2xl"><button aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"><X className="size-5" /></button><SidebarContent unidadeId={unidadeId} onNavigate={() => setMobileOpen(false)} /></aside></div> : null}
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b border-[#e4eaf2] bg-white/95 backdrop-blur-xl">
