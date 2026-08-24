@@ -1,5 +1,6 @@
 "use client";
 
+import { UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FormTabs } from "@/components/cadastros/form-tabs";
 import { MaskedInput } from "@/components/forms/masked-input";
@@ -25,6 +26,7 @@ export function AdmissionForm({
   initialTipoAtendimento = null,
   initialOrigem = null,
   cancelHref = "/atendimentos",
+  createPatientHref = null,
   submitLabel = "Abrir atendimento",
 }: {
   action: (formData: FormData) => void | Promise<void>;
@@ -41,6 +43,7 @@ export function AdmissionForm({
   initialTipoAtendimento?: string | null;
   initialOrigem?: string | null;
   cancelHref?: string;
+  createPatientHref?: string | null;
   submitLabel?: string;
 }) {
   const [patient, setPatient] = useState<AdmissionPatient | null>(initialPatient);
@@ -52,6 +55,7 @@ export function AdmissionForm({
 
   const dadosPaciente = <div className="space-y-5">
     <PatientRemotePicker empresaId={empresaId} value={patient} onChange={setPatient} />
+    {!patient && createPatientHref ? <div className="flex flex-col gap-2 rounded-2xl border border-violet-200 bg-violet-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-violet-900">Paciente ainda não cadastrado?</p><p className="mt-1 text-xs text-violet-700">Cadastre agora e o sistema voltará automaticamente para esta mesma admissão, mantendo a senha em andamento.</p></div><a href={createPatientHref} className="btn-secondary shrink-0"><UserPlus className="size-4" />Cadastrar paciente</a></div> : null}
     <input type="hidden" name="paciente_id" value={patientId} />
     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2"><span>Nome completo *</span><input name="paciente_nome" defaultValue={patient?.nome_completo ?? ""} key={`nome-${patientId}`} className="ui-input" /></label>
