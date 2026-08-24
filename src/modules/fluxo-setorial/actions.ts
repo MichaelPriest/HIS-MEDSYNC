@@ -1,13 +1,14 @@
 "use server";
 
+import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 const SETORES = new Set(["enfermagem", "farmacia", "laboratorio", "imagem", "internacao"]);
 
-function destinoSetor(setor: string, sufixo = "") {
-  return `/setores/${setor}${sufixo}`;
+function destinoSetor(setor: string, sufixo = ""): Route {
+  return `/setores/${setor}${sufixo}` as Route;
 }
 
 export async function encaminharSetor(formData: FormData) {
@@ -16,7 +17,7 @@ export async function encaminharSetor(formData: FormData) {
   const setor = String(formData.get("setor_codigo") ?? "").trim();
   const motivo = String(formData.get("motivo") ?? "").trim() || null;
   const prioridade = String(formData.get("prioridade") ?? "normal").trim();
-  if (!atendimentoId || !SETORES.has(setor)) redirect("/prontuario?erro=setor");
+  if (!atendimentoId || !SETORES.has(setor)) redirect("/prontuario?erro=setor" as Route);
 
   const { data: atendimento } = await supabase
     .from("atendimentos")
@@ -25,7 +26,7 @@ export async function encaminharSetor(formData: FormData) {
     .eq("unidade_id", unidadeId)
     .maybeSingle();
 
-  if (!atendimento) redirect("/prontuario?erro=atendimento");
+  if (!atendimento) redirect("/prontuario?erro=atendimento" as Route);
 
   const { error } = await supabase.from("filas_setoriais").insert({
     empresa_id: empresaId,
@@ -40,7 +41,7 @@ export async function encaminharSetor(formData: FormData) {
     updated_by: user.id,
   });
 
-  if (error) redirect(`/prontuario/${atendimentoId}?erro=encaminhamento`);
+  if (error) redirect(`/prontuario/${atendimentoId}?erro=encaminhamento` as Route);
 
   await supabase
     .from("atendimentos")
@@ -49,7 +50,7 @@ export async function encaminharSetor(formData: FormData) {
 
   revalidatePath(`/prontuario/${atendimentoId}`);
   revalidatePath(destinoSetor(setor));
-  redirect(`/prontuario/${atendimentoId}?sucesso=encaminhado-${setor}`);
+  redirect(`/prontuario/${atendimentoId}?sucesso=encaminhado-${setor}` as Route);
 }
 
 export async function chamarFilaSetorial(formData: FormData) {
@@ -68,20 +69,12 @@ export async function chamarFilaSetorial(formData: FormData) {
     .eq("setor_codigo", setor)
     .maybeSingle();
 
-  if (!item || !["aguardando", "chamado"].includes(String(item.status))) {
-    redirect(destinoSetor(setor, "?erro=chamada"));
-  }
+  if (!item || !["aguardando", "chamado"].includes(String(item.status))) redirect(destinoSetor(setor, "?erro=chamada"));
 
   const now = new Date().toISOString();
   const { error } = await supabase
     .from("filas_setoriais")
-    .update({
-      status: "chamado",
-      ponto_atendimento: ponto,
-      chamado_em: now,
-      updated_by: user.id,
-      updated_at: now,
-    })
+    .update({ status: "chamado", ponto_atendimento: ponto, chamado_em: now, updated_by: user.id, updated_at: now })
     .eq("id", filaId);
 
   if (error) redirect(destinoSetor(setor, "?erro=chamada"));
