@@ -130,13 +130,13 @@ export async function abrirRegistroEmergencia(formData: FormData) {
 }
 
 export async function registrarReavaliacaoEmergencia(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await requirePermission("emergencia.reavaliar");
+  const { supabase, empresaId, unidadeId } = await requirePermission("emergencia.reavaliar");
   const emergenciaId = text(formData, "emergencia_id");
   if (!emergenciaId || !unidadeId) return go("erro=registro");
 
   const { data: emergencia } = await supabase
     .from("emergencia_registros")
-    .select("id,atendimento_id,paciente_id,status")
+    .select("id,atendimento_id,status")
     .eq("id", emergenciaId)
     .eq("empresa_id", empresaId)
     .eq("unidade_id", unidadeId)
@@ -144,7 +144,6 @@ export async function registrarReavaliacaoEmergencia(formData: FormData) {
 
   if (!emergencia || emergencia.status === "encerrado") return go("erro=registro");
 
-  const professionalId = await getProfessionalId(supabase, empresaId, user.id);
   const dor = integer(formData, "dor");
   if (dor !== null && (dor < 0 || dor > 10)) return go(`registro=${emergenciaId}&erro=dor`);
 
@@ -164,47 +163,22 @@ export async function registrarReavaliacaoEmergencia(formData: FormData) {
     e: text(formData, "exposicao"),
   };
 
-  const destino = text(formData, "destino");
-  const { error } = await supabase.from("emergencia_reavaliacoes").insert({
-    empresa_id: empresaId,
-    unidade_id: unidadeId,
-    emergencia_id: emergencia.id,
-    atendimento_id: emergencia.atendimento_id,
-    profissional_id: professionalId,
-    reavaliado_em: new Date().toISOString(),
-    queixa: text(formData, "queixa"),
-    classificacao_risco: text(formData, "classificacao_risco"),
-    abcde,
-    sinais_vitais: sinaisVitais,
-    dor,
-    conduta: text(formData, "conduta"),
-    destino,
-    observacoes: text(formData, "observacoes"),
-    created_by: user.id,
+  const { error } = await supabase.rpc("registrar_reavaliacao_emergencia", {
+    p_emergencia_id: emergencia.id,
+    p_queixa: text(formData, "queixa"),
+    p_classificacao_risco: text(formData, "classificacao_risco"),
+    p_abcde: abcde,
+    p_sinais_vitais: sinaisVitais,
+    p_dor: dor,
+    p_conduta: text(formData, "conduta"),
+    p_destino: text(formData, "destino"),
+    p_observacoes: text(formData, "observacoes"),
+    p_proxima_reavaliacao_em: text(formData, "proxima_reavaliacao_em"),
   });
 
   if (error) {
     console.error("[urgencia] reavaliar", { code: error.code });
     return go(`registro=${emergenciaId}&erro=reavaliar`);
-  }
-
-  const proximaReavaliacao = text(formData, "proxima_reavaliacao_em");
-  const { error: updateError } = await supabase
-    .from("emergencia_registros")
-    .update({
-      classificacao_risco: text(formData, "classificacao_risco"),
-      reavaliacao_em: proximaReavaliacao || null,
-      destino,
-      updated_at: new Date().toISOString(),
-      updated_by: user.id,
-    })
-    .eq("id", emergencia.id)
-    .eq("empresa_id", empresaId)
-    .eq("unidade_id", unidadeId);
-
-  if (updateError) {
-    console.error("[urgencia] atualizar reavaliacao", { code: updateError.code });
-    return go(`registro=${emergenciaId}&erro=atualizar`);
   }
 
   revalidatePath(BASE);
