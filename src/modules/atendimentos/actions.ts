@@ -1,11 +1,23 @@
 "use server";
 
+import { createHash } from "node:crypto";
+import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 function optional(formData: FormData, name: string) {
   const value = String(formData.get(name) ?? "").trim();
   return value || null;
+}
+
+function hashRef(value: string) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function metodoPermitido(config: string, metodo: string | null) {
+  if (!metodo) return false;
+  if (config === "biometria_ou_token") return metodo === "biometria_digital" || metodo === "token";
+  return config === metodo;
 }
 
 function errorCode(message?: string | null) {
@@ -36,6 +48,9 @@ function admissionInput(formData: FormData) {
   const convenioId = cobertura === "convenio" ? optional(formData, "convenio_id") : null;
   const planoId = cobertura === "convenio" ? optional(formData, "plano_id") : null;
   const carteirinha = cobertura === "convenio" ? optional(formData, "numero_carteirinha") : null;
+  const identificacaoMetodo = cobertura === "convenio" ? optional(formData, "identificacao_metodo") : null;
+  const identificacaoReferencia = cobertura === "convenio" ? optional(formData, "identificacao_referencia") : null;
+  const identificacaoDispositivo = cobertura === "convenio" ? optional(formData, "identificacao_dispositivo") : null;
 
   const camposValidos = Boolean(
     pacienteId && tipoAtendimento && pacienteNome && pacienteNascimento && pacienteTelefone &&
@@ -49,6 +64,11 @@ function admissionInput(formData: FormData) {
     coberturaValida,
     convenioCompleto,
     cobertura,
+    convenioId,
+    pacienteId,
+    identificacaoMetodo,
+    identificacaoReferencia,
+    identificacaoDispositivo,
     payload: {
       paciente_id: pacienteId,
       profissional_id: optional(formData, "profissional_id"),
@@ -84,15 +104,56 @@ function admissionInput(formData: FormData) {
   };
 }
 
+async function validarIdentificacaoExigida(
+  contexto: Awaited<ReturnType<typeof getAssistencialContext>>,
+  input: ReturnType<typeof admissionInput>,
+  retorno: string,
+) {
+  if (input.cobertura !== "convenio" || !input.convenioId) return null;
+  const { data: config } = await contexto.supabase.from("convenio_identificacao_config")
+    .select("metodo,provedor,exige_no_atendimento,ativo")
+    .eq("empresa_id", contexto.empresaId).eq("convenio_id", input.convenioId).eq("ativo", true).maybeSingle();
+  if (!config?.exige_no_atendimento || config.metodo === "nenhum") return config ?? null;
+  if (!input.identificacaoReferencia || !metodoPermitido(config.metodo, input.identificacaoMetodo)) {
+    redirect(`${retorno}&erro=identificacao-obrigatoria` as Route);
+  }
+  return config;
+}
+
+async function registrarIdentificacaoAtendimento(
+  contexto: Awaited<ReturnType<typeof getAssistencialContext>>,
+  atendimentoId: string,
+  input: ReturnType<typeof admissionInput>,
+  config: { provedor?: string | null; exige_no_atendimento?: boolean } | null,
+) {
+  if (!input.convenioId || !input.identificacaoMetodo || !input.identificacaoReferencia) return;
+  const { error } = await contexto.supabase.from("atendimento_identificacao_eventos").insert({
+    empresa_id: contexto.empresaId,
+    unidade_id: contexto.unidadeId,
+    atendimento_id: atendimentoId,
+    paciente_id: input.pacienteId,
+    convenio_id: input.convenioId,
+    metodo: input.identificacaoMetodo,
+    referencia_hash: hashRef(input.identificacaoReferencia),
+    provedor: config?.provedor ?? null,
+    dispositivo: input.identificacaoDispositivo,
+    validado: true,
+    validado_em: new Date().toISOString(),
+    created_by: contexto.user.id,
+  });
+  if (error) console.error("[admissao.identificacao] falha ao registrar evidência", { code: error.code });
+}
+
 export async function abrirAtendimento(senhaId: string, formData: FormData) {
-  const { supabase } = await getAssistencialContext();
+  const contexto = await getAssistencialContext();
   if (!senhaId) redirect("/senhas?erro=senha-obrigatoria");
 
   const input = admissionInput(formData);
   if (!input.camposValidos) redirect(`/atendimentos/novo?senha=${senhaId}&erro=campos-obrigatorios`);
   if (!input.coberturaValida || !input.convenioCompleto) redirect(`/atendimentos/novo?senha=${senhaId}&erro=cobertura`);
+  const config = await validarIdentificacaoExigida(contexto, input, `/atendimentos/novo?senha=${encodeURIComponent(senhaId)}`);
 
-  const { data: atendimentoId, error } = await supabase.rpc("abrir_atendimento_por_senha", {
+  const { data: atendimentoId, error } = await contexto.supabase.rpc("abrir_atendimento_por_senha", {
     p_senha_id: senhaId,
     p_payload: input.payload,
   });
@@ -103,18 +164,20 @@ export async function abrirAtendimento(senhaId: string, formData: FormData) {
   }
 
   const id = String(atendimentoId);
+  await registrarIdentificacaoAtendimento(contexto, id, input, config);
   redirect(input.cobertura === "convenio" ? `/autorizacoes?atendimento=${id}` : `/triagem?sucesso=admissao&atendimento=${id}`);
 }
 
 export async function abrirAtendimentoAgendado(agendamentoId: string, formData: FormData) {
-  const { supabase } = await getAssistencialContext();
+  const contexto = await getAssistencialContext();
   if (!agendamentoId) redirect("/agenda?erro=agendamento-invalido");
 
   const input = admissionInput(formData);
   if (!input.camposValidos) redirect(`/atendimentos/novo?agendamento=${agendamentoId}&erro=campos-obrigatorios`);
   if (!input.coberturaValida || !input.convenioCompleto) redirect(`/atendimentos/novo?agendamento=${agendamentoId}&erro=cobertura`);
+  const config = await validarIdentificacaoExigida(contexto, input, `/atendimentos/novo?agendamento=${encodeURIComponent(agendamentoId)}`);
 
-  const { data: atendimentoId, error } = await supabase.rpc("abrir_atendimento_por_agendamento", {
+  const { data: atendimentoId, error } = await contexto.supabase.rpc("abrir_atendimento_por_agendamento", {
     p_agendamento_id: agendamentoId,
     p_payload: input.payload,
   });
@@ -125,5 +188,6 @@ export async function abrirAtendimentoAgendado(agendamentoId: string, formData: 
   }
 
   const id = String(atendimentoId);
+  await registrarIdentificacaoAtendimento(contexto, id, input, config);
   redirect(input.cobertura === "convenio" ? `/autorizacoes?atendimento=${id}` : `/triagem?sucesso=admissao&atendimento=${id}`);
 }
