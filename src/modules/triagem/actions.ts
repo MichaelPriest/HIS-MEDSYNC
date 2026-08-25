@@ -63,8 +63,14 @@ export async function registrarTriagem(formData: FormData) {
 
   let autorizacaoLiberada = atendimento.cobertura !== "convenio";
   if (!autorizacaoLiberada) {
-    const { data: autorizacao } = await supabase.from("autorizacoes_atendimento").select("status").eq("atendimento_id", atendimentoId).maybeSingle();
-    autorizacaoLiberada = Boolean(autorizacao && ["autorizada", "dispensada"].includes(String(autorizacao.status)));
+    const [{ data: autorizacao }, { data: guiaCentral }] = await Promise.all([
+      supabase.from("autorizacoes_atendimento").select("status").eq("atendimento_id", atendimentoId).maybeSingle(),
+      supabase.from("central_guias").select("status").eq("atendimento_id", atendimentoId).in("status", ["autorizada", "dispensada"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    autorizacaoLiberada = Boolean(
+      (autorizacao && ["autorizada", "dispensada"].includes(String(autorizacao.status))) ||
+      (guiaCentral && ["autorizada", "dispensada"].includes(String(guiaCentral.status)))
+    );
   }
   const now = new Date().toISOString();
   const { error: atendimentoError } = await supabase.from("atendimentos").update({ especialidade_destino: especialidade, triagem_concluida_em: now, status: "em_espera", setor_atual: autorizacaoLiberada ? "triagem_concluida" : "autorizacoes", ultima_movimentacao_em: now, updated_at: now, updated_by: user.id }).eq("id", atendimentoId).eq("unidade_id", unidadeId);
