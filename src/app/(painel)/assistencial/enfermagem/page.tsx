@@ -6,6 +6,13 @@ import { checarAdministracaoEnfermagemAction } from "@/modules/enfermagem/action
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+type PacienteRel = { nome_completo: string | null; ra: string | null; numero_registro: string | null; cpf: string | null; cns: string | null };
+type AtendimentoRel = { numero_atendimento: number | string | null; paciente_id: string | null; paciente: PacienteRel | PacienteRel[] | null };
+type PrescricaoRel = { item: string | null; dose: string | null; via: string | null; frequencia: string | null; produto_id: string | null; atendimento_id: string | null; atendimento: AtendimentoRel | AtendimentoRel[] | null };
+type Aprazamento = { id: string; prescricao_id: string; programado_em: string; tolerancia_minutos: number | null; status: string; justificativa: string | null; prescricao: PrescricaoRel | PrescricaoRel[] | null };
+type Dispensacao = { id: string; prescricao_id: string; item: string; lote: string | null; dispensado_em: string | null; status: string };
+type Profissional = { id: string; nome_completo: string; especialidade: string | null };
+
 function one<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
@@ -72,9 +79,9 @@ export default async function EnfermagemChecagemPage({ searchParams }: { searchP
     ).data;
   }
 
-  const aprazamentos = (aprazRes.data ?? []) as unknown as any[];
-  const dispensacoes = (dispRes.data ?? []) as unknown as any[];
-  const profissionais = (segundoProfRes.data ?? []) as unknown as any[];
+  const aprazamentos = (aprazRes.data ?? []) as unknown as Aprazamento[];
+  const dispensacoes = (dispRes.data ?? []) as unknown as Dispensacao[];
+  const profissionais = (segundoProfRes.data ?? []) as unknown as Profissional[];
   const pendentes = aprazamentos.filter((item) => item.status === "pendente");
   const atrasados = pendentes.filter((item) => new Date(item.programado_em).getTime() + Number(item.tolerancia_minutos ?? 30) * 60000 < Date.now());
   const proximas = pendentes.filter((item) => !atrasados.includes(item));
@@ -102,8 +109,8 @@ export default async function EnfermagemChecagemPage({ searchParams }: { searchP
         <div className="space-y-3">
           {pendentes.length ? pendentes.map((ap) => {
             const prescricao = one(ap.prescricao);
-            const atendimento = one(prescricao?.atendimento);
-            const paciente = one(atendimento?.paciente);
+            const atendimento = one(prescricao?.atendimento ?? null);
+            const paciente = one(atendimento?.paciente ?? null);
             const disponiveis = dispensacoes.filter((d) => d.prescricao_id === ap.prescricao_id);
             const atrasado = new Date(ap.programado_em).getTime() + Number(ap.tolerancia_minutos ?? 30) * 60000 < Date.now();
             return (
