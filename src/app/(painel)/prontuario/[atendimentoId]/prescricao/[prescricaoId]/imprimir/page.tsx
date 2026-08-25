@@ -32,7 +32,10 @@ export default async function ImprimirPrescricaoPage({ params }: { params: Promi
   return <main className="mx-auto max-w-4xl bg-white p-6 text-slate-950 sm:p-10 print:max-w-none print:p-0">
     <div className="mb-6 flex items-center justify-between gap-3 print:hidden"><Link href={`/prontuario/${atendimentoId}/prescricao`} className="btn-secondary">← Voltar à prescrição</Link><PrescricaoPrintButton/></div>
     <header className="border-b-2 border-slate-900 pb-5">
-      <div className="flex items-start gap-5">{empresa?.logo_url ? <img src={empresa.logo_url} alt="Logo da empresa" className="h-16 w-auto max-w-40 object-contain"/> : null}<div><h1 className="text-xl font-black">{empresa?.nome_fantasia || empresa?.razao_social || "Instituição de saúde"}</h1><p className="mt-1 text-xs text-slate-600">{empresa?.razao_social && empresa.razao_social !== empresa.nome_fantasia ? empresa.razao_social : ""}{empresa?.cnpj ? ` · CNPJ ${empresa.cnpj}` : ""}{empresa?.cnes ? ` · CNES ${empresa.cnes}` : ""}</p><p className="mt-1 text-xs text-slate-600">{[empresa?.logradouro,empresa?.numero,empresa?.bairro,empresa?.cidade,empresa?.uf].filter(Boolean).join(" · ")}</p></div></div>
+      <div className="flex items-start gap-5">{empresa?.logo_url ? <>
+        {/* eslint-disable-next-line @next/next/no-img-element -- logo institucional pode vir de storage configurável por empresa */}
+        <img src={empresa.logo_url} alt="Logo da empresa" className="h-16 w-auto max-w-40 object-contain"/>
+      </> : null}<div><h1 className="text-xl font-black">{empresa?.nome_fantasia || empresa?.razao_social || "Instituição de saúde"}</h1><p className="mt-1 text-xs text-slate-600">{empresa?.razao_social && empresa.razao_social !== empresa.nome_fantasia ? empresa.razao_social : ""}{empresa?.cnpj ? ` · CNPJ ${empresa.cnpj}` : ""}{empresa?.cnes ? ` · CNES ${empresa.cnes}` : ""}</p><p className="mt-1 text-xs text-slate-600">{[empresa?.logradouro,empresa?.numero,empresa?.bairro,empresa?.cidade,empresa?.uf].filter(Boolean).join(" · ")}</p></div></div>
       <h2 className="mt-6 text-center text-2xl font-black uppercase tracking-wide">Prescrição Médica</h2>
     </header>
 
