@@ -22,6 +22,7 @@ type Props = {
   label?: string;
   required?: boolean;
   apenasMedicamentos?: boolean;
+  categoriasPermitidas?: string[];
   placeholder?: string;
   onSelecionado?: (item: ItemAssistencialSelecionado | null) => void;
 };
@@ -41,6 +42,7 @@ export function ItemAssistencialAutocomplete({
   label = "Medicamento, material, exame ou procedimento",
   required = true,
   apenasMedicamentos = false,
+  categoriasPermitidas,
   placeholder = "Comece a digitar...",
   onSelecionado,
 }: Props) {
@@ -50,6 +52,7 @@ export function ItemAssistencialAutocomplete({
   const [resultados, setResultados] = useState<ItemAssistencialSelecionado[]>([]);
   const [carregando, setCarregando] = useState(false);
   const seq = useRef(0);
+  const categoriasKey = useMemo(() => (categoriasPermitidas ?? []).join("|"), [categoriasPermitidas]);
 
   useEffect(() => {
     const q = termo.trim();
@@ -68,9 +71,10 @@ export function ItemAssistencialAutocomplete({
           .select("id,codigo_interno,categoria,descricao,unidade_medida,apresentacao,concentracao,codigo_tuss,metadata")
           .eq("empresa_id", empresaId)
           .eq("ativo", true);
-        query = apenasMedicamentos
-          ? query.eq("categoria", "medicamento")
-          : query.in("categoria", ["medicamento", "material", "opme", "gas_medicinal", "procedimento", "outro"]);
+        const categorias = categoriasKey ? categoriasKey.split("|").filter(Boolean) : null;
+        if (apenasMedicamentos) query = query.eq("categoria", "medicamento");
+        else if (categorias?.length) query = query.in("categoria", categorias);
+        else query = query.in("categoria", ["medicamento", "material", "opme", "gas_medicinal", "procedimento", "outro"]);
         return query;
       };
 
@@ -90,7 +94,7 @@ export function ItemAssistencialAutocomplete({
     }, 220);
 
     return () => window.clearTimeout(timer);
-  }, [apenasMedicamentos, empresaId, selecionado, supabase, termo]);
+  }, [apenasMedicamentos, categoriasKey, empresaId, selecionado, supabase, termo]);
 
   function escolher(item: ItemAssistencialSelecionado | null) {
     setSelecionado(item);
