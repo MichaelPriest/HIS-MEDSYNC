@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { atualizarAutorizacao, registrarIdentificacaoAutorizacao } from "@/modules/autorizacoes/actions";
 
 function one<T>(rel: T | T[] | null): T | null { return Array.isArray(rel) ? rel[0] ?? null : rel; }
-type IdentificacaoConfig = { metodo:string; provedor:string|null; exige_na_autorizacao:boolean; ativo:boolean };
+type IdentificacaoConfig = { convenio_id:string; metodo:string; provedor:string|null; exige_na_autorizacao:boolean; ativo:boolean };
 type IdentificacaoEvento = { metodo:string; validado:boolean; validado_em:string|null };
 
 const mensagens: Record<string,string> = {
@@ -14,25 +14,34 @@ const mensagens: Record<string,string> = {
   "identificacao-dados": "Informe o método e a referência retornada pelo leitor ou o token apresentado pelo beneficiário.",
   "identificacao-contexto": "Não foi possível relacionar paciente, atendimento e convênio para a validação.",
   "identificacao-salvar": "A validação de identificação não pôde ser registrada.",
+  "autorizacao-pendente": "A autorização ainda está pendente para este atendimento.",
+  "consulta": "Não foi possível carregar a fila de autorizações. Tente novamente.",
 };
 
 export default async function AutorizacoesPage({ searchParams }: { searchParams: Promise<{ atendimento?: string; erro?: string; sucesso?: string }> }) {
   const { atendimento, erro, sucesso } = await searchParams;
   const supabase = await createClient();
-  let query = supabase.from("autorizacoes_atendimento").select("id,atendimento_id,paciente_id,convenio_id,status,numero_guia_prestador,numero_guia_operadora,senha_autorizacao,validade,observacao,created_at,paciente:pacientes(nome_completo,ra,numero_registro),convenio:convenios(nome_fantasia),plano:convenio_planos(nome),identificacao:convenio_identificacao_config(metodo,provedor,exige_na_autorizacao,ativo),identificacoes:autorizacao_identificacao_eventos(metodo,validado,validado_em)").order("created_at", { ascending: false }).limit(100);
+  let query = supabase.from("autorizacoes_atendimento").select("id,atendimento_id,paciente_id,convenio_id,status,numero_guia_prestador,numero_guia_operadora,senha_autorizacao,validade,observacao,created_at,paciente:pacientes(nome_completo,ra,numero_registro),convenio:convenios(nome_fantasia),plano:convenio_planos(nome),identificacoes:autorizacao_identificacao_eventos(metodo,validado,validado_em)").order("created_at", { ascending: false }).limit(100);
   if (atendimento) query = query.eq("atendimento_id", atendimento);
-  const { data: autorizacoes } = await query;
+  const { data: autorizacoes, error: queryError } = await query;
+
+  const convenioIds=[...new Set((autorizacoes??[]).map(item=>item.convenio_id).filter((id):id is string=>Boolean(id)))];
+  const {data:configs}=convenioIds.length?await supabase.from("convenio_identificacao_config").select("convenio_id,metodo,provedor,exige_na_autorizacao,ativo").in("convenio_id",convenioIds).eq("ativo",true):{data:[] as IdentificacaoConfig[]};
+  const configPorConvenio=new Map((configs??[]).map(item=>[item.convenio_id,item as IdentificacaoConfig]));
+
   const pendentes=(autorizacoes??[]).filter(item=>["pendente","solicitada"].includes(item.status)).length;
   const autorizadas=(autorizacoes??[]).filter(item=>item.status==="autorizada").length;
   const negadas=(autorizacoes??[]).filter(item=>item.status==="negada").length;
 
   return <SectionPage eyebrow="Jornada / Convênios" title="Autorizações" description="Fila operacional de guia, senha, identificação do beneficiário e retorno da operadora antes da continuidade assistencial.">
+    {sucesso === "triagem-salva" ? <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800"><strong>Triagem salva.</strong> O paciente saiu da fila de triagem e ficará aguardando aqui até a liberação da guia.</div> : null}
+    {queryError ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{mensagens.consulta}</div> : null}
     {erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{mensagens[erro] ?? "Não foi possível atualizar a autorização."}</div> : null}
     {sucesso === "identificacao" ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Identificação do beneficiário validada e vinculada ao atendimento.</div> : null}
     <section className="grid gap-3 sm:grid-cols-3"><Kpi label="Pendentes" value={pendentes}/><Kpi label="Autorizadas" value={autorizadas}/><Kpi label="Negadas" value={negadas}/></section>
     <div className="mt-5 space-y-3">{autorizacoes?.length ? autorizacoes.map((item) => {
       const paciente=one(item.paciente); const convenio=one(item.convenio); const plano=one(item.plano);
-      const config=one(item.identificacao) as IdentificacaoConfig|null;
+      const config=item.convenio_id?configPorConvenio.get(item.convenio_id)??null:null;
       const eventos=(Array.isArray(item.identificacoes)?item.identificacoes:item.identificacoes?[item.identificacoes]:[]) as IdentificacaoEvento[];
       const exigeIdentificacao=Boolean(config?.ativo && config.exige_na_autorizacao && config.metodo!=="nenhum");
       const identificacaoOk=eventos.some(e=>e.validado && (config?.metodo==="biometria_ou_token" || e.metodo===config?.metodo));
