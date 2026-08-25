@@ -1,6 +1,7 @@
 "use server";
 
 import { createHash } from "node:crypto";
+import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
@@ -114,7 +115,7 @@ async function validarIdentificacaoExigida(
     .eq("empresa_id", contexto.empresaId).eq("convenio_id", input.convenioId).eq("ativo", true).maybeSingle();
   if (!config?.exige_no_atendimento || config.metodo === "nenhum") return config ?? null;
   if (!input.identificacaoReferencia || !metodoPermitido(config.metodo, input.identificacaoMetodo)) {
-    redirect(`${retorno}&erro=identificacao-obrigatoria`);
+    redirect(`${retorno}&erro=identificacao-obrigatoria` as Route);
   }
   return config;
 }
