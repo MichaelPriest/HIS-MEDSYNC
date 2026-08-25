@@ -1,23 +1,11 @@
-import { AlertTriangle, Ban, Clock3, Database, Pill, Search, ShieldCheck, UserRoundCheck } from "lucide-react";
+import { Ban, Clock3, Database, Pill, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
+import { ItemAssistencialAutocomplete } from "@/components/prontuario/item-assistencial-autocomplete";
 import { SectionPage } from "@/components/painel/section-page";
 import { requireAnyPermission } from "@/lib/permissions/server";
 import { assinarPrescricaoMedica, criarPrescricaoMedica, suspenderPrescricaoMedica } from "@/modules/prontuario-medico/prescricao-actions";
 
 type Rel<T> = T | T[] | null;
-type ItemCatalogo = {
-  id: string;
-  codigo_interno: string;
-  categoria: string;
-  descricao: string;
-  unidade_medida: string | null;
-  apresentacao: string | null;
-  concentracao: string | null;
-  tabela_tiss_codigo: string;
-  codigo_tuss: string | null;
-  codigo_tabela_propria: string | null;
-};
-
 function one<T>(value: Rel<T>): T | null { return Array.isArray(value) ? value[0] ?? null : value; }
 function fmtData(value: string | null | undefined) {
   if (!value) return "—";
@@ -35,16 +23,12 @@ const errorMessages: Record<string, string> = {
   suspensao: "Não foi possível suspender a prescrição.",
 };
 
-const categoriaLabel: Record<string, string> = {
-  medicamento: "Medicamento", material: "Material", opme: "OPME", gas_medicinal: "Gás medicinal", procedimento: "Procedimento", outro: "Outro",
-};
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function PrescricaoMedicaPage({ params, searchParams }: {
   params: Promise<{ atendimentoId: string }>;
-  searchParams: Promise<{ sucesso?: string; erro?: string; aviso?: string; produto?: string }>;
+  searchParams: Promise<{ sucesso?: string; erro?: string; aviso?: string }>;
 }) {
   const { atendimentoId } = await params;
   const sp = await searchParams;
@@ -80,26 +64,9 @@ export default async function PrescricaoMedicaPage({ params, searchParams }: {
   const rascunhos = prescricoes.filter((item) => item.status === "rascunho").length;
   const suspensas = prescricoes.filter((item) => item.status === "suspensa").length;
 
-  const produtoBusca = String(sp.produto ?? "").trim().slice(0, 80);
-  let itens: ItemCatalogo[] = [];
-  if (canCreate && produtoBusca.length >= 2) {
-    const base = () => supabase.from("itens_assistenciais")
-      .select("id,codigo_interno,categoria,descricao,unidade_medida,apresentacao,concentracao,tabela_tiss_codigo,codigo_tuss,codigo_tabela_propria")
-      .eq("empresa_id", empresaId).eq("ativo", true)
-      .in("categoria", ["medicamento", "material", "opme", "gas_medicinal", "procedimento", "outro"]);
-    const [descricaoRes, internoRes, tussRes] = await Promise.all([
-      base().ilike("descricao", `%${produtoBusca}%`).order("descricao").limit(25),
-      base().ilike("codigo_interno", `%${produtoBusca}%`).order("descricao").limit(15),
-      base().ilike("codigo_tuss", `%${produtoBusca}%`).order("descricao").limit(15),
-    ]);
-    const unique = new Map<string, ItemCatalogo>();
-    for (const item of [...(descricaoRes.data ?? []), ...(internoRes.data ?? []), ...(tussRes.data ?? [])] as ItemCatalogo[]) unique.set(item.id, item);
-    itens = [...unique.values()].slice(0, 40);
-  }
-
   return <SectionPage eyebrow="Assistencial / Atendimento médico / Prescrição" title={paciente?.nome_completo ?? "Paciente"}
     description={`Atendimento #${atendimento.numero_atendimento ?? "—"} · Registro #${paciente?.numero_registro ?? "—"} · ${paciente?.ra ?? "—"}`}>
-    {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{sp.sucesso === "assinada" ? "Prescrição assinada e ativada." : sp.sucesso === "suspensa" ? "Prescrição suspensa com rastreabilidade." : "Rascunho de prescrição salvo."}</div> : null}
+    {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{sp.sucesso === "assinada" ? "Prescrição assinada e ativada." : sp.sucesso === "suspensa" ? "Prescrição suspensa com rastreabilidade." : "Solicitação salva com sucesso."}</div> : null}
     {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{errorMessages[sp.erro] ?? "Não foi possível concluir a operação."}</div> : null}
     {sp.aviso ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">A prescrição foi assinada, mas uma integração posterior precisa ser revisada: {sp.aviso === "farmacia" ? "fila da Farmácia" : "aprazamento"}.</div> : null}
 
@@ -110,25 +77,20 @@ export default async function PrescricaoMedicaPage({ params, searchParams }: {
       <div className="his-kpi"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Suspensas</p><p className="mt-2 text-3xl font-black text-slate-700">{suspensas}</p></div>
     </section>
 
-    {!profissional ? <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5"><div className="flex items-start gap-3"><UserRoundCheck className="mt-0.5 size-5 text-amber-700"/><div><h2 className="font-black text-amber-950">Usuário sem vínculo profissional</h2><p className="mt-1 text-sm text-amber-800">Consulta liberada; prescrição bloqueada até existir vínculo com profissional clínico ativo.</p></div></div></section>
-    : <section className="mt-5 rounded-2xl border border-brand-100 bg-brand-50/60 p-4"><div className="flex items-center gap-3"><ShieldCheck className="size-5 text-brand-700"/><div><p className="font-black text-brand-950">Prescritor: {profissional.nome_completo}</p><p className="text-sm text-brand-700">{profissional.especialidade || "Especialidade não informada"} · definido pelo usuário autenticado.</p></div></div></section>}
+    {!profissional ? <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5"><div className="flex items-start gap-3"><UserRoundCheck className="mt-0.5 size-5 text-amber-700"/><div><h2 className="font-black text-amber-950">Usuário sem vínculo profissional</h2><p className="mt-1 text-sm text-amber-800">Consulta liberada; prescrição bloqueada até existir vínculo entre este login e um profissional clínico ativo.</p></div></div></section>
+    : <section className="mt-5 rounded-2xl border border-brand-100 bg-brand-50/60 p-4"><div className="flex items-center gap-3"><ShieldCheck className="size-5 text-brand-700"/><div><p className="font-black text-brand-950">Prescritor: {profissional.nome_completo}</p><p className="text-sm text-brand-700">{profissional.especialidade || "Especialidade não informada"} · identificado automaticamente pelo usuário logado. Não há seletor de médico.</p></div></div></section>}
 
     {profissional && canCreate ? <section className="his-card mt-5 p-5 sm:p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><div className="flex items-center gap-2"><Database className="size-5 text-brand-700"/><h2 className="font-black text-slate-900">Prescrever pelo catálogo institucional</h2></div><p className="mt-1 text-sm text-slate-500">A prescrição aceita somente itens ativos de <strong>itens_assistenciais</strong>. Não existe mais item livre.</p></div>
-        <form method="get" className="flex w-full max-w-xl gap-2"><input name="produto" defaultValue={produtoBusca} className="ui-input" placeholder="Descrição, código interno ou TUSS"/><button className="btn-secondary" type="submit"><Search className="size-4"/>Buscar</button></form>
-      </div>
-      {produtoBusca.length === 1 ? <p className="mt-3 text-xs font-semibold text-amber-700">Digite pelo menos 2 caracteres.</p> : null}
-      {produtoBusca.length >= 2 && !itens.length ? <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800"><AlertTriangle className="size-4"/>Nenhum item ativo encontrado. Cadastre/mapeie o item no catálogo antes de prescrever.</div> : null}
+      <div><div className="flex items-center gap-2"><Database className="size-5 text-brand-700"/><h2 className="font-black text-slate-900">Nova prescrição / solicitação</h2></div><p className="mt-1 text-sm text-slate-500">Digite o nome e selecione diretamente do catálogo institucional. O médico é o usuário autenticado e qualquer vínculo com estoque é tratado apenas internamente.</p></div>
 
       <form action={criarPrescricaoMedica} className="mt-5">
         <input type="hidden" name="atendimento_id" value={atendimentoId}/>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <label className="space-y-2 text-sm font-semibold text-slate-700 md:col-span-2 xl:col-span-4"><span>Item do catálogo *</span><select name="item_assistencial_id" required defaultValue="" className="ui-input"><option value="" disabled>Selecione um item encontrado</option>{itens.map((item) => <option key={item.id} value={item.id}>{categoriaLabel[item.categoria] ?? item.categoria} · {item.codigo_tuss ? `TUSS ${item.codigo_tuss}` : `INT ${item.codigo_interno}`} · {item.descricao}{item.concentracao ? ` · ${item.concentracao}` : ""}{item.apresentacao ? ` · ${item.apresentacao}` : ""}</option>)}</select></label>
+          <ItemAssistencialAutocomplete empresaId={empresaId}/>
           <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Dose</span><input name="dose" className="ui-input" placeholder="Ex.: 1 g"/></label>
           <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Via</span><input name="via" className="ui-input" placeholder="VO, EV, IM, SC..."/></label>
           <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Quantidade</span><input name="quantidade" type="number" step="0.0001" className="ui-input"/></label>
-          <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Unidade da dose</span><input name="unidade_dose" className="ui-input" placeholder="Se vazio, usa a unidade do catálogo"/></label>
+          <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Unidade da dose</span><input name="unidade_dose" className="ui-input" placeholder="Usa o catálogo se vazio"/></label>
           <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Frequência</span><input name="frequencia" className="ui-input" placeholder="6/6h, 8/8h..."/></label>
           <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Duração</span><input name="duracao" className="ui-input" placeholder="Ex.: 5 dias"/></label>
           <label className="space-y-2 text-sm font-semibold text-slate-700"><span>Início</span><input name="inicio_em" type="datetime-local" className="ui-input"/></label>
@@ -142,12 +104,12 @@ export default async function PrescricaoMedicaPage({ params, searchParams }: {
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" name="se_necessario"/>Se necessário</label>
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" name="requer_validacao_farmaceutica"/>Validação farmacêutica</label>
         </div>
-        <div className="mt-5 flex justify-end"><button disabled={!itens.length} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><Pill className="size-4"/>Salvar rascunho</button></div>
+        <div className="mt-5 flex justify-end"><button className="ui-button-primary"><Pill className="size-4"/>Salvar</button></div>
       </form>
     </section> : null}
 
     <section className="mt-6 space-y-3">
-      <div><h2 className="text-lg font-black text-slate-950">Prescrições do episódio</h2><p className="text-sm text-slate-500">Itens novos só podem ser assinados quando possuem vínculo com o catálogo institucional ativo.</p></div>
+      <div><h2 className="text-lg font-black text-slate-950">Prescrições do episódio</h2><p className="text-sm text-slate-500">O profissional responsável é sempre derivado do login que criou e assinou a prescrição.</p></div>
       {prescricoes.length ? prescricoes.map((item) => {
         const prof = one(item.profissional);
         return <article key={item.id} className="ui-card p-4 sm:p-5">
