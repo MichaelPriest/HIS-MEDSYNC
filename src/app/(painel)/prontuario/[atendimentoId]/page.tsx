@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { Activity, BedDouble, ClipboardList, FileHeart, FlaskConical, HeartPulse, Pill, ScanLine, ShieldAlert, ShieldCheck, Stethoscope, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import { SectionPage } from "@/components/painel/section-page";
+import { EpisodioTimelinePendencias } from "@/components/prontuario/episodio-timeline-pendencias";
 import { createClient } from "@/lib/supabase/server";
 import { encaminharSetor } from "@/modules/fluxo-setorial/actions";
 
@@ -72,6 +73,8 @@ export default async function AtendimentoMedicoPage({ params, searchParams }: { 
         <div className="flex flex-wrap gap-2"><Link className="ui-button-secondary" href={triagemHref}>Triagem</Link><Link className="ui-button-secondary" href={urgenciaHref}><HeartPulse className="size-4"/>Urgência</Link><Link className="ui-button-primary" href={evolucaoHref}>Nova evolução</Link><Link className="ui-button-secondary" href={prescricaoHref}>Prescrição</Link><Link className="ui-button-secondary" href={internacaoHref}><BedDouble className="size-4"/>Internar paciente</Link></div>
       </div>
     </section>
+
+    <EpisodioTimelinePendencias atendimentoId={atendimentoId}/>
 
     <section className="ui-card mt-6 p-5"><div className="flex items-center gap-3"><Stethoscope className="size-5 text-brand-700"/><div><h2 className="font-semibold text-slate-900">Encaminhar para outro setor</h2><p className="text-sm text-slate-500">O paciente entra na fila do setor escolhido sem perder o vínculo com este atendimento.</p></div></div><form action={encaminharSetor} className="mt-4 grid gap-3 lg:grid-cols-[220px_160px_1fr_auto]"><input type="hidden" name="atendimento_id" value={atendimentoId}/><select name="setor_codigo" required defaultValue="" className="ui-input"><option value="">Selecione o setor</option><option value="enfermagem">Enfermagem</option><option value="farmacia">Farmácia</option><option value="laboratorio">Laboratório</option><option value="imagem">Diagnóstico por Imagem</option><option value="internacao">Internação</option></select><select name="prioridade" defaultValue="normal" className="ui-input"><option value="normal">Normal</option><option value="preferencial">Preferencial</option><option value="emergencia">Emergência</option></select><input name="motivo" className="ui-input" placeholder="Motivo / orientação para o setor"/><button className="ui-button-primary">Encaminhar</button></form></section>
 
