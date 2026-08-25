@@ -9,6 +9,7 @@ export const navigationRequirements: Record<string, readonly Permission[]> = {
   "/triagem": ["triagem.visualizar", "triagem.registrar"],
   "/fila-medica": ["fila_medica.visualizar"],
   "/prontuario": ["prontuario.visualizar"],
+  "/assistencial/enfermagem": ["enfermagem.visualizar"],
   "/assistencial/urgencia": ["emergencia.visualizar", "emergencia.gerenciar", "emergencia.reavaliar"],
   "/assistencial": ["assistencial.visualizar", "prontuario.visualizar"],
   "/prescricao": ["prescricao.visualizar", "prescricao.criar"],
@@ -57,10 +58,7 @@ export function requirementForPath(pathname: string) {
   return match ? navigationRequirements[match] : null;
 }
 
-export function canAccessNavigation(
-  granted: readonly string[] | null,
-  pathname: string,
-) {
+export function canAccessNavigation(granted: readonly string[] | null, pathname: string) {
   const required = requirementForPath(pathname);
   if (!required?.length) return true;
   if (granted === null) return true;
