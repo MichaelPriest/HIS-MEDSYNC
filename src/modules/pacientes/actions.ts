@@ -24,20 +24,26 @@ function erroCadastro(code?: string | null) {
   return "falha-cadastro";
 }
 
-function retornoAdmissaoSeguro(raw: FormDataEntryValue | null, pacienteId?: string, cadastro?: "parcial") {
+function senhaAdmissao(raw: FormDataEntryValue | null) {
   const value = String(raw ?? "").trim();
   if (!value) return null;
   try {
     const url = new URL(value, "https://medsync.local");
     const senha = url.searchParams.get("senha");
     if (url.pathname !== "/atendimentos/novo" || !senha || !/^[0-9a-f-]{36}$/i.test(senha)) return null;
-    const query = new URLSearchParams({ senha });
-    if (pacienteId) query.set("paciente", pacienteId);
-    if (cadastro) query.set("cadastro", cadastro);
-    return asRoute(`/atendimentos/novo?${query.toString()}`);
+    return senha;
   } catch {
     return null;
   }
+}
+
+function retornoAdmissaoSeguro(raw: FormDataEntryValue | null, pacienteId?: string, cadastro?: "parcial") {
+  const senha = senhaAdmissao(raw);
+  if (!senha) return null;
+  const query = new URLSearchParams({ senha });
+  if (pacienteId) query.set("paciente", pacienteId);
+  if (cadastro) query.set("cadastro", cadastro);
+  return asRoute(`/atendimentos/novo?${query.toString()}`);
 }
 
 function novoPacienteErro(erro: string, retorno: FormDataEntryValue | null) {
@@ -45,6 +51,54 @@ function novoPacienteErro(erro: string, retorno: FormDataEntryValue | null) {
   const query = new URLSearchParams({ erro });
   if (retornoSeguro) query.set("retorno", retornoSeguro);
   return asRoute(`/pacientes/novo?${query.toString()}`);
+}
+
+async function vincularPacienteNaSenhaEmAdmissao({
+  supabase,
+  retorno,
+  pacienteId,
+  userId,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  retorno: FormDataEntryValue | null;
+  pacienteId: string;
+  userId: string;
+}) {
+  const senhaId = senhaAdmissao(retorno);
+  if (!senhaId) return;
+
+  const { data: senha, error: senhaError } = await supabase
+    .from("senhas_atendimento")
+    .select("id,status,atendimento_id,paciente_id")
+    .eq("id", senhaId)
+    .maybeSingle();
+
+  if (senhaError) {
+    console.error("[pacientes.criar] falha ao consultar senha da admissao", {
+      senhaId,
+      pacienteId,
+      code: senhaError.code,
+    });
+    return;
+  }
+
+  if (!senha || senha.status !== "em_atendimento" || senha.atendimento_id || senha.paciente_id) return;
+
+  const { error: vinculoError } = await supabase
+    .from("senhas_atendimento")
+    .update({ paciente_id: pacienteId, updated_by: userId, updated_at: new Date().toISOString() })
+    .eq("id", senhaId)
+    .eq("status", "em_atendimento")
+    .is("atendimento_id", null)
+    .is("paciente_id", null);
+
+  if (vinculoError) {
+    console.error("[pacientes.criar] paciente criado, mas falhou vinculo com senha em admissao", {
+      senhaId,
+      pacienteId,
+      code: vinculoError.code,
+    });
+  }
 }
 
 export async function criarPaciente(formData: FormData) {
@@ -140,6 +194,13 @@ export async function criarPaciente(formData: FormData) {
 
     redirect(novoPacienteErro(erroCadastro(error?.code), retorno));
   }
+
+  await vincularPacienteNaSenhaEmAdmissao({
+    supabase,
+    retorno,
+    pacienteId: paciente.id,
+    userId: user.id,
+  });
 
   const [emailResult, phoneResult, addressResult] = await Promise.all([
     supabase.from("paciente_emails").insert(emails.map((item) => ({ paciente_id: paciente.id, ...item }))),
