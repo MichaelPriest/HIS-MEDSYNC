@@ -78,11 +78,19 @@ export async function atualizarAutorizacao(formData: FormData) {
       .eq("empresa_id", empresaId).eq("convenio_id", autorizacao.convenio_id).eq("ativo", true).maybeSingle();
     if (config?.exige_na_autorizacao && config.metodo !== "nenhum") {
       const limite = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-      const { data: eventos } = await supabase.from("autorizacao_identificacao_eventos")
-        .select("metodo,validado,validado_em")
-        .eq("empresa_id", empresaId).eq("unidade_id", unidadeId).eq("autorizacao_id", id)
-        .eq("validado", true).gte("created_at", limite).order("created_at", { ascending: false }).limit(10);
-      const identificacaoOk = (eventos ?? []).some((evento) => metodoPermitido(config.metodo, evento.metodo));
+      const [{ data: eventosAutorizacao }, { data: eventosAtendimento }] = await Promise.all([
+        supabase.from("autorizacao_identificacao_eventos")
+          .select("metodo,validado,validado_em")
+          .eq("empresa_id", empresaId).eq("unidade_id", unidadeId).eq("autorizacao_id", id)
+          .eq("validado", true).gte("created_at", limite).order("created_at", { ascending: false }).limit(10),
+        supabase.from("atendimento_identificacao_eventos")
+          .select("metodo,validado,validado_em")
+          .eq("empresa_id", empresaId).eq("unidade_id", unidadeId).eq("atendimento_id", autorizacao.atendimento_id)
+          .eq("convenio_id", autorizacao.convenio_id).eq("validado", true)
+          .gte("created_at", limite).order("created_at", { ascending: false }).limit(10),
+      ]);
+      const eventos = [...(eventosAutorizacao ?? []), ...(eventosAtendimento ?? [])];
+      const identificacaoOk = eventos.some((evento) => metodoPermitido(config.metodo, evento.metodo));
       if (!identificacaoOk) redirect(`/autorizacoes?atendimento=${autorizacao.atendimento_id}&erro=identificacao-obrigatoria`);
     }
   }
