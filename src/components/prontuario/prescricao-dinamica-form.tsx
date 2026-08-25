@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ClipboardCheck, FlaskConical, HeartPulse, PackagePlus, Pill, Plus, Soup, Stethoscope } from "lucide-react";
 import { ItemAssistencialAutocomplete, type ItemAssistencialSelecionado } from "@/components/prontuario/item-assistencial-autocomplete";
+import { PrescricaoRascunhoGrid } from "@/components/prontuario/prescricao-rascunho-grid";
 import { adicionarItemPrescricaoDiaAction } from "@/modules/prontuario-medico/prescricao-dia-actions";
 
 const TIPOS_IMAGEM = new Set(["raio_x", "tomografia", "ressonancia", "ultrassonografia", "mamografia", "densitometria"]);
@@ -129,5 +130,7 @@ export function PrescricaoDinamicaForm({ empresaId, atendimentoId, abaInicial = 
 
       {(aba === "dieta" || aba === "cuidados" || item) ? <div className="flex justify-end"><button className="ui-button-primary"><Plus className="size-4"/>Adicionar ao rascunho do dia</button></div> : null}
     </form>}
+
+    <PrescricaoRascunhoGrid empresaId={empresaId} atendimentoId={atendimentoId}/>
   </div>;
 }
