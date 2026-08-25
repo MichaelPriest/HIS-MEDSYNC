@@ -120,6 +120,7 @@ const gestaoNav: NavItem[] = [
   { href: "/compras", label: "Compras", icon: ShoppingCart },
   { href: "/almoxarifado", label: "Estoque", icon: Boxes },
   { href: "/ti", label: "Tecnologia / TI", icon: MonitorCog },
+  { href: "/engenharia-clinica", label: "Engenharia Clínica", icon: Activity },
   { href: "/ged", label: "GED", icon: FileText },
 ];
 
