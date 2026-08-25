@@ -36,6 +36,7 @@ export const navigationRequirements: Record<string, readonly Permission[]> = {
   "/compras": ["compras.visualizar"],
   "/almoxarifado": ["estoque.visualizar"],
   "/ti": ["ti.visualizar", "ti.chamados.abrir", "ti.admin"],
+  "/engenharia-clinica": ["engenharia_clinica.visualizar", "engenharia_clinica.solicitar", "engenharia_clinica.gerenciar"],
   "/auditoria": ["auditoria.visualizar"],
   "/contas-medicas": ["contas_medicas.visualizar"],
   "/faturamento/lotes": ["tiss.visualizar", "faturamento.visualizar"],
