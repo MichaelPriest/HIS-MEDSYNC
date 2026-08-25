@@ -39,9 +39,12 @@ export async function registrarTesteIntegracaoAction(fd: FormData) {
   const id = text(fd, "integracao_id"), status = text(fd, "status") ?? "ok", mensagem = text(fd, "mensagem");
   if (!id) go("/engenharia-clinica/integracoes?erro=integracao");
   const agora = new Date().toISOString();
-  const { error } = await supabase.from("engenharia_integracoes_equipamentos").update({ status, ultimo_contato_em: status === "ok" ? agora : undefined, ultima_falha_em: status === "falha" ? agora : undefined, ultima_mensagem: mensagem, updated_at: agora, updated_by: user.id }).eq("id", id).eq("empresa_id", empresaId).eq("unidade_id", unidadeId);
+  const payload: Record<string, unknown> = { status, ultima_mensagem: mensagem, updated_at: agora, updated_by: user.id };
+  if (status === "ok") payload.ultimo_contato_em = agora;
+  if (status === "falha") payload.ultima_falha_em = agora;
+  const { error } = await supabase.from("engenharia_integracoes_equipamentos").update(payload).eq("id", id).eq("empresa_id", empresaId).eq("unidade_id", unidadeId);
   if (error) go(`/engenharia-clinica/integracoes?erro=${encodeURIComponent(error.message)}`);
-  await supabase.from("engenharia_integracao_eventos").insert({ integracao_id: id, tipo: "teste_manual", status, mensagem, autor_usuario_id: user.id });
+  await supabase.from("engenharia_integracao_eventos").insert({ integracao_id: id, tipo: "teste_manual", status, mensagem, created_by: user.id });
   revalidatePath("/engenharia-clinica/integracoes"); go("/engenharia-clinica/integracoes?sucesso=teste_registrado");
 }
 
