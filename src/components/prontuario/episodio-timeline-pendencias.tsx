@@ -33,6 +33,17 @@ function prioridadeClass(prioridade: Pendencia["prioridade"]) {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
+function hrefSetor(setor: string, atendimentoId: string): Route {
+  const normalized = setor.toLowerCase();
+  if (normalized === "farmacia" || normalized === "medicamentos") return "/assistencial/medicamentos" as Route;
+  if (normalized === "laboratorio") return "/assistencial/laboratorio" as Route;
+  if (normalized === "imagem") return "/assistencial/imagem" as Route;
+  if (normalized === "enfermagem" || normalized === "sae") return `/assistencial/sae?atendimento=${atendimentoId}` as Route;
+  if (normalized === "pronto_socorro" || normalized === "urgencia") return `/assistencial/urgencia?atendimento=${atendimentoId}` as Route;
+  if (normalized === "internacao") return "/internacao" as Route;
+  return `/prontuario/${atendimentoId}` as Route;
+}
+
 export async function EpisodioTimelinePendencias({ atendimentoId }: { atendimentoId: string }) {
   const supabase = await createClient();
   const { data: prescricoes } = await supabase
@@ -42,17 +53,14 @@ export async function EpisodioTimelinePendencias({ atendimentoId }: { atendiment
     .order("created_at", { ascending: false })
     .limit(100);
 
-  const prescricaoIds = (prescricoes ?? []).map((item) => item.id);
   const [aprazamentosRes, examesRes, labRes, imagemExecRes, imagemLaudoRes, cuidadosRes, materiaisRes, filasRes] = await Promise.all([
-    prescricaoIds.length
-      ? supabase.from("prescricao_aprazamentos").select("id,prescricao_id,programado_em,status,justificativa,administrado_em").in("prescricao_id", prescricaoIds).order("programado_em", { ascending: false }).limit(200)
-      : Promise.resolve({ data: [] }),
+    supabase.from("prescricao_aprazamentos").select("id,prescricao_id,programado_em,status,justificativa,checado_em").eq("atendimento_id", atendimentoId).order("programado_em", { ascending: false }).limit(200),
     supabase.from("solicitacoes_exames").select("id,exame,modalidade,status,prioridade,created_at").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(100),
     supabase.from("laboratorio_resultados").select("id,analito,resultado,valor_numerico,unidade_medida,valor_critico,liberado,liberado_em,notificado_em,created_at").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(100),
     supabase.from("imagem_execucoes").select("id,status,accession_number,iniciado_em,finalizado_em,created_at,solicitacao:solicitacoes_exames(exame)").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(100),
     supabase.from("imagem_laudos").select("id,status,liberado_em,created_at,execucao_id").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(100),
     supabase.from("sae_cuidados").select("id,cuidado,status,proxima_checagem_em,ultima_checagem_em,created_at").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(100),
-    supabase.from("solicitacoes_materiais_assistenciais").select("id,descricao_item,status,quantidade,unidade_medida,created_at").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(100),
+    supabase.from("solicitacoes_materiais_assistenciais").select("id,descricao,status,quantidade,unidade_medida,created_at").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(100),
     supabase.from("filas_setoriais").select("id,setor_codigo,status,prioridade,motivo,created_at,iniciado_em,concluido_em").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(100),
   ]);
 
@@ -66,7 +74,6 @@ export async function EpisodioTimelinePendencias({ atendimentoId }: { atendiment
   const filas = filasRes.data ?? [];
   const prescricaoPorId = new Map((prescricoes ?? []).map((p) => [p.id, p]));
   const agora = Date.now();
-
   const pendencias: Pendencia[] = [];
 
   for (const ap of aprazamentos) {
@@ -126,8 +133,7 @@ export async function EpisodioTimelinePendencias({ atendimentoId }: { atendiment
 
   for (const cuidado of cuidados) {
     if (cuidado.status === "cancelado" || !cuidado.proxima_checagem_em) continue;
-    const vencido = new Date(cuidado.proxima_checagem_em).getTime() < agora;
-    if (!vencido) continue;
+    if (new Date(cuidado.proxima_checagem_em).getTime() >= agora) continue;
     pendencias.push({
       id: `sae-${cuidado.id}`,
       titulo: "Cuidado de enfermagem vencido",
@@ -143,7 +149,7 @@ export async function EpisodioTimelinePendencias({ atendimentoId }: { atendiment
     pendencias.push({
       id: `mat-${material.id}`,
       titulo: "Material aguardando atendimento",
-      detalhe: `${material.descricao_item ?? "Material"} · ${material.quantidade ?? "—"} ${material.unidade_medida ?? ""}`.trim(),
+      detalhe: `${material.descricao ?? "Material"} · ${material.quantidade ?? "—"} ${material.unidade_medida ?? ""}`.trim(),
       area: "Almoxarifado",
       prioridade: "normal",
       href: "/almoxarifado" as Route,
@@ -158,13 +164,13 @@ export async function EpisodioTimelinePendencias({ atendimentoId }: { atendiment
       detalhe: fila.motivo || `Status ${fila.status}`,
       area: "Fluxo",
       prioridade: fila.prioridade === "emergencia" ? "critica" : fila.prioridade === "preferencial" ? "alta" : "normal",
-      href: `/assistencial/${fila.setor_codigo}` as Route,
+      href: hrefSetor(fila.setor_codigo, atendimentoId),
     });
   }
 
   const eventos: Evento[] = [];
   for (const p of prescricoes ?? []) eventos.push({ id: `p-${p.id}`, em: p.assinado_em ?? p.created_at, titulo: p.item, detalhe: p.status === "ativa" ? "Prescrição assinada/ativa" : `Prescrição ${p.status}`, area: "Prescrição", status: p.status });
-  for (const ap of aprazamentos) eventos.push({ id: `a-${ap.id}`, em: ap.administrado_em ?? ap.programado_em, titulo: prescricaoPorId.get(ap.prescricao_id)?.item ?? "Medicamento", detalhe: ap.status === "administrado" ? "Dose administrada" : ap.status === "pendente" ? "Dose programada" : `Dose ${ap.status}`, area: "Medicação", status: ap.status });
+  for (const ap of aprazamentos) eventos.push({ id: `a-${ap.id}`, em: ap.checado_em ?? ap.programado_em, titulo: prescricaoPorId.get(ap.prescricao_id)?.item ?? "Medicamento", detalhe: ap.status === "administrado" ? "Dose administrada" : ap.status === "pendente" ? "Dose programada" : `Dose ${ap.status}`, area: "Medicação", status: ap.status });
   for (const exame of exames) eventos.push({ id: `e-${exame.id}`, em: exame.created_at, titulo: exame.exame, detalhe: `Solicitação de exame · ${exame.status}`, area: String(exame.modalidade ?? "Exame"), status: exame.status });
   for (const r of laboratorio) eventos.push({ id: `l-${r.id}`, em: r.liberado_em ?? r.created_at, titulo: r.analito, detalhe: r.liberado ? "Resultado laboratorial liberado" : "Resultado laboratorial registrado", area: "Laboratório", status: r.valor_critico ? "crítico" : r.liberado ? "liberado" : "registrado" });
   for (const e of imagemExecucoes) {
@@ -173,11 +179,12 @@ export async function EpisodioTimelinePendencias({ atendimentoId }: { atendiment
   }
   for (const l of imagemLaudos) if (l.status === "liberado") eventos.push({ id: `la-${l.id}`, em: l.liberado_em ?? l.created_at, titulo: "Laudo de imagem", detalhe: "Laudo liberado", area: "Imagem", status: "liberado" });
   for (const c of cuidados) if (c.ultima_checagem_em) eventos.push({ id: `c-${c.id}`, em: c.ultima_checagem_em, titulo: c.cuidado, detalhe: "Cuidado de enfermagem checado", area: "Enfermagem", status: c.status });
-  for (const m of materiais) eventos.push({ id: `m-${m.id}`, em: m.created_at, titulo: m.descricao_item ?? "Material", detalhe: `Solicitação de material · ${m.status}`, area: "Almoxarifado", status: m.status });
+  for (const m of materiais) eventos.push({ id: `m-${m.id}`, em: m.created_at, titulo: m.descricao ?? "Material", detalhe: `Solicitação de material · ${m.status}`, area: "Almoxarifado", status: m.status });
   for (const f of filas) eventos.push({ id: `f-${f.id}`, em: f.concluido_em ?? f.iniciado_em ?? f.created_at, titulo: `Fluxo ${f.setor_codigo}`, detalhe: f.motivo || `Status ${f.status}`, area: "Fluxo", status: f.status });
 
   eventos.sort((a, b) => new Date(b.em).getTime() - new Date(a.em).getTime());
-  const pendenciasOrdenadas = [...pendencias].sort((a, b) => ({ critica: 0, alta: 1, normal: 2 })[a.prioridade] - ({ critica: 0, alta: 1, normal: 2 })[b.prioridade]);
+  const rank = { critica: 0, alta: 1, normal: 2 } as const;
+  const pendenciasOrdenadas = [...pendencias].sort((a, b) => rank[a.prioridade] - rank[b.prioridade]);
   const criticas = pendenciasOrdenadas.filter((p) => p.prioridade === "critica").length;
   const altas = pendenciasOrdenadas.filter((p) => p.prioridade === "alta").length;
 
