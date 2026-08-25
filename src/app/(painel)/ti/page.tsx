@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, BookOpenCheck, Cable, CircleDot, Clock3, Computer, FileKey2, HardDrive, Headphones, Network, Plus, RefreshCw, ServerCog, ShieldCheck, Wrench } from "lucide-react";
+import { BookOpenCheck, Cable, CircleDot, Computer, FileKey2, HardDrive, Headphones, Network, Plus, RefreshCw, ServerCog, ShieldCheck, Wrench } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 import { abrirChamadoTiAction, atualizarChamadoTiAction, cadastrarArtigoTiAction, cadastrarAtivoTiAction, cadastrarContratoTiAction, cadastrarMudancaTiAction } from "@/modules/ti/actions";
@@ -24,7 +24,7 @@ function statusTone(s:string){const x=s.toLowerCase();if(["resolvido","fechado",
 
 export default async function TiPage({searchParams}:{searchParams:Promise<{aba?:string;sucesso?:string;erro?:string}>}){
  const sp=await searchParams;const aba: Aba=ABAS.has(sp.aba as Aba)?sp.aba as Aba:"chamados";
- const {supabase,user,empresaId,unidadeId}=await getAssistencialContext();
+ const {supabase,empresaId,unidadeId}=await getAssistencialContext();
  const permissionCodes=["ti.visualizar","ti.admin","ti.chamados.abrir","ti.chamados.atender","ti.ativos.gerenciar","ti.contratos.gerenciar","ti.mudancas.gerenciar","ti.base.gerenciar"] as const;
  const [perms,setoresRes,profissionaisRes,chamadosRes,ativosRes,contratosRes,mudancasRes,baseRes,monRes]=await Promise.all([
   Promise.all(permissionCodes.map(c=>supabase.rpc("tem_permissao",{p_empresa:empresaId,p_unidade:unidadeId,p_codigo:c}))),
