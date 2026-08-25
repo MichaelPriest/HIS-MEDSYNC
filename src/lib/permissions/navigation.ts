@@ -29,6 +29,7 @@ export const navigationRequirements: Record<string, readonly Permission[]> = {
   "/comercial/regras": ["comercial.visualizar", "credenciamento.visualizar"],
   "/comercial/tabelas": ["comercial.visualizar", "tabelas_comerciais.visualizar"],
   "/comercial": ["comercial.visualizar", "credenciamento.visualizar"],
+  "/relatorios": ["diretoria.visualizar", "faturamento.visualizar", "financeiro.visualizar"],
   "/diretoria": ["diretoria.visualizar"],
   "/ged": ["ged.visualizar"],
   "/compras": ["compras.visualizar"],
@@ -62,11 +63,6 @@ export function canAccessNavigation(
 ) {
   const required = requirementForPath(pathname);
   if (!required?.length) return true;
-
-  // null representa falha de carregamento da matriz no shell. O RLS continua
-  // sendo a fronteira de autorização; manter o menu evita bloquear a aplicação
-  // durante rollout de migration/indisponibilidade transitória.
   if (granted === null) return true;
-
   return required.some((permission) => granted.includes(permission));
 }
