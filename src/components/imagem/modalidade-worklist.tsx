@@ -1,0 +1,42 @@
+import Link from "next/link";
+import type { Route } from "next";
+import { CalendarClock, CheckCircle2, ClipboardCheck, RadioTower, ScanLine, ShieldAlert } from "lucide-react";
+import { SectionPage } from "@/components/painel/section-page";
+import { getAssistencialContext } from "@/modules/assistencial/context";
+
+type ModalidadeCodigo = "RX" | "TC" | "RM";
+type Paciente = { nome_completo: string | null; ra: string | null; numero_registro: number | null };
+type Atendimento = { id: string; numero_atendimento: string | number | null; ambiente_assistencial: string | null; paciente: Paciente | Paciente[] | null };
+type Solicitacao = { id: string; atendimento_id: string; exame: string; codigo_tuss: string | null; prioridade: string | null; status: string; created_at: string; atendimento: Atendimento | Atendimento[] | null };
+type Agendamento = { id: string; solicitacao_id: string; agendado_em: string; sala: string | null; status: string; engenharia: { patrimonio: string; nome: string; status: string } | { patrimonio: string; nome: string; status: string }[] | null };
+type Checklist = { id: string; solicitacao_id: string | null; apto: boolean; bloqueio_motivo: string | null; created_at: string };
+type Laudo = { id: string; atendimento_id: string; status: string; liberado_em: string | null };
+const one = <T,>(v: T | T[] | null) => Array.isArray(v) ? v[0] ?? null : v;
+const fmt = (v: string | null | undefined) => v ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(v)) : "—";
+
+const config: Record<ModalidadeCodigo,{titulo:string;descricao:string;seguranca:string}> = {
+ RX:{titulo:"Raio-X / Radiologia",descricao:"Worklist de radiografias com rastreabilidade do equipamento, execução, PACS, dose e laudo.",seguranca:"Identificação, lateralidade, gestação quando aplicável e proteção radiológica."},
+ TC:{titulo:"Tomografia Computadorizada",descricao:"Agenda e execução de TC com protocolo, equipamento, contraste, função renal, dose CTDIvol/DLP, PACS e laudo.",seguranca:"Gestação, alergia a contraste, função renal, jejum/consentimento quando indicados."},
+ RM:{titulo:"Ressonância Magnética",descricao:"Agenda e execução de RM com segurança magnética, protocolo, contraste quando indicado, PACS e laudo.",seguranca:"Marcapasso, implantes/metais, corpo estranho metálico, claustrofobia e função renal quando houver gadolínio."},
+};
+
+export async function ModalidadeWorklist({modalidade}:{modalidade:ModalidadeCodigo}) {
+ const {supabase,empresaId,unidadeId}=await getAssistencialContext(); const c=config[modalidade];
+ const [solRes,agRes,checkRes,laudoRes,equipRes]=await Promise.all([
+  supabase.from("solicitacoes_exames").select("id,atendimento_id,exame,codigo_tuss,prioridade,status,created_at,atendimento:atendimentos(id,numero_atendimento,ambiente_assistencial,paciente:pacientes(nome_completo,ra,numero_registro))").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).eq("modalidade_codigo",modalidade).in("status",["solicitado","agendado","em_execucao"]).order("created_at",{ascending:true}).limit(200),
+  supabase.from("imagem_agendamentos").select("id,solicitacao_id,agendado_em,sala,status,engenharia:engenharia_equipamentos(patrimonio,nome,status)").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).order("agendado_em",{ascending:true}).limit(300),
+  supabase.from("imagem_checklists_seguranca").select("id,solicitacao_id,apto,bloqueio_motivo,created_at").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).eq("modalidade",modalidade).order("created_at",{ascending:false}).limit(500),
+  supabase.from("imagem_laudos").select("id,atendimento_id,status,liberado_em").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).order("created_at",{ascending:false}).limit(500),
+  supabase.from("engenharia_equipamentos").select("id").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).in("status",["operacional","reserva"]).ilike("categoria",modalidade==="RX"?"%radi%":modalidade==="TC"?"%tomograf%":"%resson%"),
+ ]);
+ const solicitacoes=(solRes.data??[]) as unknown as Solicitacao[]; const agenda=(agRes.data??[]) as unknown as Agendamento[]; const checks=(checkRes.data??[]) as unknown as Checklist[]; const laudos=(laudoRes.data??[]) as unknown as Laudo[];
+ const ids=new Set(solicitacoes.map(s=>s.id)); const agendaModal=agenda.filter(a=>ids.has(a.solicitacao_id)); const pendentesChecklist=solicitacoes.filter(s=>!checks.some(ch=>ch.solicitacao_id===s.id&&ch.apto)).length; const laudosPendentes=solicitacoes.filter(s=>!laudos.some(l=>l.atendimento_id===s.atendimento_id&&l.status==="liberado")).length;
+ const central=`/assistencial/imagem?modalidade=${modalidade}` as Route;
+ return <SectionPage eyebrow={`Assistencial / Imagem / ${modalidade}`} title={c.titulo} description={c.descricao} actions={<Link href={central} className="ui-button-secondary"><ScanLine className="size-4"/>Central RIS/PACS</Link>}>
+  <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Kpi label="Solicitações" value={solicitacoes.length}/><Kpi label="Agendados" value={agendaModal.filter(a=>!["concluido","cancelado","faltou"].includes(a.status)).length}/><Kpi label="Checklist pendente" value={pendentesChecklist} warn={pendentesChecklist>0}/><Kpi label="Laudos pendentes" value={laudosPendentes}/><Kpi label="Equip. disponíveis" value={equipRes.data?.length??0}/></section>
+  <section className="mt-5 rounded-2xl border border-sky-100 bg-sky-50/60 p-4"><div className="flex gap-3"><ShieldAlert className="mt-0.5 size-5 text-sky-700"/><div><h2 className="font-black text-sky-950">Segurança da modalidade</h2><p className="mt-1 text-sm text-sky-800">{c.seguranca}</p>{modalidade==="RM"?<p className="mt-1 text-xs font-bold text-sky-700">RM não utiliza radiação ionizante; não registrar CTDI/DLP/DAP como se fosse TC/RX.</p>:null}</div></div></section>
+  <section className="his-card mt-5 overflow-hidden"><div className="border-b border-slate-100 p-5"><h2 className="font-black">Worklist</h2><p className="text-sm text-slate-500">Separada por origem do atendimento e prioridade, preservando o mesmo prontuário.</p></div><div className="divide-y divide-slate-100">{solicitacoes.map(s=>{const at=one(s.atendimento),p=one(at?.paciente??null),ag=agendaModal.find(a=>a.solicitacao_id===s.id),ch=checks.find(x=>x.solicitacao_id===s.id);return <article key={s.id} className="p-5"><div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black text-slate-950">{s.exame}</h3><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">{s.prioridade??"rotina"}</span><span className="rounded-full bg-brand-50 px-2 py-1 text-xs font-bold text-brand-700">{String(at?.ambiente_assistencial??"—").replaceAll("_"," ")}</span></div><p className="mt-1 text-sm text-slate-600">{p?.nome_completo??"Paciente"} · Atend. #{at?.numero_atendimento??"—"} · TUSS {s.codigo_tuss??"—"}</p><p className="mt-1 text-xs text-slate-400">Solicitado {fmt(s.created_at)}{ag?` · Agenda ${fmt(ag.agendado_em)} · ${ag.sala??"sem sala"}`:""}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${ch?.apto?"bg-emerald-50 text-emerald-700":"bg-amber-50 text-amber-700"}`}>{ch?.apto?"Checklist apto":"Segurança pendente"}</span><Link href={central} className="ui-button-secondary"><CalendarClock className="size-4"/>Agendar/Executar</Link><Link href={`/prontuario/${s.atendimento_id}` as Route} className="ui-button-secondary"><ClipboardCheck className="size-4"/>Prontuário</Link></div></div>{ch&&!ch.apto&&ch.bloqueio_motivo?<p className="mt-3 text-xs font-bold text-rose-700">Bloqueio: {ch.bloqueio_motivo}</p>:null}</article>})}{!solicitacoes.length?<div className="p-10 text-center text-sm text-slate-500"><CheckCircle2 className="mx-auto mb-2 size-5"/>Nenhuma solicitação aberta nesta modalidade.</div>:null}</div></section>
+  <section className="mt-5 flex items-center gap-2 text-xs text-slate-500"><RadioTower className="size-4"/>Equipamentos e interfaces permanecem vinculados à Engenharia Clínica e ao PACS/DICOM.</section>
+ </SectionPage>;
+}
+function Kpi({label,value,warn=false}:{label:string;value:number;warn?:boolean}){return <div className="his-kpi"><p className="text-xs font-black uppercase text-slate-400">{label}</p><p className={`mt-2 text-3xl font-black ${warn?"text-amber-700":"text-slate-950"}`}>{value}</p></div>}
