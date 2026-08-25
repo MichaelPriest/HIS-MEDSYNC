@@ -56,14 +56,20 @@ async function resolveProfissional(
   return data;
 }
 
+function tipoPrescricao(categoria: string) {
+  if (categoria === "medicamento") return "medicamento";
+  if (categoria === "procedimento") return "procedimento";
+  return "outro";
+}
+
 export async function criarPrescricaoMedica(formData: FormData) {
   const { supabase, user, empresaId, unidadeId } = await requirePermission("prescricao.criar");
   const atendimentoId = text(formData, "atendimento_id");
-  const item = text(formData, "item");
+  const itemAssistencialId = text(formData, "item_assistencial_id");
   if (!atendimentoId) redirect("/prontuario?erro=atendimento");
-  if (!item || !unidadeId) go(atendimentoId, "erro=campos");
+  if (!itemAssistencialId || !unidadeId) go(atendimentoId, "erro=catalogo");
 
-  const [{ data: atendimento }, profissional] = await Promise.all([
+  const [{ data: atendimento }, profissional, { data: itemCatalogo }] = await Promise.all([
     supabase
       .from("atendimentos")
       .select("id")
@@ -73,21 +79,44 @@ export async function criarPrescricaoMedica(formData: FormData) {
       .in("status", ["aberto", "em_espera", "em_atendimento"])
       .maybeSingle(),
     resolveProfissional(supabase, user.id, user.email ?? undefined, empresaId),
+    supabase
+      .from("itens_assistenciais")
+      .select("id,categoria,descricao,unidade_medida,apresentacao,concentracao,forma_farmaceutica")
+      .eq("id", itemAssistencialId)
+      .eq("empresa_id", empresaId)
+      .eq("ativo", true)
+      .in("categoria", ["medicamento", "material", "opme", "gas_medicinal", "procedimento", "outro"])
+      .maybeSingle(),
   ]);
 
   if (!atendimento) go(atendimentoId, "erro=atendimento");
   if (!profissional) go(atendimentoId, "erro=profissional");
+  if (!itemCatalogo) go(atendimentoId, "erro=catalogo");
+
+  const { data: produtoEstoque } = await supabase
+    .from("estoque_produtos")
+    .select("id")
+    .eq("empresa_id", empresaId)
+    .eq("item_assistencial_id", itemCatalogo.id)
+    .eq("ativo", true)
+    .limit(1)
+    .maybeSingle();
+
+  const detalhes = [itemCatalogo.descricao, itemCatalogo.concentracao, itemCatalogo.apresentacao]
+    .filter(Boolean)
+    .join(" · ");
 
   const { error } = await supabase.from("prescricoes").insert({
     empresa_id: empresaId,
     unidade_id: unidadeId,
     atendimento_id: atendimentoId,
     profissional_id: profissional.id,
-    tipo: text(formData, "tipo") ?? "medicamento",
-    item,
-    produto_id: text(formData, "produto_id"),
+    tipo: tipoPrescricao(itemCatalogo.categoria),
+    item: detalhes,
+    item_assistencial_id: itemCatalogo.id,
+    produto_id: produtoEstoque?.id ?? null,
     quantidade: numberValue(formData, "quantidade"),
-    unidade_dose: text(formData, "unidade_dose"),
+    unidade_dose: text(formData, "unidade_dose") ?? itemCatalogo.unidade_medida,
     dose: text(formData, "dose"),
     via: text(formData, "via"),
     frequencia: text(formData, "frequencia"),
@@ -101,7 +130,7 @@ export async function criarPrescricaoMedica(formData: FormData) {
     velocidade_infusao: text(formData, "velocidade_infusao"),
     instrucoes: text(formData, "instrucoes"),
     orientacoes: text(formData, "orientacoes"),
-    requer_validacao_farmaceutica: formData.get("requer_validacao_farmaceutica") === "on",
+    requer_validacao_farmaceutica: itemCatalogo.categoria === "medicamento" || formData.get("requer_validacao_farmaceutica") === "on",
     status: "rascunho",
     created_by: user.id,
     updated_by: user.id,
@@ -129,16 +158,26 @@ export async function assinarPrescricaoMedica(formData: FormData) {
 
   const { data: prescricao } = await supabase
     .from("prescricoes")
-    .select("id,tipo,item,atendimento_id,profissional_id,atendimento:atendimentos(paciente_id)")
+    .select("id,tipo,item,item_assistencial_id,atendimento_id,profissional_id,atendimento:atendimentos(paciente_id)")
     .eq("id", prescricaoId)
     .eq("atendimento_id", atendimentoId)
     .eq("empresa_id", empresaId)
     .eq("unidade_id", unidadeId)
     .eq("profissional_id", profissional.id)
     .eq("status", "rascunho")
+    .not("item_assistencial_id", "is", null)
     .is("assinado_em", null)
     .maybeSingle();
   if (!prescricao) go(atendimentoId, "erro=prescricao");
+
+  const { data: itemAtivo } = await supabase
+    .from("itens_assistenciais")
+    .select("id")
+    .eq("id", prescricao.item_assistencial_id)
+    .eq("empresa_id", empresaId)
+    .eq("ativo", true)
+    .maybeSingle();
+  if (!itemAtivo) go(atendimentoId, "erro=catalogo");
 
   const { error } = await supabase.rpc("assinar_prescricao", { p_prescricao_id: prescricaoId });
   if (error) {
