@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { asRoute } from "@/lib/route-cast";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 function numberOrNull(value: FormDataEntryValue | null) {
@@ -115,5 +116,5 @@ export async function registrarTriagem(formData: FormData) {
   revalidatePath("/assistencial/urgencia");
   revalidatePath("/pronto-socorro");
   revalidatePath(`/painel-chamadas/${unidadeId}`);
-  redirect(prontoSocorro ? `/pronto-socorro?atendimento=${atendimentoId}&sucesso=triagem` : "/triagem?sucesso=encaminhado");
+  redirect(asRoute(prontoSocorro ? `/pronto-socorro?atendimento=${atendimentoId}&sucesso=triagem` : "/triagem?sucesso=encaminhado"));
 }
