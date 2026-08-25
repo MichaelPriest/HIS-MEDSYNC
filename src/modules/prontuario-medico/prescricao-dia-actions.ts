@@ -59,18 +59,57 @@ async function resolveProfissional(
 export async function adicionarItemPrescricaoDiaAction(formData: FormData) {
   const { supabase, user, empresaId, unidadeId } = await requirePermission("prescricao.criar");
   const atendimentoId = text(formData, "atendimento_id");
-  const itemAssistencialId = text(formData, "item_assistencial_id");
+  const aba = text(formData, "aba") ?? "medicamentos";
   if (!atendimentoId) redirect("/prontuario?erro=atendimento");
-  if (!itemAssistencialId || !unidadeId) go(atendimentoId, "erro=catalogo");
+  if (!unidadeId) go(atendimentoId, "erro=atendimento");
 
-  const [{ data: atendimento }, profissional, { data: item }] = await Promise.all([
+  const [{ data: atendimento }, profissional] = await Promise.all([
     supabase.from("atendimentos").select("id,paciente_id").eq("id", atendimentoId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).in("status", ["aberto", "em_espera", "em_atendimento"]).maybeSingle(),
     resolveProfissional(supabase, user.id, user.email ?? undefined, empresaId),
-    supabase.from("itens_assistenciais").select("id,categoria,codigo_interno,codigo_tuss,descricao,unidade_medida,apresentacao,concentracao,metadata").eq("id", itemAssistencialId).eq("empresa_id", empresaId).eq("ativo", true).in("categoria", ["medicamento", "material", "opme", "gas_medicinal", "procedimento", "outro"]).maybeSingle(),
   ]);
   if (!atendimento?.paciente_id) go(atendimentoId, "erro=atendimento");
   if (!profissional) go(atendimentoId, "erro=profissional");
-  if (!item) go(atendimentoId, "erro=catalogo");
+
+  if (aba === "dieta") {
+    const jejum = formData.get("jejum") === "on";
+    const dieta = text(formData, "dieta");
+    if (!jejum && !dieta) go(atendimentoId, "erro=campos&aba=dieta");
+    const item = jejum ? "Jejum" : `Dieta ${dieta}`;
+    const instrucoes = text(formData, "instrucoes");
+    const { error } = await supabase.from("prescricoes").insert({
+      empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId, profissional_id: profissional.id,
+      tipo: "dieta", item, instrucoes, status: "rascunho", requer_validacao_farmaceutica: false,
+      created_by: user.id, updated_by: user.id,
+    });
+    if (error) { console.error("[prescricao-dia] dieta", { code: error.code, message: error.message }); go(atendimentoId, "erro=salvar&aba=dieta"); }
+    revalidatePath(`/prontuario/${atendimentoId}/prescricao`);
+    go(atendimentoId, "sucesso=item_adicionado&aba=dieta");
+  }
+
+  if (aba === "cuidados") {
+    const cuidado = text(formData, "cuidado");
+    if (!cuidado) go(atendimentoId, "erro=campos&aba=cuidados");
+    const frequencia = text(formData, "frequencia");
+    const horariosInformados = listValue(formData, "horarios");
+    const horarios = horariosInformados.length ? horariosInformados : horariosPadrao(frequencia);
+    const { error } = await supabase.from("prescricoes").insert({
+      empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId, profissional_id: profissional.id,
+      tipo: "cuidado", item: cuidado, frequencia, horarios, aprazamento: horarios,
+      instrucoes: text(formData, "instrucoes"), status: "rascunho", requer_validacao_farmaceutica: false,
+      created_by: user.id, updated_by: user.id,
+    });
+    if (error) { console.error("[prescricao-dia] cuidado", { code: error.code, message: error.message }); go(atendimentoId, "erro=salvar&aba=cuidados"); }
+    revalidatePath(`/prontuario/${atendimentoId}/prescricao`);
+    go(atendimentoId, "sucesso=item_adicionado&aba=cuidados");
+  }
+
+  const itemAssistencialId = text(formData, "item_assistencial_id");
+  if (!itemAssistencialId) go(atendimentoId, `erro=catalogo&aba=${encodeURIComponent(aba)}`);
+  const { data: item } = await supabase.from("itens_assistenciais")
+    .select("id,categoria,codigo_interno,codigo_tuss,descricao,unidade_medida,apresentacao,concentracao,metadata")
+    .eq("id", itemAssistencialId).eq("empresa_id", empresaId).eq("ativo", true)
+    .in("categoria", ["medicamento", "material", "opme", "gas_medicinal", "procedimento", "outro"]).maybeSingle();
+  if (!item) go(atendimentoId, `erro=catalogo&aba=${encodeURIComponent(aba)}`);
 
   const { data: produtoEstoque } = await supabase.from("estoque_produtos").select("id").eq("empresa_id", empresaId).eq("item_assistencial_id", item.id).eq("ativo", true).limit(1).maybeSingle();
   const quantidade = numberValue(formData, "quantidade") ?? 1;
@@ -83,36 +122,37 @@ export async function adicionarItemPrescricaoDiaAction(formData: FormData) {
       categoria: item.categoria, descricao: item.descricao, quantidade, unidade_medida: item.unidade_medida,
       observacoes, status: "rascunho", created_by: user.id, updated_by: user.id,
     });
-    if (error) { console.error("[prescricao-dia] material", { code: error.code, message: error.message }); go(atendimentoId, "erro=salvar"); }
+    if (error) { console.error("[prescricao-dia] material", { code: error.code, message: error.message }); go(atendimentoId, "erro=salvar&aba=materiais"); }
     revalidatePath(`/prontuario/${atendimentoId}/prescricao`);
     go(atendimentoId, "sucesso=item_adicionado&aba=materiais");
   }
 
   if (item.categoria === "procedimento") {
     const destino = destinoExame(tipoExame(item.metadata));
-    if (destino) {
+    if (aba === "exames") {
+      if (!destino) go(atendimentoId, "erro=categoria&aba=exames");
       const { error } = await supabase.from("solicitacoes_exames").insert({
         empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId, profissional_id: profissional.id,
         modalidade: destino, exame: item.descricao, codigo_tuss: item.codigo_tuss, indicacao_clinica: observacoes,
         status: "rascunho", prioridade: text(formData, "prioridade") ?? "rotina", created_by: user.id, updated_by: user.id,
       });
-      if (error) { console.error("[prescricao-dia] exame", { code: error.code, message: error.message }); go(atendimentoId, "erro=salvar"); }
+      if (error) { console.error("[prescricao-dia] exame", { code: error.code, message: error.message }); go(atendimentoId, "erro=salvar&aba=exames"); }
       revalidatePath(`/prontuario/${atendimentoId}/prescricao`);
       go(atendimentoId, "sucesso=item_adicionado&aba=exames");
     }
-
+    if (destino) go(atendimentoId, "erro=categoria&aba=procedimentos");
     const { error } = await supabase.from("procedimentos_assistenciais").insert({
       empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId, paciente_id: atendimento.paciente_id,
       profissional_id: profissional.id, area: "solicitacao_medica", codigo_tuss: item.codigo_tuss, codigo_interno: item.codigo_interno,
       procedimento: item.descricao, quantidade, unidade_medida: item.unidade_medida ?? "UN", lateralidade: text(formData, "lateralidade"),
       resultado: observacoes, status: "rascunho", created_by: user.id, updated_by: user.id,
     });
-    if (error) { console.error("[prescricao-dia] procedimento", { code: error.code, message: error.message }); go(atendimentoId, "erro=salvar"); }
+    if (error) { console.error("[prescricao-dia] procedimento", { code: error.code, message: error.message }); go(atendimentoId, "erro=salvar&aba=procedimentos"); }
     revalidatePath(`/prontuario/${atendimentoId}/prescricao`);
     go(atendimentoId, "sucesso=item_adicionado&aba=procedimentos");
   }
 
-  if (item.categoria !== "medicamento") go(atendimentoId, "erro=categoria");
+  if (item.categoria !== "medicamento" || aba !== "medicamentos") go(atendimentoId, `erro=categoria&aba=${encodeURIComponent(aba)}`);
 
   const frequencia = text(formData, "frequencia");
   const horariosInformados = listValue(formData, "horarios");
@@ -129,7 +169,7 @@ export async function adicionarItemPrescricaoDiaAction(formData: FormData) {
     orientacoes: text(formData, "orientacoes"), requer_validacao_farmaceutica: true, status: "rascunho",
     created_by: user.id, updated_by: user.id,
   }).select("id").single();
-  if (error || !prescricao) { console.error("[prescricao-dia] medicamento", { code: error?.code, message: error?.message }); go(atendimentoId, "erro=salvar"); }
+  if (error || !prescricao) { console.error("[prescricao-dia] medicamento", { code: error?.code, message: error?.message }); go(atendimentoId, "erro=salvar&aba=medicamentos"); }
 
   const componentes = [1, 2].map((n) => ({
     item_assistencial_id: text(formData, `componente_${n}_id`), dose: text(formData, `componente_${n}_dose`),
@@ -140,13 +180,13 @@ export async function adicionarItemPrescricaoDiaAction(formData: FormData) {
   if (unicos.length) {
     const ids = unicos.map((c) => c.item_assistencial_id);
     const { data: validos } = await supabase.from("itens_assistenciais").select("id").eq("empresa_id", empresaId).eq("ativo", true).eq("categoria", "medicamento").in("id", ids);
-    if (new Set((validos ?? []).map((v) => v.id)).size !== ids.length) go(atendimentoId, "erro=catalogo");
+    if (new Set((validos ?? []).map((v) => v.id)).size !== ids.length) go(atendimentoId, "erro=catalogo&aba=medicamentos");
     const { error: componentError } = await supabase.from("prescricao_componentes").insert(unicos.map((c) => ({
       empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId, prescricao_id: prescricao.id,
       item_assistencial_id: c.item_assistencial_id, papel: "aditivo", dose: c.dose, quantidade: c.quantidade,
       unidade_dose: c.unidade_dose, ordem: c.ordem, observacoes: c.observacoes, created_by: user.id,
     })));
-    if (componentError) { console.error("[prescricao-dia] componentes", { code: componentError.code, message: componentError.message }); go(atendimentoId, "erro=salvar"); }
+    if (componentError) { console.error("[prescricao-dia] componentes", { code: componentError.code, message: componentError.message }); go(atendimentoId, "erro=salvar&aba=medicamentos"); }
   }
 
   revalidatePath(`/prontuario/${atendimentoId}/prescricao`);
