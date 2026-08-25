@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus } from "lucide-react";
+import { Fingerprint, KeyRound, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FormTabs } from "@/components/cadastros/form-tabs";
 import { MaskedInput } from "@/components/forms/masked-input";
@@ -51,6 +51,7 @@ export function AdmissionForm({
   const [coverage, setCoverage] = useState<"particular" | "convenio">(initialCoverage);
   const [convenioId, setConvenioId] = useState(initialConvenioId ?? "");
   const [atendimentoRn, setAtendimentoRn] = useState(false);
+  const [identificacaoMetodo, setIdentificacaoMetodo] = useState<"biometria_digital" | "token">("biometria_digital");
   const planosFiltrados = useMemo(() => planos.filter((item) => item.convenio_id === convenioId), [planos, convenioId]);
 
   const dadosPaciente = <div className="space-y-5">
@@ -93,6 +94,14 @@ export function AdmissionForm({
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Validade da carteirinha</span><input name="validade_carteirinha" type="date" className="ui-input" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Nº autorização</span><input name="numero_autorizacao" className="ui-input" /></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Senha autorização</span><input name="senha_autorizacao" className="ui-input" /></label>
+      </div>
+      <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
+        <div className="flex items-start gap-3"><Fingerprint className="mt-0.5 size-5 shrink-0 text-violet-700"/><div><h3 className="font-semibold text-violet-950">Identificação do beneficiário</h3><p className="mt-1 text-xs leading-5 text-violet-800">Use quando a operadora exigir biometria ou token. O sistema armazena apenas uma referência criptográfica da validação, nunca o token em texto puro nem a imagem da impressão digital.</p></div></div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <label className="space-y-2 text-sm font-medium text-slate-700"><span>Método</span><select name="identificacao_metodo" value={identificacaoMetodo} onChange={(event)=>setIdentificacaoMetodo(event.target.value as "biometria_digital"|"token")} className="ui-input"><option value="biometria_digital">Biometria digital</option><option value="token">Token da operadora</option></select></label>
+          <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2"><span>{identificacaoMetodo === "token" ? "Token apresentado pelo beneficiário" : "Referência retornada pelo leitor / SDK"}</span><span className="relative block"><KeyRound className="pointer-events-none absolute left-3 top-3 size-4 text-slate-400"/><input name="identificacao_referencia" type="password" autoComplete="off" className="ui-input pl-9" placeholder={identificacaoMetodo === "token" ? "Digite o token da operadora" : "Cole ou receba a referência do leitor biométrico"}/></span></label>
+          <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-3"><span>Leitor / dispositivo (opcional)</span><input name="identificacao_dispositivo" autoComplete="off" className="ui-input" placeholder="Ex.: leitor biométrico recepção 01"/></label>
+        </div>
       </div>
       <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${atendimentoRn ? "border-brand-300 bg-brand-50" : "border-slate-200 bg-slate-50/70"}`}>
         <input type="checkbox" name="atendimento_rn" value="true" checked={atendimentoRn} onChange={(event) => setAtendimentoRn(event.target.checked)} className="mt-0.5 size-4 accent-brand-700" />
