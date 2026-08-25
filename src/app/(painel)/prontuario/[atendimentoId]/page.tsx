@@ -3,6 +3,8 @@ import type { Route } from "next";
 import { Activity, BedDouble, ClipboardList, FileHeart, FlaskConical, HeartPulse, Pill, ScanLine, ShieldAlert, ShieldCheck, Stethoscope, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import { SectionPage } from "@/components/painel/section-page";
+import { AvaliacaoMedicaPanel } from "@/components/prontuario/avaliacao-medica-panel";
+import { EpisodioTimelinePendencias } from "@/components/prontuario/episodio-timeline-pendencias";
 import { createClient } from "@/lib/supabase/server";
 import { encaminharSetor } from "@/modules/fluxo-setorial/actions";
 
@@ -13,6 +15,7 @@ function fmt(value: string | null | undefined) { return value || "—"; }
 const successMessages: Record<string, string> = {
   internacao: "Internação vinculada ao episódio com sucesso.",
   encaminhamento: "Encaminhamento registrado no fluxo assistencial.",
+  "avaliacao-medica": "Avaliação médica solicitada e encaminhada para a fila da especialidade.",
 };
 
 export default async function AtendimentoMedicoPage({ params, searchParams }: { params: Promise<{ atendimentoId: string }>; searchParams: Promise<{ sucesso?: string; erro?: string }> }) {
@@ -52,7 +55,7 @@ export default async function AtendimentoMedicoPage({ params, searchParams }: { 
 
   return <SectionPage eyebrow="Assistencial / Atendimento médico" title={paciente?.nome_completo ?? "Paciente"} description={`Atendimento #${atendimento.numero_atendimento ?? "—"} · Registro #${paciente?.numero_registro ?? "—"} · ${paciente?.ra ?? "—"}`}>
     {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessages[sp.sucesso] ?? "Operação assistencial registrada com sucesso."}</div> : null}
-    {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">Não foi possível registrar a operação assistencial.</div> : null}
+    {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{sp.erro === "avaliacao-duplicada" ? "Já existe uma avaliação ativa dessa especialidade para este atendimento." : "Não foi possível registrar a operação assistencial."}</div> : null}
 
     <div className="mb-4 flex items-center justify-between gap-3">
       <Link href="/atendimentos" className="text-sm font-semibold text-brand-700 hover:text-brand-900">← Voltar aos atendimentos</Link>
@@ -72,6 +75,9 @@ export default async function AtendimentoMedicoPage({ params, searchParams }: { 
         <div className="flex flex-wrap gap-2"><Link className="ui-button-secondary" href={triagemHref}>Triagem</Link><Link className="ui-button-secondary" href={urgenciaHref}><HeartPulse className="size-4"/>Urgência</Link><Link className="ui-button-primary" href={evolucaoHref}>Nova evolução</Link><Link className="ui-button-secondary" href={prescricaoHref}>Prescrição</Link><Link className="ui-button-secondary" href={internacaoHref}><BedDouble className="size-4"/>Internar paciente</Link></div>
       </div>
     </section>
+
+    <EpisodioTimelinePendencias atendimentoId={atendimentoId}/>
+    <AvaliacaoMedicaPanel atendimentoId={atendimentoId}/>
 
     <section className="ui-card mt-6 p-5"><div className="flex items-center gap-3"><Stethoscope className="size-5 text-brand-700"/><div><h2 className="font-semibold text-slate-900">Encaminhar para outro setor</h2><p className="text-sm text-slate-500">O paciente entra na fila do setor escolhido sem perder o vínculo com este atendimento.</p></div></div><form action={encaminharSetor} className="mt-4 grid gap-3 lg:grid-cols-[220px_160px_1fr_auto]"><input type="hidden" name="atendimento_id" value={atendimentoId}/><select name="setor_codigo" required defaultValue="" className="ui-input"><option value="">Selecione o setor</option><option value="enfermagem">Enfermagem</option><option value="farmacia">Farmácia</option><option value="laboratorio">Laboratório</option><option value="imagem">Diagnóstico por Imagem</option><option value="internacao">Internação</option></select><select name="prioridade" defaultValue="normal" className="ui-input"><option value="normal">Normal</option><option value="preferencial">Preferencial</option><option value="emergencia">Emergência</option></select><input name="motivo" className="ui-input" placeholder="Motivo / orientação para o setor"/><button className="ui-button-primary">Encaminhar</button></form></section>
 
