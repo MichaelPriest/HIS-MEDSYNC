@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { AlertTriangle, Barcode, CheckCircle2, Clock3, Pill, UserRoundCheck } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
@@ -30,7 +31,7 @@ export default async function EnfermagemChecagemPage({searchParams}:{searchParam
  let profissional=profissionalRes.data;if(!profissional&&user.email)profissional=(await supabase.from("profissionais").select("id,nome_completo,especialidade").eq("empresa_id",empresaId).ilike("email",user.email).eq("ativo",true).limit(1).maybeSingle()).data;
  const aprazamentos=(aprazRes.data??[]) as unknown as Aprazamento[],dispensacoes=(dispRes.data??[]) as unknown as Dispensacao[],profissionais=(segundoProfRes.data??[]) as unknown as Profissional[];
  const pendentes=aprazamentos.filter(i=>i.status==="pendente"),atrasados=pendentes.filter(i=>new Date(i.programado_em).getTime()+Number(i.tolerancia_minutos??30)*60000<Date.now()),proximas=pendentes.filter(i=>!atrasados.includes(i));
- const retorno=sp.retorno&&sp.retorno.startsWith("/assistencial/enfermagem")?sp.retorno:"/assistencial/enfermagem";
+ const retorno=(sp.retorno&&sp.retorno.startsWith("/assistencial/enfermagem")?sp.retorno:"/assistencial/enfermagem") as Route;
  const pacienteContexto=sp.atendimento?one(one(pendentes[0]?.prescricao??null)?.atendimento??null):null;
  const paciente=one(pacienteContexto?.paciente??null);
  return <SectionPage eyebrow="Assistencial / Enfermagem" title={sp.atendimento?`Checagem · ${paciente?.nome_completo??"Paciente"}`:"Checagem de Prescrição"} description="Administração de medicamentos aprazados com rastreabilidade, pulseira, lote, recusa/omissão e dupla checagem.">
