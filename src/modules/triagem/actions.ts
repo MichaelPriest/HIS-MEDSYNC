@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { asRoute } from "@/lib/route-cast";
 import { getAssistencialContext } from "@/modules/assistencial/context";
+import { encaminharPosTriagem } from "@/modules/triagem/fluxo-pos-triagem";
 
 function numberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim().replace(",", ".");
@@ -12,29 +13,14 @@ function numberOrNull(value: FormDataEntryValue | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function destinoProntoSocorro(tipoAtendimento: string | null, classificacao: string | null) {
-  const tipo = String(tipoAtendimento ?? "").toLowerCase();
-  return ["vermelho", "laranja"].includes(String(classificacao ?? "").toLowerCase())
-    || tipo.includes("pronto") || tipo.includes("urg") || tipo.includes("emerg");
-}
-
 export async function chamarPacienteTriagem(formData: FormData) {
   const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
   const atendimentoId = String(formData.get("atendimento_id") ?? "").trim();
   const ponto = String(formData.get("ponto_atendimento") ?? "Sala de Triagem").trim() || "Sala de Triagem";
   if (!atendimentoId) redirect("/triagem?erro=atendimento");
-
-  const { data: atendimento } = await supabase
-    .from("atendimentos")
-    .select("id,paciente_id,triagem_concluida_em,status")
-    .eq("id", atendimentoId).eq("unidade_id", unidadeId).maybeSingle();
-
+  const { data: atendimento } = await supabase.from("atendimentos").select("id,paciente_id,triagem_concluida_em,status").eq("id", atendimentoId).eq("unidade_id", unidadeId).maybeSingle();
   if (!atendimento || atendimento.triagem_concluida_em || ["alta", "cancelado", "encerrado"].includes(String(atendimento.status))) redirect("/triagem?erro=atendimento");
-
-  const { data: filaExistente } = await supabase.from("filas_setoriais").select("id,status")
-    .eq("atendimento_id", atendimentoId).eq("unidade_id", unidadeId).eq("setor_codigo", "triagem").neq("status", "cancelado")
-    .order("created_at", { ascending: false }).limit(1).maybeSingle();
-
+  const { data: filaExistente } = await supabase.from("filas_setoriais").select("id,status").eq("atendimento_id", atendimentoId).eq("unidade_id", unidadeId).eq("setor_codigo", "triagem").neq("status", "cancelado").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const now = new Date().toISOString();
   if (filaExistente) {
     const { error } = await supabase.from("filas_setoriais").update({ status: "chamado", ponto_atendimento: ponto, chamado_em: now, concluido_em: null, updated_by: user.id, updated_at: now }).eq("id", filaExistente.id);
@@ -43,7 +29,6 @@ export async function chamarPacienteTriagem(formData: FormData) {
     const { error } = await supabase.from("filas_setoriais").insert({ empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId, paciente_id: atendimento.paciente_id, setor_codigo: "triagem", origem: "recepcao", motivo: "Triagem inicial", prioridade: "normal", status: "chamado", ponto_atendimento: ponto, chamado_em: now, created_by: user.id, updated_by: user.id });
     if (error) redirect(`/triagem?atendimento=${atendimentoId}&erro=chamada`);
   }
-
   await supabase.from("atendimentos").update({ setor_atual: "triagem", ultima_movimentacao_em: now, updated_by: user.id, updated_at: now }).eq("id", atendimentoId).eq("unidade_id", unidadeId);
   revalidatePath("/triagem");
   revalidatePath(`/painel-chamadas/${unidadeId}`);
@@ -55,18 +40,11 @@ export async function registrarTriagem(formData: FormData) {
   const atendimentoId = String(formData.get("atendimento_id") ?? "").trim();
   const especialidade = String(formData.get("especialidade_destino") ?? "").trim();
   if (!atendimentoId || !especialidade) redirect("/triagem?erro=atendimento-especialidade");
-
-  const { data: atendimento } = await supabase.from("atendimentos")
-    .select("id,paciente_id,cobertura,triagem_concluida_em,tipo_atendimento")
-    .eq("id", atendimentoId).eq("unidade_id", unidadeId).maybeSingle();
+  const { data: atendimento } = await supabase.from("atendimentos").select("id,paciente_id,cobertura,triagem_concluida_em,tipo_atendimento").eq("id", atendimentoId).eq("unidade_id", unidadeId).maybeSingle();
   if (!atendimento || atendimento.triagem_concluida_em) redirect("/triagem?erro=atendimento");
 
-  if (atendimento.cobertura === "convenio") {
-    const { data: autorizacao } = await supabase.from("autorizacoes_atendimento").select("status").eq("atendimento_id", atendimentoId).maybeSingle();
-    if (!autorizacao || !["autorizada", "dispensada"].includes(String(autorizacao.status))) redirect(`/autorizacoes?atendimento=${atendimentoId}&erro=autorizacao-pendente`);
-  }
-
   const classificacao = String(formData.get("classificacao_risco") ?? "").trim() || null;
+  const queixaPrincipal = String(formData.get("queixa_principal") ?? "").trim() || null;
   const payload = {
     empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId,
     peso_kg: numberOrNull(formData.get("peso_kg")), altura_cm: numberOrNull(formData.get("altura_cm")),
@@ -74,56 +52,45 @@ export async function registrarTriagem(formData: FormData) {
     frequencia_cardiaca: numberOrNull(formData.get("frequencia_cardiaca")), frequencia_respiratoria: numberOrNull(formData.get("frequencia_respiratoria")),
     saturacao_o2: numberOrNull(formData.get("saturacao_o2")), temperatura_c: numberOrNull(formData.get("temperatura_c")),
     glicemia_mg_dl: numberOrNull(formData.get("glicemia_mg_dl")), dor_escala: numberOrNull(formData.get("dor_escala")),
-    classificacao_risco: classificacao, queixa_principal: String(formData.get("queixa_principal") ?? "").trim() || null,
+    classificacao_risco: classificacao, queixa_principal: queixaPrincipal,
     observacoes: String(formData.get("observacoes") ?? "").trim() || null, created_by: user.id, updated_by: user.id,
   };
-
-  const { error } = await supabase.from("triagens").upsert(payload, { onConflict: "atendimento_id" });
-  if (error) redirect("/triagem?erro=salvar");
-
-  const now = new Date().toISOString();
-  const prontoSocorro = destinoProntoSocorro(atendimento.tipo_atendimento, classificacao);
-  const setorDestino = prontoSocorro ? "pronto_socorro" : "consultorio";
-  const { error: atendimentoError } = await supabase.from("atendimentos").update({ especialidade_destino: especialidade, triagem_concluida_em: now, status: "em_espera", setor_atual: setorDestino, ultima_movimentacao_em: now, updated_at: now, updated_by: user.id }).eq("id", atendimentoId).eq("unidade_id", unidadeId);
-  if (atendimentoError) redirect("/triagem?erro=encaminhar");
-
-  const { error: filaError } = await supabase.from("filas_setoriais").update({ status: "concluido", concluido_em: now, updated_by: user.id, updated_at: now })
-    .eq("atendimento_id", atendimentoId).eq("unidade_id", unidadeId).eq("setor_codigo", "triagem").in("status", ["aguardando", "chamado", "em_atendimento"]);
-  if (filaError) redirect("/triagem?erro=encaminhar");
-
-  const prioridade = classificacao === "vermelho" ? "emergencia" : classificacao === "laranja" || classificacao === "amarelo" ? "preferencial" : "normal";
-  const encaminhamentoPayload = {
-    empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId, paciente_id: atendimento.paciente_id,
-    origem: "triagem", tipo_solicitacao: "encaminhamento", especialidade, status: "aguardando_profissional", prioridade,
-    motivo: String(formData.get("queixa_principal") ?? "").trim() || null,
-    created_by: user.id, updated_by: user.id, updated_at: now,
-  };
-  const { data: encaminhamentoTriagem } = await supabase.from("encaminhamentos_assistenciais").select("id")
-    .eq("atendimento_id", atendimentoId).eq("origem", "triagem")
-    .in("status", ["aguardando_profissional", "chamado", "em_atendimento"]).limit(1).maybeSingle();
-  const encaminhamentoResult = encaminhamentoTriagem
-    ? await supabase.from("encaminhamentos_assistenciais").update(encaminhamentoPayload).eq("id", encaminhamentoTriagem.id)
-    : await supabase.from("encaminhamentos_assistenciais").insert(encaminhamentoPayload);
-  if (encaminhamentoResult.error) redirect("/triagem?erro=encaminhar");
-
-  if (prontoSocorro) {
-    const { data: filaPs } = await supabase.from("filas_setoriais").select("id")
-      .eq("atendimento_id", atendimentoId).eq("unidade_id", unidadeId).eq("setor_codigo", "pronto_socorro")
-      .in("status", ["aguardando", "chamado", "em_atendimento"]).limit(1).maybeSingle();
-    if (!filaPs) {
-      const { error: psError } = await supabase.from("filas_setoriais").insert({
-        empresa_id: empresaId, unidade_id: unidadeId, atendimento_id: atendimentoId, paciente_id: atendimento.paciente_id,
-        setor_codigo: "pronto_socorro", origem: "triagem", motivo: `Atendimento no Pronto-Socorro · risco ${classificacao ?? "não informado"}`,
-        prioridade, status: "aguardando", created_by: user.id, updated_by: user.id,
-      });
-      if (psError) console.error("[triagem] fila pronto-socorro", { code: psError.code });
-    }
+  const { error: triagemError } = await supabase.from("triagens").upsert(payload, { onConflict: "atendimento_id" });
+  if (triagemError) {
+    console.error("[triagem] falha ao salvar", { atendimentoId, code: triagemError.code, message: triagemError.message });
+    redirect("/triagem?erro=salvar");
   }
 
+  let autorizacaoLiberada = atendimento.cobertura !== "convenio";
+  if (!autorizacaoLiberada) {
+    const { data: autorizacao } = await supabase.from("autorizacoes_atendimento").select("status").eq("atendimento_id", atendimentoId).maybeSingle();
+    autorizacaoLiberada = Boolean(autorizacao && ["autorizada", "dispensada"].includes(String(autorizacao.status)));
+  }
+  const now = new Date().toISOString();
+  const { error: atendimentoError } = await supabase.from("atendimentos").update({ especialidade_destino: especialidade, triagem_concluida_em: now, status: "em_espera", setor_atual: autorizacaoLiberada ? "triagem_concluida" : "autorizacoes", ultima_movimentacao_em: now, updated_at: now, updated_by: user.id }).eq("id", atendimentoId).eq("unidade_id", unidadeId);
+  if (atendimentoError) {
+    console.error("[triagem] falha ao concluir atendimento", { atendimentoId, code: atendimentoError.code, message: atendimentoError.message });
+    redirect("/triagem?erro=encaminhar");
+  }
+  const { error: filaError } = await supabase.from("filas_setoriais").update({ status: "concluido", concluido_em: now, updated_by: user.id, updated_at: now }).eq("atendimento_id", atendimentoId).eq("unidade_id", unidadeId).eq("setor_codigo", "triagem").in("status", ["aguardando", "chamado", "em_atendimento"]);
+  if (filaError) console.error("[triagem] falha ao concluir fila", { atendimentoId, code: filaError.code });
+
   revalidatePath("/triagem");
+  revalidatePath(`/painel-chamadas/${unidadeId}`);
+  if (!autorizacaoLiberada) {
+    revalidatePath("/autorizacoes");
+    redirect(`/autorizacoes?atendimento=${atendimentoId}&sucesso=triagem-salva`);
+  }
+
+  let destino: Awaited<ReturnType<typeof encaminharPosTriagem>>;
+  try {
+    destino = await encaminharPosTriagem({ supabase, userId: user.id, empresaId, unidadeId, atendimentoId, pacienteId: atendimento.paciente_id, tipoAtendimento: atendimento.tipo_atendimento, especialidade, classificacao, queixaPrincipal });
+  } catch (error) {
+    console.error("[triagem] falha no encaminhamento pos-triagem", { atendimentoId, error });
+    redirect("/triagem?erro=encaminhar");
+  }
   revalidatePath("/fila-medica");
   revalidatePath("/assistencial/urgencia");
   revalidatePath("/pronto-socorro");
-  revalidatePath(`/painel-chamadas/${unidadeId}`);
-  redirect(asRoute(prontoSocorro ? `/pronto-socorro?atendimento=${atendimentoId}&sucesso=triagem` : "/triagem?sucesso=encaminhado"));
+  redirect(asRoute(destino.prontoSocorro ? `/pronto-socorro?atendimento=${atendimentoId}&sucesso=triagem` : "/triagem?sucesso=encaminhado"));
 }
