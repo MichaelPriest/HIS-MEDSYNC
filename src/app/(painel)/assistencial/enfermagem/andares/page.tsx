@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BedDouble, ClipboardCheck, Clock3, HeartPulse, Stethoscope } from "lucide-react";
+import { BedDouble, ClipboardCheck, HeartPulse, Stethoscope } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 import { registrarEvolucaoEnfermagemAction } from "@/modules/enfermagem/actions";
