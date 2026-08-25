@@ -21,7 +21,9 @@ export async function gerarAprazamentosAction(fd: FormData) {
   if (!prescricaoId) go("/assistencial/medicamentos?erro=prescricao");
   const { data, error } = await supabase.rpc("gerar_aprazamentos_prescricao", { p_prescricao_id:prescricaoId, p_horizonte_dias:horizonte });
   if (error) { console.error("[medicamentos] aprazar",error); go(`/assistencial/medicamentos?erro=${encodeURIComponent(error.message)}`); }
-  revalidatePath("/assistencial/medicamentos"); go(`/assistencial/medicamentos?sucesso=aprazamento&gerados=${Number(data ?? 0)}`);
+  revalidatePath("/assistencial/medicamentos");
+  revalidatePath("/assistencial/enfermagem");
+  go(`/assistencial/medicamentos?sucesso=aprazamento&gerados=${Number(data ?? 0)}`);
 }
 
 export async function validarPrescricaoFarmaceuticaAction(fd: FormData) {
@@ -46,7 +48,22 @@ export async function dispensarPrescricaoAction(fd: FormData) {
   if (!prescricaoId || !loteId || !quantidade || quantidade<=0) go("/assistencial/medicamentos?erro=dispensacao");
   const { error } = await supabase.rpc("dispensar_medicamento_prescricao", { p_prescricao_id:prescricaoId, p_estoque_lote_id:loteId, p_quantidade:quantidade });
   if (error) { console.error("[medicamentos] dispensar",error); go(`/assistencial/medicamentos?erro=${encodeURIComponent(error.message)}`); }
-  revalidatePath("/assistencial/medicamentos"); go("/assistencial/medicamentos?sucesso=dispensacao");
+  revalidatePath("/assistencial/medicamentos");
+  revalidatePath("/assistencial/enfermagem");
+  go("/assistencial/medicamentos?sucesso=dispensacao");
+}
+
+export async function dispensarComponentePrescricaoAction(fd: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const componenteId=String(fd.get("prescricao_componente_id") ?? "").trim();
+  const loteId=String(fd.get("estoque_lote_id") ?? "").trim();
+  const quantidade=numberValue(fd,"quantidade");
+  if (!componenteId || !loteId || !quantidade || quantidade<=0) go("/assistencial/medicamentos?erro=dispensacao_componente");
+  const { error } = await supabase.rpc("dispensar_componente_prescricao", { p_prescricao_componente_id:componenteId, p_estoque_lote_id:loteId, p_quantidade:quantidade });
+  if (error) { console.error("[medicamentos] dispensar componente",error); go(`/assistencial/medicamentos?erro=${encodeURIComponent(error.message)}`); }
+  revalidatePath("/assistencial/medicamentos");
+  revalidatePath("/assistencial/enfermagem");
+  go("/assistencial/medicamentos?sucesso=dispensacao_componente");
 }
 
 export async function devolverMedicamentoAction(fd: FormData) {
@@ -57,7 +74,9 @@ export async function devolverMedicamentoAction(fd: FormData) {
   if (!dispensacaoId || !quantidade || quantidade<=0 || !motivo) go("/assistencial/medicamentos?erro=devolucao");
   const { error } = await supabase.rpc("devolver_medicamento_dispensacao", { p_dispensacao_id:dispensacaoId, p_quantidade:quantidade, p_motivo:motivo });
   if (error) { console.error("[medicamentos] devolver",error); go(`/assistencial/medicamentos?erro=${encodeURIComponent(error.message)}`); }
-  revalidatePath("/assistencial/medicamentos"); go("/assistencial/medicamentos?sucesso=devolucao");
+  revalidatePath("/assistencial/medicamentos");
+  revalidatePath("/assistencial/enfermagem");
+  go("/assistencial/medicamentos?sucesso=devolucao");
 }
 
 export async function administrarBeiraLeitoAction(fd: FormData) {
@@ -78,5 +97,7 @@ export async function administrarBeiraLeitoAction(fd: FormData) {
     p_segundo_profissional_id:text(fd,"segundo_profissional_id"),
   });
   if (error) { console.error("[medicamentos] beira-leito",error); go(`/assistencial/medicamentos?erro=${encodeURIComponent(error.message)}`); }
-  revalidatePath("/assistencial/medicamentos"); go(`/assistencial/medicamentos?sucesso=${status}`);
+  revalidatePath("/assistencial/medicamentos");
+  revalidatePath("/assistencial/enfermagem");
+  go(`/assistencial/medicamentos?sucesso=${status}`);
 }
