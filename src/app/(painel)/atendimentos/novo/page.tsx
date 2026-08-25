@@ -16,6 +16,7 @@ const ERROS: Record<string, string> = {
   "senha-invalida": "Esta senha não está mais disponível para admissão. Ela pode ter sido processada por outro guichê.",
   "agendamento-invalido": "Este agendamento não está mais disponível para abertura de atendimento. Verifique o check-in ou se ele já foi admitido.",
   "agendamento-cirurgico": "Cirurgia eletiva deve seguir pelo fluxo de pré-admissão/centro cirúrgico.",
+  "identificacao-obrigatoria": "Este convênio exige biometria ou token para concluir a admissão. Informe a identificação do beneficiário na aba Particular / Convênio.",
   "falha-cadastro": "Não foi possível concluir a admissão. Nenhuma etapa parcial foi mantida; tente novamente.",
 };
 
