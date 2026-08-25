@@ -119,6 +119,7 @@ const gestaoNav: NavItem[] = [
   { href: "/diretoria", label: "Diretoria", icon: LayoutDashboard },
   { href: "/compras", label: "Compras", icon: ShoppingCart },
   { href: "/almoxarifado", label: "Estoque", icon: Boxes },
+  { href: "/ti", label: "Tecnologia / TI", icon: MonitorCog },
   { href: "/ged", label: "GED", icon: FileText },
 ];
 
