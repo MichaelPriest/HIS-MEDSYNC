@@ -71,6 +71,7 @@ export const navigationRequirements: Record<string, readonly string[]> = {
   "/engenharia-clinica": ["engenharia_clinica.visualizar", "engenharia_clinica.solicitar", "engenharia_clinica.gerenciar"],
   "/auditoria": ["auditoria.visualizar"],
   "/contas-medicas": ["contas_medicas.visualizar"],
+  "/faturamento/producao": ["producao.visualizar"],
   "/faturamento/lotes": ["tiss.visualizar", "faturamento.visualizar"],
   "/faturamento/glosas": ["glosas.visualizar", "faturamento.visualizar"],
   "/faturamento": ["faturamento.visualizar"],
