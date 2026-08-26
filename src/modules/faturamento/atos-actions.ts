@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/permissions/server";
 
 const text=(fd:FormData,k:string)=>String(fd.get(k)??"").trim();
+const checked=(fd:FormData,k:string)=>fd.get(k)==="on"||fd.get(k)==="true";
 
 async function contextoContaEditavel(contaId:string){
   const ctx=await requirePermission("faturamento.criar");
@@ -17,20 +18,35 @@ async function contextoContaEditavel(contaId:string){
   return ctx;
 }
 
+function payloadAto(formData:FormData){
+  const inicio=text(formData,"inicio_ato");
+  const fim=text(formData,"fim_ato");
+  return {
+    data_ato:text(formData,"data_ato")||new Date().toISOString().slice(0,10),
+    procedimento_principal_codigo:text(formData,"procedimento_principal_codigo")||null,
+    procedimento_principal_descricao:text(formData,"procedimento_principal_descricao")||null,
+    sala:text(formData,"sala")||null,
+    inicio_ato:inicio?new Date(inicio).toISOString():null,
+    fim_ato:fim?new Date(fim).toISOString():null,
+    porte_sala:text(formData,"porte_sala")||null,
+    porte_anestesico:text(formData,"porte_anestesico")||null,
+    potencial_contaminacao:text(formData,"potencial_contaminacao")||null,
+    sala_contaminada:checked(formData,"sala_contaminada"),
+    via_acesso:text(formData,"via_acesso")||null,
+    acomodacao:text(formData,"acomodacao")||null,
+    urgencia:checked(formData,"urgencia"),
+    horario_especial:checked(formData,"horario_especial"),
+    observacoes:text(formData,"observacoes")||null,
+  };
+}
+
 export async function criarGrupoAto(contaId:string, formData:FormData){
   const {supabase}=await contextoContaEditavel(contaId);
-  const codigoGrupo=text(formData,"codigo_grupo"); if(!codigoGrupo) redirect(`/faturamento/${contaId}?erro=grupo-ato#atos`);
-  const acomodacao=text(formData,"acomodacao");
-  const {error}=await supabase.from("conta_faturamento_grupos_ato").insert({
-    conta_id:contaId,
-    codigo_grupo:codigoGrupo,
-    data_ato:text(formData,"data_ato")||new Date().toISOString().slice(0,10),
-    via_acesso:text(formData,"via_acesso")||null,
-    acomodacao:acomodacao||null,
-    urgencia:formData.get("urgencia")==="on",
-    horario_especial:formData.get("horario_especial")==="on",
-    observacoes:text(formData,"observacoes")||null,
-  });
+  const codigoGrupo=text(formData,"codigo_grupo");
+  if(!codigoGrupo) redirect(`/faturamento/${contaId}?erro=grupo-ato#atos`);
+  const payload=payloadAto(formData);
+  if(payload.inicio_ato&&payload.fim_ato&&payload.fim_ato<payload.inicio_ato) redirect(`/faturamento/${contaId}?erro=horario-ato#atos`);
+  const {error}=await supabase.from("conta_faturamento_grupos_ato").insert({conta_id:contaId,codigo_grupo:codigoGrupo,...payload});
   if(error) redirect(`/faturamento/${contaId}?erro=grupo-ato#atos`);
   revalidatePath(`/faturamento/${contaId}`);
   redirect(`/faturamento/${contaId}?sucesso=ato-criado#atos`);
@@ -38,15 +54,11 @@ export async function criarGrupoAto(contaId:string, formData:FormData){
 
 export async function atualizarGrupoAto(contaId:string, formData:FormData){
   const {supabase}=await contextoContaEditavel(contaId);
-  const grupoId=text(formData,"grupo_ato_id"); if(!grupoId)return;
-  const {error}=await supabase.from("conta_faturamento_grupos_ato").update({
-    data_ato:text(formData,"data_ato")||null,
-    via_acesso:text(formData,"via_acesso")||null,
-    acomodacao:text(formData,"acomodacao")||null,
-    urgencia:formData.get("urgencia")==="on",
-    horario_especial:formData.get("horario_especial")==="on",
-    observacoes:text(formData,"observacoes")||null,
-  }).eq("id",grupoId).eq("conta_id",contaId);
+  const grupoId=text(formData,"grupo_ato_id");
+  if(!grupoId)return;
+  const payload=payloadAto(formData);
+  if(payload.inicio_ato&&payload.fim_ato&&payload.fim_ato<payload.inicio_ato) redirect(`/faturamento/${contaId}?erro=horario-ato#atos`);
+  const {error}=await supabase.from("conta_faturamento_grupos_ato").update(payload).eq("id",grupoId).eq("conta_id",contaId);
   if(error) redirect(`/faturamento/${contaId}?erro=grupo-ato#atos`);
   revalidatePath(`/faturamento/${contaId}`);
   redirect(`/faturamento/${contaId}?sucesso=ato-atualizado#atos`);
@@ -59,7 +71,7 @@ export async function atualizarItemAto(contaId:string, formData:FormData){
     grupo_ato_id:text(formData,"grupo_ato_id")||null,
     sequencia_ato:Number(text(formData,"sequencia_ato")||1),
     via_acesso:text(formData,"via_acesso")||null,
-    anestesia:formData.get("anestesia")==="on",
+    anestesia:checked(formData,"anestesia"),
     numero_auxiliares:Number(text(formData,"numero_auxiliares")||0),
     filme_m2:Number(text(formData,"filme_m2").replace(",",".")||0),
   };
