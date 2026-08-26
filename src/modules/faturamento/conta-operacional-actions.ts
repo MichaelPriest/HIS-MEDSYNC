@@ -49,7 +49,7 @@ function categoriaContrato(categoria: string) {
 function erroLancamento(message = "") {
   if (message.includes("FAT_CONTA_COM_GUIA_TISS_ATIVA")) return "guia-tiss-ativa";
   if (message.includes("FAT_CONTA_NAO_EDITAVEL")) return "conta-nao-editavel";
-  if (message.includes("FAT_ITEM_SEM_PERMISSAO")) return "acesso-negado";
+  if (message.includes("FAT_ITEM_SEM_PERMISSAO") || message.includes("FAT_CONTA_SEM_PERMISSAO")) return "acesso-negado";
   if (message.includes("FAT_ITEM_QUANTIDADE_INVALIDA")) return "quantidade-invalida";
   if (message.includes("FAT_ITEM_VALOR_INVALIDO")) return "valor-invalido";
   if (message.includes("FAT_ITEM_PERCENTUAL_INVALIDO")) return "percentual-invalido";
@@ -79,20 +79,26 @@ export async function salvarLancamentoConta(contaId: string, formData: FormData)
   let codigo = text(formData, "codigo") || null;
   let descricao = text(formData, "descricao");
   let valorUnitario = decimal(formData, "valor_unitario", 0);
+  let categoriaItem: string | null = null;
+  let familiaTuss: number | null = null;
+  let preco: PrecoComercial | null = null;
 
   if (!itemId && itemAssistencialId) {
     const { data: master } = await supabase
       .from("itens_assistenciais")
-      .select("id,categoria,tabela_tiss_codigo,codigo_tuss,codigo_tabela_propria,descricao")
+      .select("id,categoria,tabela_tiss_codigo,familia_tuss,codigo_tuss,codigo_tabela_propria,descricao")
       .eq("id", itemAssistencialId)
       .eq("empresa_id", empresaId)
       .eq("ativo", true)
       .maybeSingle();
     if (!master) redirect(`/faturamento/${contaId}?erro=item-catalogo`);
+
     origemTipo = origemPorCategoria(master.categoria);
     tabela = master.tabela_tiss_codigo;
     codigo = ["00", "98"].includes(master.tabela_tiss_codigo) ? master.codigo_tabela_propria : master.codigo_tuss;
     descricao = master.descricao;
+    categoriaItem = master.categoria;
+    familiaTuss = master.familia_tuss;
     if (!codigo) redirect(`/faturamento/${contaId}?erro=codigo-tiss`);
 
     if (valorUnitario === 0 && conta.convenio_id) {
@@ -105,12 +111,16 @@ export async function salvarLancamentoConta(contaId: string, formData: FormData)
         p_categoria: categoriaContrato(master.categoria),
       });
       const lista = Array.isArray(precos) ? (precos as unknown as PrecoComercial[]) : [];
-      if (!precoError && lista[0]?.valor !== undefined) valorUnitario = Number(lista[0].valor);
+      if (!precoError) preco = lista[0] ?? null;
+      if (preco?.valor !== undefined) valorUnitario = Number(preco.valor);
     }
   }
 
   const payload = {
     origem_tipo: origemTipo,
+    item_assistencial_id: itemAssistencialId ?? "",
+    categoria_item: categoriaItem ?? "",
+    familia_tuss: familiaTuss ?? "",
     data_execucao: text(formData, "data_execucao") || new Date().toISOString(),
     tabela,
     codigo,
@@ -119,7 +129,7 @@ export async function salvarLancamentoConta(contaId: string, formData: FormData)
     valor_unitario: valorUnitario,
     percentual_reducao_acrescimo: decimal(formData, "percentual_reducao_acrescimo", 0),
     setor: text(formData, "setor"),
-    cobravel: formData.has("cobravel") ? checked(formData, "cobravel") : true,
+    cobravel: formData.has("cobravel_presente") ? checked(formData, "cobravel") : true,
     observacao: text(formData, "observacao"),
     grupo_ato_id: text(formData, "grupo_ato_id"),
     sequencia_ato: text(formData, "sequencia_ato"),
@@ -130,6 +140,13 @@ export async function salvarLancamentoConta(contaId: string, formData: FormData)
     anestesia: checked(formData, "anestesia"),
     numero_auxiliares: decimal(formData, "numero_auxiliares", 0),
     filme_m2: decimal(formData, "filme_m2", 0),
+    valor_referencia: preco?.valor ?? "",
+    valor_contratual_calculado: preco?.valor ?? "",
+    origem_valor: preco ? "tabela_comercial_contrato" : itemAssistencialId ? "catalogo_mestre_manual" : "lancamento_manual",
+    metodologia_preco: preco?.metodologia ?? "",
+    tabela_comercial_edicao_id: preco?.edicao_id ?? "",
+    tabela_comercial_item_id: preco?.item_id ?? "",
+    memoria_calculo_comercial: preco?.memoria ?? {},
   };
 
   const { data: savedId, error } = await supabase.rpc("salvar_item_conta_faturamento", {
@@ -175,7 +192,7 @@ export async function atualizarResumoConta(contaId: string, formData: FormData) 
   redirect(`/faturamento/${contaId}?sucesso=resumo-atualizado#conta`);
 }
 
-export async function sincronizarProducaoConta(contaId: string) {
+export async function sincronizarProducaoConta(contaId: string, _formData: FormData) {
   const { supabase, empresaId, unidadeId } = await requirePermission("producao.reprocessar");
   const { data: conta } = await supabase.from("contas_faturamento").select("atendimento_id").eq("id", contaId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle();
   if (!conta) redirect("/faturamento?erro=conta");
@@ -186,7 +203,7 @@ export async function sincronizarProducaoConta(contaId: string) {
   redirect(`/faturamento/${contaId}?sucesso=producao-sincronizada#producao`);
 }
 
-export async function recalcularPrecosConta(contaId: string) {
+export async function recalcularPrecosConta(contaId: string, _formData: FormData) {
   const { supabase } = await requirePermission("faturamento.criar");
   const { error } = await supabase.rpc("recalcular_conta_contratual_avancada", { p_conta_id: contaId });
   if (error) redirect(`/faturamento/${contaId}?erro=recalculo-contratual`);
@@ -194,7 +211,7 @@ export async function recalcularPrecosConta(contaId: string) {
   redirect(`/faturamento/${contaId}?sucesso=precos-recalculados#lancamentos`);
 }
 
-export async function validarContaTissOperacional(contaId: string) {
+export async function validarContaTissOperacional(contaId: string, _formData: FormData) {
   const { supabase } = await requirePermission("faturamento.criar");
   const { error } = await supabase.rpc("validar_conta_tiss", { p_conta_id: contaId });
   if (error) redirect(`/faturamento/${contaId}?erro=validacao-tiss`);
