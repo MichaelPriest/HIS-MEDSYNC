@@ -133,6 +133,7 @@ const receitaNav: NavItem[] = [
   { href: "/autorizacoes", label: "Autorizações", icon: ShieldCheck },
   { href: "/auditoria", label: "Auditoria", icon: ShieldCheck },
   { href: "/contas-medicas", label: "Contas médicas", icon: ClipboardCheck },
+  { href: "/faturamento/producao", label: "Livro de produção", icon: ClipboardList },
   { href: "/faturamento", label: "Pré-faturamento", icon: ReceiptText },
   { href: "/faturamento/lotes", label: "Lotes TISS", icon: ReceiptText },
   { href: "/faturamento/glosas", label: "Glosas e recursos", icon: ReceiptText },
