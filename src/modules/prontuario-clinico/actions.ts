@@ -24,11 +24,12 @@ async function contextoClinico(formData: FormData) {
   if (!id) redirect("/prontuario?erro=atendimento");
 
   const [{ data: atendimento }, { data: profissional }] = await Promise.all([
-    ctx.supabase.from("atendimentos").select("id,paciente_id").eq("id", id).eq("unidade_id", ctx.unidadeId).maybeSingle(),
+    ctx.supabase.from("atendimentos").select("id,paciente_id,status").eq("id", id).eq("unidade_id", ctx.unidadeId).maybeSingle(),
     ctx.supabase.from("profissionais").select("id,nome_completo").eq("usuario_id", ctx.user.id).eq("ativo", true).limit(1).maybeSingle(),
   ]);
 
   if (!atendimento) redirect("/prontuario?erro=atendimento");
+  if (atendimento.status === "alta" || atendimento.status === "cancelado") redirect(`/prontuario/${id}/clinico?erro=atendimento-encerrado`);
   if (!profissional) redirect(`/prontuario/${id}/clinico?erro=profissional`);
 
   return { ...ctx, atendimentoId: id, pacienteId: atendimento.paciente_id, profissional };
