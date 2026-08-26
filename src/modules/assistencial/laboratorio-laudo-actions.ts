@@ -55,6 +55,34 @@ export async function salvarLaudoLaboratorio(formData: FormData) {
   editor(String(laudoId), "sucesso=rascunho");
 }
 
+export async function validarResultadoNoLaudo(formData: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const laudoId = txt(formData, "laudo_id");
+  const resultadoId = txt(formData, "resultado_id");
+  if (!laudoId || !resultadoId) redirect(`${base}/laudos?erro=resultado` as never);
+
+  const { error } = await supabase.rpc("liberar_resultado_laboratorio", { p_resultado_id: resultadoId });
+  if (error) editor(laudoId, `erro=${encodeURIComponent(error.message)}`);
+  editor(laudoId, "sucesso=resultado-validado");
+}
+
+export async function notificarCriticoNoLaudo(formData: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const laudoId = txt(formData, "laudo_id");
+  const resultadoId = txt(formData, "resultado_id");
+  if (!laudoId || !resultadoId) redirect(`${base}/laudos?erro=resultado` as never);
+
+  const { error } = await supabase.rpc("registrar_notificacao_resultado_critico", {
+    p_resultado_id: resultadoId,
+    p_notificado_a: txt(formData, "notificado_a"),
+    p_meio: txt(formData, "meio") || null,
+    p_readback: formData.get("readback") === "on",
+    p_observacoes: txt(formData, "observacoes") || null,
+  });
+  if (error) editor(laudoId, `erro=${encodeURIComponent(error.message)}`);
+  editor(laudoId, "sucesso=critico-notificado");
+}
+
 export async function liberarLaudoLaboratorio(formData: FormData) {
   const { supabase } = await getAssistencialContext();
   const laudoId = txt(formData, "laudo_id");
