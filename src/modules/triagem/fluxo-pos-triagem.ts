@@ -67,27 +67,41 @@ export async function encaminharPosTriagem({
     : await supabase.from("encaminhamentos_assistenciais").insert({ ...encaminhamentoPayload, created_by: userId });
   if (encaminhamentoResult.error) throw encaminhamentoResult.error;
 
-  if (prontoSocorro) {
-    const { data: filaPs } = await supabase.from("filas_setoriais").select("id")
-      .eq("atendimento_id", atendimentoId).eq("unidade_id", unidadeId).eq("setor_codigo", "pronto_socorro")
-      .in("status", ["aguardando", "chamado", "em_atendimento"]).limit(1).maybeSingle();
-    if (!filaPs) {
-      const { error: psError } = await supabase.from("filas_setoriais").insert({
-        empresa_id: empresaId,
-        unidade_id: unidadeId,
-        atendimento_id: atendimentoId,
-        paciente_id: pacienteId,
-        setor_codigo: "pronto_socorro",
-        origem: "triagem",
-        motivo: `Atendimento no Pronto-Socorro · risco ${classificacao ?? "não informado"}`,
-        prioridade,
-        status: "aguardando",
-        created_by: userId,
-        updated_by: userId,
-      });
-      if (psError) throw psError;
-    }
-  }
+  // Mantém uma única fila setorial ativa para o destino clínico. Além de organizar o
+  // fluxo interno, esta fila é a fonte usada pelo painel público quando o médico chama.
+  const { data: filaSetorialExistente, error: filaConsultaError } = await supabase.from("filas_setoriais").select("id")
+    .eq("atendimento_id", atendimentoId)
+    .eq("unidade_id", unidadeId)
+    .eq("setor_codigo", setorDestino)
+    .in("status", ["aguardando", "chamado", "em_atendimento"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (filaConsultaError) throw filaConsultaError;
+
+  const filaPayload = {
+    prioridade,
+    motivo: prontoSocorro
+      ? `Atendimento no Pronto-Socorro · risco ${classificacao ?? "não informado"}`
+      : `Consulta médica · ${especialidade}`,
+    updated_by: userId,
+    updated_at: now,
+  };
+
+  const filaResult = filaSetorialExistente
+    ? await supabase.from("filas_setoriais").update(filaPayload).eq("id", filaSetorialExistente.id)
+    : await supabase.from("filas_setoriais").insert({
+      empresa_id: empresaId,
+      unidade_id: unidadeId,
+      atendimento_id: atendimentoId,
+      paciente_id: pacienteId,
+      setor_codigo: setorDestino,
+      origem: "triagem",
+      status: "aguardando",
+      created_by: userId,
+      ...filaPayload,
+    });
+  if (filaResult.error) throw filaResult.error;
 
   return { prontoSocorro, setorDestino };
 }
