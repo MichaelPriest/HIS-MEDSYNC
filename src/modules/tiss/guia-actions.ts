@@ -13,6 +13,7 @@ type ValidarGuiaResult = {
 };
 
 export async function validarGuiaTiss(guiaId: string, _formData: FormData) {
+  void _formData;
   const { supabase } = await getAssistencialContext();
   const { data, error } = await supabase.rpc("validar_guia_tiss", { p_guia_id: guiaId });
 
