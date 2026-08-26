@@ -192,7 +192,7 @@ export async function atualizarResumoConta(contaId: string, formData: FormData) 
   redirect(`/faturamento/${contaId}?sucesso=resumo-atualizado#conta`);
 }
 
-export async function sincronizarProducaoConta(contaId: string, _formData: FormData) {
+export async function sincronizarProducaoConta(contaId: string) {
   const { supabase, empresaId, unidadeId } = await requirePermission("producao.reprocessar");
   const { data: conta } = await supabase.from("contas_faturamento").select("atendimento_id").eq("id", contaId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle();
   if (!conta) redirect("/faturamento?erro=conta");
@@ -203,7 +203,7 @@ export async function sincronizarProducaoConta(contaId: string, _formData: FormD
   redirect(`/faturamento/${contaId}?sucesso=producao-sincronizada#producao`);
 }
 
-export async function recalcularPrecosConta(contaId: string, _formData: FormData) {
+export async function recalcularPrecosConta(contaId: string) {
   const { supabase } = await requirePermission("faturamento.criar");
   const { error } = await supabase.rpc("recalcular_conta_contratual_avancada", { p_conta_id: contaId });
   if (error) redirect(`/faturamento/${contaId}?erro=recalculo-contratual`);
@@ -211,7 +211,7 @@ export async function recalcularPrecosConta(contaId: string, _formData: FormData
   redirect(`/faturamento/${contaId}?sucesso=precos-recalculados#lancamentos`);
 }
 
-export async function validarContaTissOperacional(contaId: string, _formData: FormData) {
+export async function validarContaTissOperacional(contaId: string) {
   const { supabase } = await requirePermission("faturamento.criar");
   const { error } = await supabase.rpc("validar_conta_tiss", { p_conta_id: contaId });
   if (error) redirect(`/faturamento/${contaId}?erro=validacao-tiss`);
