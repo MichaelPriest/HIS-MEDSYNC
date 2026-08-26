@@ -47,7 +47,7 @@ export default async function ImagemLaudoPage({
   const solicitacao = solReq.data;
   const execucao = execReq.data;
   const atendimento = atReq.data;
-  const paciente = one(atendimento?.paciente as any) as any;
+  const paciente = one(atendimento?.paciente);
   const historico = histReq.data ?? [];
   const profissional = profReq.data;
   const liberado = laudo.status === "liberado";
