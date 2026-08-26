@@ -1,6 +1,6 @@
 # Estado real da implementação
 
-Atualizado em 2026-08-24.
+Atualizado em 2026-08-26.
 
 Este documento separa **estrutura criada**, **funcionalidade inicial** e **módulo ainda não homologado**. O MedSync HIS continua em desenvolvimento e não deve ser considerado pronto para produção hospitalar apenas porque determinado menu/tabela existe.
 
@@ -30,7 +30,7 @@ Este documento separa **estrutura criada**, **funcionalidade inicial** e **módu
 | GED | Base funcional | upload/visualização/versionamento/assinaturas completos |
 | Conta hospitalar | Base funcional; PR #22 permite lançar itens pelo catálogo mestre, preservar snapshot de tabela/código e resolver preço por edição comercial vinculada ao contrato | pacotes com composição formal, consumo automático dos setores, fechamento operacional e regras adicionais de cobrança fracionada |
 | Motor contratual | Base avançada; recálculos sensíveis protegidos por wrappers autorizados e PR #22 acrescenta resolução comercial para MATMED/OPME/gases/pacotes por fonte/edição/percentual do contrato | ampliar regras reais por contrato, impostos/listas/ajustes específicos e homologar cálculos |
-| TISS | Estrutura funcional, não homologada; `Atendimento a RN` é persistido no episódio e copiado para a guia como indicador próprio no PR #9. No PR #22, o catálogo diferencia código de tabela TISS da família TUSS: `00` para tabela própria quando não há TUSS, `98` para pacotes e `18/19/20/22` quando há terminologia TUSS aplicável | XSD oficial ANS, XML definitivo por versão/tipo, adapters de operadoras, mapeamento real de códigos próprios e homologação |
+| TISS | Estrutura funcional, não homologada; além do snapshot do episódio, a guia possui central de críticas e revalidação server-side. O validador cruza ANS, plano, carteirinha/validade, beneficiário, CNES, profissional/conselho/CBO, autorização, domínios TUSS aplicáveis, itens e totais; erros mantêm a guia em `rascunho`, guia `pronta` é exigida para lote e mutações posteriores de itens invalidam a validação anterior. O catálogo continua diferenciando código de tabela TISS da família TUSS: `00` para tabela própria, `98` para pacotes e `18/19/20/22` quando há TUSS aplicável | XSD oficial ANS, XML definitivo por versão/tipo, adapters de operadoras, regras adicionais específicas por tipo de guia/operadora, mapeamento real de códigos próprios e homologação |
 | Glosas / Recursos | Base funcional | importação automática de demonstrativos e XML definitivo |
 | Financeiro | Parcial; integrado visualmente ao ciclo da receita no PR #5 | baixas, retenções, conciliação, contas a pagar e caixa |
 | NFS-e | Estrutura | adapters reais das prefeituras/provedores utilizados |
@@ -46,6 +46,8 @@ O shell continua usando o RBAC apenas para apresentação e descoberta das área
 
 Em 2026-08-24, as migrations pendentes do P0/P1 foram aplicadas em ordem no projeto Supabase principal e validadas após aplicação. Foram verificados RLS/privilegios da nova estrutura, colunas do indicador RN, vínculos de leitos/salas/setores e EXECUTE dos wrappers sensíveis. O PR #13 converteu os helpers booleanos usados pelas policies para execução fechada sem recursão de RLS, mantendo `auth.uid()` e o mesmo escopo por empresa/unidade; o benchmark de `tem_permissao()` caiu de aproximadamente 135 ms para 7 ms. O PR #17 publicou `leitos`, `internacoes`, `leito_reservas`, `leito_bloqueios` e `leito_higienizacoes` no Supabase Realtime mantendo RLS como fronteira dos eventos. O PR #20 endurece `movimentar_internacao_leito`: a função mantém lock transacional, valida empresa/unidade, permissão funcional, ocupação/reserva e compatibilidade assistencial antes de ocupar o destino; `anon` continua sem EXECUTE. As migrations do PR #22 também foram aplicadas em ordem no projeto principal: cadastro mestre MATMED/TISS, códigos próprios `00/98` e resolução de preço comercial; foram validados RLS/privilegios, constraints de tabela/categoria e EXECUTE autenticado da RPC, mantendo `anon` sem acesso. Os endpoints públicos de Totem/Painel permanecem públicos apenas onde o fluxo de terminal exige e seguem como pendência específica de hardening/limitação de abuso.
 
+Em 2026-08-26, o histórico TISS foi reconciliado entre Supabase e GitHub com as migrations `20260826160129`, `20260826160819`, `20260826161059` e `20260826174604`. A última reforça o validador anti-glosa, protege itens de guias não editáveis e mantém a RPC pública de revalidação limitada ao papel `authenticated`, enquanto a função interna permanece sem EXECUTE direto para clientes. O `Security Advisor` continua sinalizando débitos anteriores em outras áreas do projeto; eles devem ser tratados separadamente para não alterar endpoints públicos/intencionais sem análise de fluxo.
+
 O CI executa `lint`, `typecheck`, testes unitários, `build`, instalação do Chromium e smoke E2E público com Playwright. O endurecimento dos RPCs `SECURITY DEFINER` continua sendo incremental e deve preservar apenas endpoints públicos intencionais e exigir permissão funcional explícita nos fluxos autenticados sensíveis. O Security Advisor ainda sinaliza endpoints `SECURITY DEFINER` expostos intencionalmente a `authenticated` e alguns endpoints públicos do Totem/Painel; esses avisos devem ser revisados por endpoint, não resolvidos removendo indiscriminadamente os fluxos necessários.
 
 ## Travas de negócio já planejadas/implementadas
@@ -55,6 +57,8 @@ O faturamento de convênio deve respeitar a cadeia:
 `Alta → Auditoria → Contas Médicas → Validação da conta → Guia TISS → Lote → XML validado → envio/manual → retorno → financeiro`.
 
 A conta não deve pular Auditoria ou Contas Médicas. XML preliminar não deve ser tratado como TISS homologado enquanto não houver validação pelos schemas oficiais aplicáveis.
+
+Antes de uma guia entrar em lote, o validador TISS deve estar sem críticas impeditivas. Alertas permanecem visíveis para conferência operacional, mas erros mantêm a guia em `rascunho`. Uma alteração faturável posterior exige nova validação; itens de guia já processada/em lote não podem ser alterados diretamente.
 
 A jornada de demanda espontânea/urgência parte do mesmo episódio:
 
