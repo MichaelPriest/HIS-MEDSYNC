@@ -93,16 +93,11 @@ export async function atualizarPermissoesPerfil(formData: FormData) {
     .select("id,nome,sistema")
     .eq("id", perfilId)
     .eq("empresa_id", empresaId)
+    .eq("ativo", true)
     .maybeSingle();
 
   if (!perfil) redirect("/configuracoes/acessos?erro=perfil");
-  if (perfil.sistema && ["administrador", "admin"].includes(perfil.nome.toLowerCase())) {
-    redirect("/configuracoes/acessos?erro=admin-sincronizado");
-  }
 
-  // O catálogo persistido em public.permissoes é a fonte de verdade. O catálogo
-  // TypeScript cobre apenas códigos referenciados diretamente pelo código da app;
-  // permissões válidas já existentes no banco não podem ser descartadas ao salvar.
   const selectedCodes = [...new Set(
     formData
       .getAll("permissoes")
@@ -110,64 +105,41 @@ export async function atualizarPermissoesPerfil(formData: FormData) {
       .filter((code): code is string => Boolean(code)),
   )];
 
-  const { data: permissionRows, error: permissionError } = selectedCodes.length
-    ? await supabase
-        .from("permissoes")
-        .select("id,codigo")
-        .in("codigo", selectedCodes)
-        .eq("ativo", true)
-    : { data: [], error: null };
+  const { data: resultado, error } = await supabase.rpc("salvar_permissoes_perfil", {
+    p_perfil_id: perfilId,
+    p_codigos: selectedCodes,
+  });
 
-  if (permissionError) redirect(`/configuracoes/acessos?erro=permissoes#perfil-${perfilId}`);
-  if ((permissionRows ?? []).length !== selectedCodes.length) {
-    redirect(`/configuracoes/acessos?erro=permissao-invalida#perfil-${perfilId}`);
+  if (error) {
+    console.error("[rbac] salvar matriz", { code: error.code, message: error.message });
+    const code = error.message.includes("ACESSOS_PERMISSAO_INVALIDA")
+      ? "permissao-invalida"
+      : error.message.includes("ACESSOS_SEM_PERMISSAO")
+        ? "acesso-negado"
+        : "salvar-permissoes";
+    redirect(`/configuracoes/acessos?erro=${code}#perfil-${perfilId}`);
   }
 
-  const { data: atuais, error: atuaisError } = await supabase
-    .from("perfil_permissoes")
-    .select("permissao_id")
-    .eq("perfil_id", perfilId);
-
-  if (atuaisError) redirect(`/configuracoes/acessos?erro=permissoes-atuais#perfil-${perfilId}`);
-
-  const desiredIds = new Set((permissionRows ?? []).map((item) => item.id));
-  const currentIds = new Set((atuais ?? []).map((item) => item.permissao_id));
-  const removeIds = [...currentIds].filter((id) => !desiredIds.has(id));
-  const addIds = [...desiredIds].filter((id) => !currentIds.has(id));
-
-  if (removeIds.length) {
-    const { error } = await supabase
-      .from("perfil_permissoes")
-      .delete()
-      .eq("perfil_id", perfilId)
-      .in("permissao_id", removeIds);
-    if (error) redirect(`/configuracoes/acessos?erro=remover-permissao#perfil-${perfilId}`);
-  }
-
-  if (addIds.length) {
-    const { error } = await supabase.from("perfil_permissoes").insert(
-      addIds.map((permissaoId) => ({
-        perfil_id: perfilId,
-        permissao_id: permissaoId,
-        created_by: user.id,
-      })),
-    );
-    if (error) redirect(`/configuracoes/acessos?erro=adicionar-permissao#perfil-${perfilId}`);
-  }
+  const administrator = perfil.sistema && ["administrador", "admin"].includes(perfil.nome.toLowerCase());
+  const payload = (resultado ?? {}) as { permissoes?: number };
 
   await auditAccessChange({
     supabase,
     userId: user.id,
     empresaId,
     unidadeId,
-    operacao: "rbac.perfil.permissoes",
+    operacao: administrator ? "rbac.admin.sincronizar" : "rbac.perfil.permissoes",
     entidade: "perfis",
     registroId: perfilId,
-    novos: { permissoes: selectedCodes },
+    novos: {
+      permissoes: administrator ? "todas-ativas" : selectedCodes,
+      total: payload.permissoes ?? selectedCodes.length,
+    },
   });
 
   revalidatePath("/configuracoes/acessos");
-  redirect(`/configuracoes/acessos?sucesso=permissoes-atualizadas#perfil-${perfilId}`);
+  revalidatePath("/painel");
+  redirect(`/configuracoes/acessos?sucesso=${administrator ? "admin-sincronizado" : "permissoes-atualizadas"}#perfil-${perfilId}`);
 }
 
 export async function vincularPerfilUsuario(formData: FormData) {
@@ -231,6 +203,7 @@ export async function vincularPerfilUsuario(formData: FormData) {
   });
 
   revalidatePath("/configuracoes/acessos");
+  revalidatePath("/painel");
   redirect("/configuracoes/acessos?sucesso=vinculo-atualizado");
 }
 
@@ -266,5 +239,6 @@ export async function removerVinculoPerfil(formData: FormData) {
   });
 
   revalidatePath("/configuracoes/acessos");
+  revalidatePath("/painel");
   redirect("/configuracoes/acessos?sucesso=vinculo-removido");
 }
