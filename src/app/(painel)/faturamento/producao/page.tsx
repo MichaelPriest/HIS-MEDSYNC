@@ -8,6 +8,7 @@ export const revalidate = 0;
 
 type Paciente = { nome_completo: string | null; ra: string | null; numero_registro: string | null };
 type Atendimento = { numero_atendimento: number | string | null; status: string | null; paciente: Paciente | Paciente[] | null };
+type AtendimentoLista = Atendimento & { id: string };
 type ItemAssistencial = { descricao: string | null; tabela_tiss_codigo: string | null; codigo_tuss: string | null; codigo_tabela_propria: string | null };
 type Evento = {
   id: string;
@@ -70,15 +71,27 @@ export default async function LivroProducaoPage({
     .select("id,atendimento_id,tipo_evento,origem_tipo,ocorrido_em,quantidade,setor,codigo_tuss_fallback,cobravel,status,categoria_contratual,atendimento:atendimentos(numero_atendimento,status,paciente:pacientes(nome_completo,ra,numero_registro)),item:itens_assistenciais(descricao,tabela_tiss_codigo,codigo_tuss,codigo_tabela_propria)")
     .order("ocorrido_em", { ascending: false })
     .limit(250);
+  let atendimentosQuery = supabase
+    .from("atendimentos")
+    .select("id,numero_atendimento,status,paciente:pacientes(nome_completo,ra,numero_registro)")
+    .order("data_abertura", { ascending: false })
+    .limit(300);
 
-  if (unidadeId) eventosQuery = eventosQuery.eq("unidade_id", unidadeId);
-
-  const { data: eventosData, error: eventosError } = await eventosQuery;
-  if (eventosError) {
-    console.error("[producao] falha ao carregar eventos", { code: eventosError.code });
+  if (unidadeId) {
+    eventosQuery = eventosQuery.eq("unidade_id", unidadeId);
+    atendimentosQuery = atendimentosQuery.eq("unidade_id", unidadeId);
   }
 
-  const eventos = (eventosData ?? []) as unknown as Evento[];
+  const [eventosResult, atendimentosResult] = await Promise.all([eventosQuery, atendimentosQuery]);
+  if (eventosResult.error) {
+    console.error("[producao] falha ao carregar eventos", { code: eventosResult.error.code });
+  }
+  if (atendimentosResult.error) {
+    console.error("[producao] falha ao carregar atendimentos", { code: atendimentosResult.error.code });
+  }
+
+  const eventos = (eventosResult.data ?? []) as unknown as Evento[];
+  const atendimentosRecentes = (atendimentosResult.data ?? []) as unknown as AtendimentoLista[];
   const ids = eventos.map((item) => item.id);
   const { data: contaItensData } = ids.length
     ? await supabase
@@ -97,16 +110,15 @@ export default async function LivroProducaoPage({
     const conta = contaPorEvento.get(evento.id);
     return evento.cobravel && conta && !conta.codigo;
   }).length;
-  const atendimentos = [...new Map(eventos.map((item) => {
-    const atendimento = one(item.atendimento);
-    const paciente = atendimento ? one(atendimento.paciente) : null;
-    return [item.atendimento_id, {
-      id: item.atendimento_id,
-      numero: atendimento?.numero_atendimento ?? "—",
-      status: atendimento?.status ?? "—",
+  const atendimentos = atendimentosRecentes.map((item) => {
+    const paciente = one(item.paciente);
+    return {
+      id: item.id,
+      numero: item.numero_atendimento ?? "—",
+      status: item.status ?? "—",
       paciente: paciente?.nome_completo ?? "Paciente",
-    }];
-  })).values()];
+    };
+  });
 
   const erro = qs.erro === "acesso-negado"
     ? "Seu perfil não permite reprocessar produção."
