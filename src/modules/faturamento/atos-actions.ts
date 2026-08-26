@@ -14,7 +14,7 @@ async function contextoContaEditavel(contaId:string){
   const ctx=await requirePermission("faturamento.criar");
   const {supabase,empresaId,unidadeId}=ctx;
   const {data:conta}=await supabase.from("contas_faturamento").select("id,status").eq("id",contaId).eq("empresa_id",empresaId).eq("unidade_id",unidadeId).maybeSingle();
-  if(!conta) go("/faturamento?erro=conta");
+  if(!conta) redirect("/faturamento?erro=conta" as Route);
   if(["faturada","cancelada"].includes(conta.status)) go(`${tela(contaId)}?erro=conta-nao-editavel`);
   const {count}=await supabase.from("tiss_guias").select("id",{count:"exact",head:true}).eq("conta_id",contaId).neq("status","cancelada");
   if((count??0)>0) go(`${tela(contaId)}?erro=guia-tiss-ativa`);
