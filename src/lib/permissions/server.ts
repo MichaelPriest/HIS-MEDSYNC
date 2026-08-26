@@ -1,38 +1,18 @@
 import { redirect } from "next/navigation";
 import type { Permission } from "./catalog";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestAuthContext } from "@/lib/auth/request-context";
 
 async function resolvePermissionContext() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const context = await getRequestAuthContext();
+  if (!context.user) redirect("/login");
+  if (!context.empresaId) redirect("/painel");
 
-  if (!user) redirect("/login");
-
-  const { data: unidade } = await supabase
-    .from("usuario_unidades")
-    .select("empresa_id,unidade_id")
-    .eq("usuario_id", user.id)
-    .eq("ativo", true)
-    .limit(1)
-    .maybeSingle();
-
-  const { data: empresa } = unidade
-    ? { data: { empresa_id: unidade.empresa_id } }
-    : await supabase
-        .from("usuario_empresas")
-        .select("empresa_id")
-        .eq("usuario_id", user.id)
-        .eq("ativo", true)
-        .limit(1)
-        .maybeSingle();
-
-  const empresaId = unidade?.empresa_id ?? empresa?.empresa_id ?? null;
-  const unidadeId = unidade?.unidade_id ?? null;
-  if (!empresaId) redirect("/painel");
-
-  return { supabase, user, empresaId, unidadeId };
+  return {
+    supabase: context.supabase,
+    user: context.user,
+    empresaId: context.empresaId,
+    unidadeId: context.unidadeId,
+  };
 }
 
 export async function requireAnyPermission(required: readonly Permission[]) {
