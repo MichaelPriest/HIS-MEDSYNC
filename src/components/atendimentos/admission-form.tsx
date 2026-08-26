@@ -29,6 +29,7 @@ type Plano = {
   exige_validade_carteirinha: boolean;
 };
 type Tipo = { codigo: string; descricao: string };
+type AnsDomain = { tabela: number; codigo: string; display: string; versao: string; canonical: string };
 type Beneficio = {
   id: string;
   convenio_id: string;
@@ -53,6 +54,8 @@ type Props = {
   convenios: Convenio[];
   planos: Plano[];
   tipos: Tipo[];
+  tiposAtendimentoAns: AnsDomain[];
+  tiposConsultaAns: AnsDomain[];
   initialProfissionalId?: string | null;
   initialCoverage?: "particular" | "convenio";
   initialConvenioId?: string | null;
@@ -70,6 +73,22 @@ function defaultRegime(tipo: string | null | undefined) {
   if (value.includes("intern")) return "internacao";
   if (value.includes("tele")) return "telessaude";
   return "ambulatorial";
+}
+
+function tipoAnsPorRegime(regime: string) {
+  if (regime === "pronto_socorro") return "11";
+  if (regime === "internacao") return "07";
+  if (regime === "telessaude") return "22";
+  return "04";
+}
+
+function tipoAnsPorOperacao(tipo: string, regime: string) {
+  if (tipo === "consulta") return tipoAnsPorRegime(regime);
+  if (tipo === "pequena_cirurgia") return "02";
+  if (tipo === "sessao_terapia") return "03";
+  if (tipo === "internacao") return "07";
+  // SADT/exames é propositalmente não inferido: Tabela 50 distingue 05 e 23.
+  return "";
 }
 
 function expired(value: string) {
@@ -109,6 +128,8 @@ export function AdmissionForm({
   convenios,
   planos,
   tipos,
+  tiposAtendimentoAns,
+  tiposConsultaAns,
   initialProfissionalId = null,
   initialCoverage = "particular",
   initialConvenioId = null,
@@ -120,6 +141,7 @@ export function AdmissionForm({
   submitLabel = "Abrir atendimento",
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const initialRegime = defaultRegime(initialTipoAtendimento);
   const [patient, setPatient] = useState<AdmissionPatient | null>(initialPatient);
   const patientId = patient?.id ?? "";
   const [coverage, setCoverage] = useState<"particular" | "convenio">(initialCoverage);
@@ -134,17 +156,22 @@ export function AdmissionForm({
   const [identificacaoMetodo, setIdentificacaoMetodo] = useState<"biometria_digital" | "token">("biometria_digital");
   const [profissionalId, setProfissionalId] = useState(initialProfissionalId ?? "");
   const [returnInfo, setReturnInfo] = useState<ReturnInfo | null>(null);
-  const [regime, setRegime] = useState(defaultRegime(initialTipoAtendimento));
+  const [regime, setRegime] = useState(initialRegime);
   const [tipoTiss, setTipoTiss] = useState("consulta");
+  const [tipoAns50, setTipoAns50] = useState(tipoAnsPorRegime(initialRegime));
+  const [tipoConsultaAns52, setTipoConsultaAns52] = useState("");
   const [indicacao, setIndicacao] = useState("");
   const [eligibilityMessage, setEligibilityMessage] = useState<string | null>(null);
   const planosFiltrados = useMemo(() => planos.filter((item) => item.convenio_id === convenioId), [planos, convenioId]);
   const selectedPlan = planos.find((item) => item.id === planoId) ?? null;
   const selectedProfessional = profissionais.find((item) => item.id === profissionalId) ?? null;
+  const selectedAns50 = tiposAtendimentoAns.find((item) => item.codigo === tipoAns50) ?? null;
   const isExpired = expired(cardValidity);
   const indicationRequired = ["sadt_exames", "pequena_cirurgia", "sessao_terapia"].includes(tipoTiss);
+  const ansReady = coverage !== "convenio" || Boolean(tipoAns50 && (tipoAns50 !== "04" || tipoConsultaAns52));
   const suggestedCode = tipoTiss === "consulta" && regime === "ambulatorial" ? "10101012" : tipoTiss === "consulta" && regime === "pronto_socorro" ? "10101039" : null;
   const suggestedDescription = suggestedCode === "10101012" ? "Consulta em consultório (no horário normal ou preestabelecido)" : suggestedCode === "10101039" ? "Consulta em pronto socorro" : null;
+  const ansVersion = tiposAtendimentoAns[0]?.versao ?? tiposConsultaAns[0]?.versao ?? null;
 
   useEffect(() => {
     if (!patientId) {
@@ -293,10 +320,16 @@ export function AdmissionForm({
   </div>;
 
   const faturamento = <div className="space-y-5">
+    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-black text-emerald-950">Domínios regulatórios ANS / FHIR</p><p className="mt-1 text-xs text-emerald-800">O código e a versão são gravados como snapshot no episódio e seguem para a guia TISS.</p></div>{ansVersion ? <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-800">ANS {ansVersion}</span> : null}</div>
+    </div>
     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Regime de atendimento *</span><select name="regime_atendimento" value={regime} onChange={(event) => setRegime(event.target.value)} className="ui-input"><option value="ambulatorial">Ambulatorial</option><option value="pronto_socorro">Pronto Socorro</option><option value="internacao">Internação</option><option value="telessaude">Telessaúde</option></select></label>
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Tipo de atendimento TISS *</span><select name="tipo_atendimento_tiss" value={tipoTiss} onChange={(event) => setTipoTiss(event.target.value)} className="ui-input"><option value="consulta">Consulta</option><option value="sadt_exames">SADT / Exames</option><option value="pequena_cirurgia">Pequena cirurgia</option><option value="sessao_terapia">Sessão de terapia</option><option value="internacao">Internação</option><option value="outro">Outro</option></select></label>
+      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Regime de atendimento *</span><select name="regime_atendimento" value={regime} onChange={(event) => { const next=event.target.value; setRegime(next); if (tipoTiss === "consulta") { const codigo=tipoAnsPorRegime(next); setTipoAns50(codigo); if (codigo !== "04") setTipoConsultaAns52(""); } }} className="ui-input"><option value="ambulatorial">Ambulatorial</option><option value="pronto_socorro">Pronto Socorro</option><option value="internacao">Internação</option><option value="telessaude">Telessaúde</option></select></label>
+      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Classificação operacional / cobrança *</span><select name="tipo_atendimento_tiss" value={tipoTiss} onChange={(event) => { const next=event.target.value; setTipoTiss(next); const codigo=tipoAnsPorOperacao(next,regime); setTipoAns50(codigo); if (codigo !== "04") setTipoConsultaAns52(""); }} className="ui-input"><option value="consulta">Consulta</option><option value="sadt_exames">SADT / Exames</option><option value="pequena_cirurgia">Pequena cirurgia</option><option value="sessao_terapia">Sessão de terapia</option><option value="internacao">Internação</option><option value="outro">Outro</option></select></label>
       <label className="space-y-2 text-sm font-medium text-slate-700"><span>Classificação interna *</span><select name="tipo_atendimento" defaultValue={initialTipoAtendimento ?? ""} className="ui-input"><option value="">Selecione</option>{tipos.length ? tipos.map((item) => <option key={item.codigo} value={item.codigo}>{item.descricao}</option>) : <><option value="ambulatorial">Ambulatorial</option><option value="urgencia">Urgência / Emergência</option><option value="internacao">Internação</option><option value="sadt">SADT</option></>}</select></label>
+      <label className="space-y-2 text-sm font-medium text-slate-700 xl:col-span-2"><span>Tipo de atendimento ANS · Tabela 50{coverage === "convenio" ? " *" : ""}</span><select name="tipo_atendimento_tuss50_codigo" value={tipoAns50} onChange={(event) => { setTipoAns50(event.target.value); if (event.target.value !== "04") setTipoConsultaAns52(""); }} className="ui-input"><option value="">Selecione o código oficial</option>{tiposAtendimentoAns.map((item) => <option key={item.codigo} value={item.codigo}>{item.codigo} — {item.display}</option>)}</select>{tipoTiss === "sadt_exames" && !tipoAns50 ? <span className="block text-xs font-semibold text-amber-700">Escolha 05 “Exame Ambulatorial” ou 23 “Exame” conforme a regra do atendimento; o sistema não presume esta diferença.</span> : null}</label>
+      {tipoAns50 === "04" ? <label className="space-y-2 text-sm font-medium text-slate-700"><span>Tipo de consulta ANS · Tabela 52{coverage === "convenio" ? " *" : ""}</span><select name="tipo_consulta_tuss52_codigo" value={tipoConsultaAns52} onChange={(event) => setTipoConsultaAns52(event.target.value)} className="ui-input"><option value="">Selecione</option>{tiposConsultaAns.map((item) => <option key={item.codigo} value={item.codigo}>{item.codigo} — {item.display}</option>)}</select></label> : <input type="hidden" name="tipo_consulta_tuss52_codigo" value="" />}
+      {selectedAns50 ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><p className="font-bold text-slate-800">Tabela 50 · {selectedAns50.codigo}</p><p className="mt-1">{selectedAns50.display}</p><p className="mt-1 text-slate-400">Versão {selectedAns50.versao}</p></div> : null}
       <TussProcedurePicker key={`${regime}-${tipoTiss}`} empresaId={empresaId} suggestedCode={suggestedCode} suggestedDescription={suggestedDescription} />
       <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2 xl:col-span-3"><span>Modelo de indicação clínica</span><select className="ui-input" value="" onChange={(event) => { if (event.target.value) setIndicacao(event.target.value); }}><option value="">Selecionar modelo rápido…</option><option value="Para controle evolutivo de patologia crônica.">Controle evolutivo de patologia crônica</option><option value="Para investigação diagnóstica conforme quadro clínico apresentado.">Investigação diagnóstica</option><option value="Para continuidade de plano terapêutico previamente estabelecido.">Continuidade de plano terapêutico</option></select></label>
       <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2 xl:col-span-3"><span>Indicação clínica / justificativa{indicationRequired ? " *" : ""}</span><textarea name="indicacao_clinica" value={indicacao} onChange={(event) => setIndicacao(event.target.value)} required={indicationRequired} rows={4} className="ui-input" placeholder={indicationRequired ? "Obrigatória para este tipo de atendimento." : "Opcional para consulta simples; informe quando clinicamente pertinente."} /></label>
@@ -309,6 +342,6 @@ export function AdmissionForm({
   return <form noValidate action={action} className="ui-card p-5 sm:p-6">
     <div className="mb-5 grid gap-3 md:grid-cols-3"><div className="rounded-xl border border-brand-100 bg-brand-50 p-3"><UserPlus className="size-4 text-brand-700"/><p className="mt-1 text-xs font-bold text-brand-900">1. Paciente</p><p className="text-[11px] text-brand-700">Identificação e alertas</p></div><div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3"><Building2 className="size-4 text-indigo-700"/><p className="mt-1 text-xs font-bold text-indigo-900">2. Cobertura</p><p className="text-[11px] text-indigo-700">Plano, carteira e autorização</p></div><div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3"><Stethoscope className="size-4 text-emerald-700"/><p className="mt-1 text-xs font-bold text-emerald-900">3. TISS</p><p className="text-[11px] text-emerald-700">Profissional, TUSS e antiglosa</p></div></div>
     <FormTabs tabs={[{ id: "paciente", label: "Paciente", content: dadosPaciente }, { id: "endereco", label: "Endereço", content: endereco }, { id: "cobertura", label: "Cobertura / Autorização", content: cobertura }, { id: "profissional", label: "Profissional", content: profissional }, { id: "faturamento", label: "TISS / Faturamento", content: faturamento }]} />
-    <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5"><div className="flex items-center gap-2 text-xs text-slate-500"><Clock3 className="size-4" />Dados regulatórios serão fotografados no momento da abertura.</div><div className="flex gap-3"><a href={cancelHref} className="btn-secondary">Cancelar</a><button disabled={!patient || isExpired} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">{submitLabel}</button></div></div>
+    <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5"><div className="flex items-center gap-2 text-xs text-slate-500"><Clock3 className="size-4" />Dados regulatórios serão fotografados no momento da abertura.</div><div className="flex gap-3"><a href={cancelHref} className="btn-secondary">Cancelar</a><button disabled={!patient || isExpired || !ansReady} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">{submitLabel}</button></div></div>
   </form>;
 }
