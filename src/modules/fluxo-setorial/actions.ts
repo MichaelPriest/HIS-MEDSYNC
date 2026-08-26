@@ -21,12 +21,13 @@ export async function encaminharSetor(formData: FormData) {
 
   const { data: atendimento } = await supabase
     .from("atendimentos")
-    .select("id,paciente_id,profissional_id")
+    .select("id,paciente_id,profissional_id,status")
     .eq("id", atendimentoId)
     .eq("unidade_id", unidadeId)
     .maybeSingle();
 
   if (!atendimento) redirect("/prontuario?erro=atendimento" as Route);
+  if (atendimento.status === "alta" || atendimento.status === "cancelado") redirect(`/prontuario/${atendimentoId}?erro=atendimento-encerrado` as Route);
 
   const { error } = await supabase.from("filas_setoriais").insert({
     empresa_id: empresaId,
