@@ -1,5 +1,6 @@
 "use server";
 
+import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/permissions/server";
@@ -7,15 +8,16 @@ import { requirePermission } from "@/lib/permissions/server";
 const text=(fd:FormData,k:string)=>String(fd.get(k)??"").trim();
 const checked=(fd:FormData,k:string)=>fd.get(k)==="on"||fd.get(k)==="true";
 const tela=(contaId:string)=>`/faturamento/${contaId}/procedimentos-cirurgicos`;
+const go=(url:string):never=>redirect(url as Route);
 
 async function contextoContaEditavel(contaId:string){
   const ctx=await requirePermission("faturamento.criar");
   const {supabase,empresaId,unidadeId}=ctx;
   const {data:conta}=await supabase.from("contas_faturamento").select("id,status").eq("id",contaId).eq("empresa_id",empresaId).eq("unidade_id",unidadeId).maybeSingle();
-  if(!conta) redirect("/faturamento?erro=conta");
-  if(["faturada","cancelada"].includes(conta.status)) redirect(`${tela(contaId)}?erro=conta-nao-editavel`);
+  if(!conta) go("/faturamento?erro=conta");
+  if(["faturada","cancelada"].includes(conta.status)) go(`${tela(contaId)}?erro=conta-nao-editavel`);
   const {count}=await supabase.from("tiss_guias").select("id",{count:"exact",head:true}).eq("conta_id",contaId).neq("status","cancelada");
-  if((count??0)>0) redirect(`${tela(contaId)}?erro=guia-tiss-ativa`);
+  if((count??0)>0) go(`${tela(contaId)}?erro=guia-tiss-ativa`);
   return ctx;
 }
 
@@ -44,14 +46,14 @@ function payloadAto(formData:FormData){
 export async function criarGrupoAto(contaId:string, formData:FormData){
   const {supabase}=await contextoContaEditavel(contaId);
   const codigoGrupo=text(formData,"codigo_grupo");
-  if(!codigoGrupo) redirect(`${tela(contaId)}?erro=grupo-ato`);
+  if(!codigoGrupo) go(`${tela(contaId)}?erro=grupo-ato`);
   const payload=payloadAto(formData);
-  if(payload.inicio_ato&&payload.fim_ato&&payload.fim_ato<payload.inicio_ato) redirect(`${tela(contaId)}?erro=horario-ato`);
+  if(payload.inicio_ato&&payload.fim_ato&&payload.fim_ato<payload.inicio_ato) go(`${tela(contaId)}?erro=horario-ato`);
   const {error}=await supabase.from("conta_faturamento_grupos_ato").insert({conta_id:contaId,codigo_grupo:codigoGrupo,...payload});
-  if(error) redirect(`${tela(contaId)}?erro=grupo-ato`);
+  if(error) go(`${tela(contaId)}?erro=grupo-ato`);
   revalidatePath(tela(contaId));
   revalidatePath(`/faturamento/${contaId}`);
-  redirect(`${tela(contaId)}?sucesso=ato-criado`);
+  go(`${tela(contaId)}?sucesso=ato-criado`);
 }
 
 export async function atualizarGrupoAto(contaId:string, formData:FormData){
@@ -59,12 +61,12 @@ export async function atualizarGrupoAto(contaId:string, formData:FormData){
   const grupoId=text(formData,"grupo_ato_id");
   if(!grupoId)return;
   const payload=payloadAto(formData);
-  if(payload.inicio_ato&&payload.fim_ato&&payload.fim_ato<payload.inicio_ato) redirect(`${tela(contaId)}?erro=horario-ato`);
+  if(payload.inicio_ato&&payload.fim_ato&&payload.fim_ato<payload.inicio_ato) go(`${tela(contaId)}?erro=horario-ato`);
   const {error}=await supabase.from("conta_faturamento_grupos_ato").update(payload).eq("id",grupoId).eq("conta_id",contaId);
-  if(error) redirect(`${tela(contaId)}?erro=grupo-ato`);
+  if(error) go(`${tela(contaId)}?erro=grupo-ato`);
   revalidatePath(tela(contaId));
   revalidatePath(`/faturamento/${contaId}`);
-  redirect(`${tela(contaId)}?sucesso=ato-atualizado`);
+  go(`${tela(contaId)}?sucesso=ato-atualizado`);
 }
 
 export async function atualizarItemAto(contaId:string, formData:FormData){
@@ -79,11 +81,11 @@ export async function atualizarItemAto(contaId:string, formData:FormData){
     filme_m2:Number(text(formData,"filme_m2").replace(",",".")||0),
   };
   const {error}=await supabase.from("conta_faturamento_itens").update(payload).eq("id",itemId).eq("conta_id",contaId);
-  if(error) redirect(`${tela(contaId)}?erro=item-ato`);
+  if(error) go(`${tela(contaId)}?erro=item-ato`);
   await supabase.rpc("recalcular_item_contratual_avancado",{p_item_id:itemId});
   revalidatePath(tela(contaId));
   revalidatePath(`/faturamento/${contaId}`);
-  redirect(`${tela(contaId)}?sucesso=ato-item-atualizado`);
+  go(`${tela(contaId)}?sucesso=ato-item-atualizado`);
 }
 
 export async function recalcularGrupoAto(contaId:string, formData:FormData){
@@ -93,5 +95,5 @@ export async function recalcularGrupoAto(contaId:string, formData:FormData){
   for(const item of itens??[]){await supabase.rpc("recalcular_item_contratual_avancado",{p_item_id:item.id});}
   revalidatePath(tela(contaId));
   revalidatePath(`/faturamento/${contaId}`);
-  redirect(`${tela(contaId)}?sucesso=ato-recalculado`);
+  go(`${tela(contaId)}?sucesso=ato-recalculado`);
 }
