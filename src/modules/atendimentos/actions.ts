@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
@@ -27,7 +27,17 @@ function errorCode(message?: string | null) {
   if (value.includes("ADMISSAO_AGENDAMENTO_CIRURGICO")) return "agendamento-cirurgico";
   if (value.includes("ADMISSAO_SEM_PERMISSAO") || value.includes("ADMISSAO_NAO_AUTENTICADA")) return "permissao";
   if (value.includes("ADMISSAO_PACIENTE_INVALIDO") || value.includes("ADMISSAO_PACIENTE_DIVERGENTE")) return "paciente";
-  if (value.includes("ADMISSAO_PROFISSIONAL_INVALIDO")) return "profissional";
+  if (value.includes("ADMISSAO_PROFISSIONAL_INVALIDO") || value.includes("ADMISSAO_PROFISSIONAL_OBRIGATORIO_CONVENIO")) return "profissional";
+  if (value.includes("ADMISSAO_CONSELHO_INCOMPLETO")) return "conselho-incompleto";
+  if (value.includes("ADMISSAO_CBO_AUSENTE")) return "cbo-ausente";
+  if (value.includes("ADMISSAO_CNES_AUSENTE")) return "cnes-ausente";
+  if (value.includes("ADMISSAO_REGISTRO_ANS_AUSENTE")) return "registro-ans-ausente";
+  if (value.includes("ADMISSAO_CARTEIRA_VENCIDA")) return "carteira-vencida";
+  if (value.includes("ADMISSAO_VALIDADE_CARTEIRA_OBRIGATORIA")) return "validade-carteira";
+  if (value.includes("ADMISSAO_CARTEIRINHA_PADRAO_INVALIDO")) return "carteirinha-padrao";
+  if (value.includes("ADMISSAO_TUSS_OBRIGATORIO") || value.includes("ADMISSAO_TUSS_NAO_CADASTRADO")) return "tuss";
+  if (value.includes("ADMISSAO_INDICACAO_OBRIGATORIA")) return "indicacao-clinica";
+  if (value.includes("ADMISSAO_REGIME_TISS_INVALIDO") || value.includes("ADMISSAO_TIPO_TISS_INVALIDO")) return "classificacao-tiss";
   if (value.includes("ADMISSAO_PLANO_INVALIDO") || value.includes("ADMISSAO_COBERTURA_INVALIDA") || value.includes("ADMISSAO_COBERTURA_INCOMPLETA")) return "cobertura";
   if (value.includes("ADMISSAO_CAMPOS_OBRIGATORIOS") || value.includes("ADMISSAO_DADOS_INVALIDOS")) return "campos-obrigatorios";
   return "falha-cadastro";
@@ -82,6 +92,7 @@ function admissionInput(formData: FormData) {
       numero_autorizacao: cobertura === "convenio" ? optional(formData, "numero_autorizacao") : null,
       senha_autorizacao: cobertura === "convenio" ? optional(formData, "senha_autorizacao") : null,
       paciente_nome: pacienteNome,
+      paciente_nome_social: optional(formData, "paciente_nome_social"),
       paciente_cpf: optional(formData, "paciente_cpf"),
       paciente_rg: optional(formData, "paciente_rg"),
       paciente_cns: optional(formData, "paciente_cns"),
@@ -100,6 +111,13 @@ function admissionInput(formData: FormData) {
       paciente_estado: pacienteEstado,
       origem: optional(formData, "origem"),
       observacoes: optional(formData, "observacoes"),
+      regime_atendimento: optional(formData, "regime_atendimento"),
+      tipo_atendimento_tiss: optional(formData, "tipo_atendimento_tiss"),
+      codigo_tuss_principal: optional(formData, "codigo_tuss_principal"),
+      descricao_tuss_principal: optional(formData, "descricao_tuss_principal"),
+      tabela_tiss_principal: optional(formData, "tabela_tiss_principal"),
+      item_assistencial_id_principal: optional(formData, "item_assistencial_id_principal"),
+      indicacao_clinica: optional(formData, "indicacao_clinica"),
     },
   };
 }
@@ -144,6 +162,62 @@ async function registrarIdentificacaoAtendimento(
   if (error) console.error("[admissao.identificacao] falha ao registrar evidência", { code: error.code });
 }
 
+async function anexarDocumentosAdmissao(
+  contexto: Awaited<ReturnType<typeof getAssistencialContext>>,
+  atendimentoId: string,
+  pacienteId: string,
+  formData: FormData,
+) {
+  const files = formData.getAll("documentos").filter((value): value is File => value instanceof File && value.size > 0);
+  for (const file of files.slice(0, 10)) {
+    if (file.size > 10 * 1024 * 1024 || !["application/pdf", "image/jpeg", "image/png"].includes(file.type)) continue;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-120) || "documento";
+    const storagePath = `${contexto.empresaId}/${contexto.unidadeId}/${atendimentoId}/${randomUUID()}-${safeName}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const sha256 = createHash("sha256").update(buffer).digest("hex");
+    const { error: uploadError } = await contexto.supabase.storage.from("documentos-pacientes").upload(storagePath, buffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+    if (uploadError) {
+      console.error("[admissao.documentos] falha no upload", { code: uploadError.message, atendimentoId });
+      continue;
+    }
+    const { error: gedError } = await contexto.supabase.from("ged_documentos").insert({
+      empresa_id: contexto.empresaId,
+      unidade_id: contexto.unidadeId,
+      atendimento_id: atendimentoId,
+      paciente_id: pacienteId,
+      categoria: "admissao",
+      subcategoria: "documento_origem",
+      titulo: `Documento da admissão · ${file.name}`,
+      nome_arquivo: file.name,
+      storage_path: storagePath,
+      mime_type: file.type,
+      tamanho_bytes: file.size,
+      hash_sha256: sha256,
+      confidencial: true,
+      created_by: contexto.user.id,
+    });
+    if (gedError) {
+      console.error("[admissao.documentos] upload concluído, mas falhou registro GED", { code: gedError.code, atendimentoId });
+    }
+  }
+}
+
+async function concluirPosAbertura(
+  contexto: Awaited<ReturnType<typeof getAssistencialContext>>,
+  atendimentoId: string,
+  input: ReturnType<typeof admissionInput>,
+  config: { provedor?: string | null; exige_no_atendimento?: boolean } | null,
+  formData: FormData,
+) {
+  await Promise.all([
+    registrarIdentificacaoAtendimento(contexto, atendimentoId, input, config),
+    anexarDocumentosAdmissao(contexto, atendimentoId, input.pacienteId, formData),
+  ]);
+}
+
 export async function abrirAtendimento(senhaId: string, formData: FormData) {
   const contexto = await getAssistencialContext();
   if (!senhaId) redirect("/senhas?erro=senha-obrigatoria");
@@ -153,18 +227,18 @@ export async function abrirAtendimento(senhaId: string, formData: FormData) {
   if (!input.coberturaValida || !input.convenioCompleto) redirect(`/atendimentos/novo?senha=${senhaId}&erro=cobertura`);
   const config = await validarIdentificacaoExigida(contexto, input, `/atendimentos/novo?senha=${encodeURIComponent(senhaId)}`);
 
-  const { data: atendimentoId, error } = await contexto.supabase.rpc("abrir_atendimento_por_senha", {
+  const { data: atendimentoId, error } = await contexto.supabase.rpc("abrir_atendimento_por_senha_v2", {
     p_senha_id: senhaId,
     p_payload: input.payload,
   });
 
   if (error || !atendimentoId) {
-    console.error("[admissao] falha na transacao de abertura", { code: error?.code ?? "SEM_ID", operation: "abrir_atendimento_por_senha" });
+    console.error("[admissao] falha na transacao de abertura", { code: error?.code ?? "SEM_ID", operation: "abrir_atendimento_por_senha_v2" });
     redirect(`/atendimentos/novo?senha=${senhaId}&erro=${errorCode(error?.message)}`);
   }
 
   const id = String(atendimentoId);
-  await registrarIdentificacaoAtendimento(contexto, id, input, config);
+  await concluirPosAbertura(contexto, id, input, config, formData);
   redirect(input.cobertura === "convenio" ? `/autorizacoes?atendimento=${id}` : `/triagem?sucesso=admissao&atendimento=${id}`);
 }
 
@@ -177,17 +251,17 @@ export async function abrirAtendimentoAgendado(agendamentoId: string, formData: 
   if (!input.coberturaValida || !input.convenioCompleto) redirect(`/atendimentos/novo?agendamento=${agendamentoId}&erro=cobertura`);
   const config = await validarIdentificacaoExigida(contexto, input, `/atendimentos/novo?agendamento=${encodeURIComponent(agendamentoId)}`);
 
-  const { data: atendimentoId, error } = await contexto.supabase.rpc("abrir_atendimento_por_agendamento", {
+  const { data: atendimentoId, error } = await contexto.supabase.rpc("abrir_atendimento_por_agendamento_v2", {
     p_agendamento_id: agendamentoId,
     p_payload: input.payload,
   });
 
   if (error || !atendimentoId) {
-    console.error("[admissao.agenda] falha na transacao de abertura", { code: error?.code ?? "SEM_ID", operation: "abrir_atendimento_por_agendamento" });
+    console.error("[admissao.agenda] falha na transacao de abertura", { code: error?.code ?? "SEM_ID", operation: "abrir_atendimento_por_agendamento_v2" });
     redirect(`/atendimentos/novo?agendamento=${agendamentoId}&erro=${errorCode(error?.message)}`);
   }
 
   const id = String(atendimentoId);
-  await registrarIdentificacaoAtendimento(contexto, id, input, config);
+  await concluirPosAbertura(contexto, id, input, config, formData);
   redirect(input.cobertura === "convenio" ? `/autorizacoes?atendimento=${id}` : `/triagem?sucesso=admissao&atendimento=${id}`);
 }
