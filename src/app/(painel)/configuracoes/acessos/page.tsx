@@ -50,20 +50,45 @@ function domainLabel(domain: string) {
     prontuario: "Prontuário",
     prescricao: "Prescrição",
     assistencial: "Assistencial",
+    sae: "SAE / Enfermagem",
     enfermagem: "Enfermagem",
     farmacia: "Farmácia",
     medicamentos: "Medicamentos",
     laboratorio: "Laboratório",
-    imagem: "Imagem",
+    imagem: "Imagem / RIS-PACS",
     exames: "Exames",
     internacao: "Internação",
-    centro_cirurgico: "Centro cirúrgico / CME",
+    alta: "Alta e transição",
+    centro_cirurgico: "Centro cirúrgico",
+    cme: "CME",
     nutricao: "Nutrição",
     hemoterapia: "Hemoterapia",
     ccih: "CCIH",
+    antimicrobianos: "Antimicrobianos",
     uti: "UTI",
+    multiprofissional: "Equipe multiprofissional",
+    procedimentos_assistenciais: "Procedimentos assistenciais",
+    transportes: "Transportes",
+    seguranca_paciente: "Segurança do paciente",
+    obstetricia: "Obstetrícia",
+    neonatal: "Neonatal",
+    obitos: "Óbitos",
+    dialise: "Hemodiálise",
+    oncologia: "Oncologia",
+    radioterapia: "Radioterapia",
+    hemodinamica: "Hemodinâmica",
+    endoscopia: "Endoscopia",
+    anatomia_patologica: "Anatomia Patológica",
+    transplantes: "Transplantes",
+    homecare: "Home Care",
+    paliativos: "Cuidados Paliativos",
+    imunizacao: "Imunização",
+    rh: "Recursos Humanos",
+    seguranca: "Segurança / Portaria",
+    visitantes: "Visitantes e acompanhantes",
     compras: "Compras",
     estoque: "Estoque",
+    almoxarifado: "Almoxarifado",
     credenciamento: "Credenciamento",
     comercial: "Comercial",
     tabelas_comerciais: "Tabelas comerciais",
@@ -77,6 +102,8 @@ function domainLabel(domain: string) {
     nfse: "NFS-e",
     ged: "GED",
     diretoria: "Diretoria",
+    ti: "Tecnologia / TI",
+    engenharia_clinica: "Engenharia Clínica",
     configuracoes: "Configurações",
   };
   return labels[domain] ?? domain.replaceAll("_", " ");
@@ -134,7 +161,7 @@ export default async function AcessosPage({
     <SectionPage
       eyebrow="Configurações / Segurança"
       title="Usuários e Acessos"
-      description="Administre perfis, permissões e escopo por unidade. A navegação segue a matriz, mas o RLS permanece como barreira definitiva de acesso aos dados."
+      description="Administre perfis, permissões e escopo por unidade. Todos os setores assistenciais e administrativos usam esta mesma matriz de autorização."
     >
       {query.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Alteração concluída: {query.sucesso.replaceAll("-", " ")}.</div> : null}
       {query.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Operação bloqueada: {query.erro.replaceAll("-", " ")}.</div> : null}
@@ -215,7 +242,7 @@ export default async function AcessosPage({
       </section>
 
       <section className="mt-5">
-        <div className="mb-4"><p className="his-eyebrow">Matriz de autorização</p><h2 className="mt-1 text-xl font-black text-slate-950">Permissões por perfil</h2><p className="mt-1 text-sm text-slate-500">Perfis de sistema podem receber ajustes, exceto Administrador/Admin, que permanece sincronizado com todo o catálogo para evitar lockout.</p></div>
+        <div className="mb-4"><p className="his-eyebrow">Matriz de autorização</p><h2 className="mt-1 text-xl font-black text-slate-950">Permissões por perfil</h2><p className="mt-1 text-sm text-slate-500">A matriz inclui os setores clínicos, diagnóstico, internação, faturamento, gestão, RH, Segurança/Portaria e demais módulos do HIS.</p></div>
         <div className="space-y-3">
           {activeProfiles.map((perfil) => {
             const selected = selectedByProfile.get(perfil.id) ?? new Set<string>();
@@ -224,10 +251,18 @@ export default async function AcessosPage({
               <summary className="flex cursor-pointer list-none items-center gap-4 p-5">
                 <span className="grid size-11 place-items-center rounded-2xl bg-brand-50 text-brand-700"><ShieldCheck className="size-5" /></span>
                 <div className="min-w-0 flex-1"><h3 className="font-black text-slate-900">{perfil.nome}</h3><p className="mt-1 text-xs text-slate-500">{perfil.sistema ? "Perfil do sistema" : "Perfil personalizado"} · {selected.size} permissão(ões)</p></div>
-                {administrator ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">sincronizado</span> : null}
+                {administrator ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">acesso total</span> : null}
               </summary>
               <div className="border-t border-slate-100 bg-slate-50/40 p-5">
-                {administrator ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">O perfil Administrador recebe automaticamente todas as permissões ativas. A edição manual fica bloqueada para evitar perda acidental de acesso.</p> : (
+                {administrator ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+                    <p>O perfil Administrador deve possuir todas as permissões ativas, incluindo todos os setores assistenciais e administrativos.</p>
+                    <form action={atualizarPermissoesPerfil} className="mt-3 flex justify-end">
+                      <input type="hidden" name="perfil_id" value={perfil.id} />
+                      <button className="ui-button-primary">Sincronizar acesso total</button>
+                    </form>
+                  </div>
+                ) : (
                   <form action={atualizarPermissoesPerfil}>
                     <input type="hidden" name="perfil_id" value={perfil.id} />
                     <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
