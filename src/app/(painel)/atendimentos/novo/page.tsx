@@ -5,18 +5,28 @@ import { SectionPage } from "@/components/painel/section-page";
 import { abrirAtendimento, abrirAtendimentoAgendado } from "@/modules/atendimentos/actions";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
-const PATIENT_SELECT = "id,nome_completo,cpf,rg,cns,data_nascimento,nacionalidade,estado_civil,sexo,telefone,email,cep,logradouro,numero,complemento,bairro,cidade,uf,ra,numero_registro";
+const PATIENT_SELECT = "id,nome_completo,nome_social,cpf,rg,cns,data_nascimento,nacionalidade,estado_civil,sexo,telefone,email,cep,logradouro,numero,complemento,bairro,cidade,uf,ra,numero_registro";
 
 const ERROS: Record<string, string> = {
   "campos-obrigatorios": "Preencha os campos obrigatórios do paciente e do atendimento.",
   cobertura: "Revise o convênio, plano e os dados da carteirinha.",
   paciente: "O paciente selecionado não está mais disponível para esta admissão.",
-  profissional: "O profissional selecionado não está disponível para esta unidade/empresa.",
+  profissional: "Selecione um profissional válido. Para convênio, o profissional é obrigatório.",
+  "conselho-incompleto": "O profissional está com conselho, número ou UF incompletos. Corrija o cadastro profissional antes de faturar.",
+  "cbo-ausente": "O profissional selecionado não possui CBO cadastrado. A abertura por convênio foi bloqueada para evitar glosa.",
+  "cnes-ausente": "A unidade não possui CNES cadastrado. Corrija a estrutura da unidade antes da abertura por convênio.",
+  "registro-ans-ausente": "A operadora selecionada não possui Registro ANS cadastrado.",
+  "carteira-vencida": "A carteirinha está vencida. Atualize o vínculo do beneficiário antes de abrir o atendimento.",
+  "validade-carteira": "O plano exige validade da carteirinha. Informe a data de validade.",
+  "carteirinha-padrao": "A carteirinha não corresponde ao padrão configurado para o plano selecionado.",
+  tuss: "Selecione um procedimento TUSS válido para este atendimento.",
+  "indicacao-clinica": "A indicação clínica é obrigatória para SADT, exames, pequena cirurgia e sessão de terapia.",
+  "classificacao-tiss": "Revise o regime e o tipo de atendimento TISS.",
   permissao: "Seu perfil não possui permissão para abrir atendimentos nesta unidade.",
   "senha-invalida": "Esta senha não está mais disponível para admissão. Ela pode ter sido processada por outro guichê.",
   "agendamento-invalido": "Este agendamento não está mais disponível para abertura de atendimento. Verifique o check-in ou se ele já foi admitido.",
   "agendamento-cirurgico": "Cirurgia eletiva deve seguir pelo fluxo de pré-admissão/centro cirúrgico.",
-  "identificacao-obrigatoria": "Este convênio exige biometria ou token para concluir a admissão. Informe a identificação do beneficiário na aba Particular / Convênio.",
+  "identificacao-obrigatoria": "Este convênio exige biometria ou token para concluir a admissão. Informe a identificação do beneficiário na aba Cobertura / Autorização.",
   "falha-cadastro": "Não foi possível concluir a admissão. Nenhuma etapa parcial foi mantida; tente novamente.",
 };
 
@@ -83,12 +93,18 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
     { data: tipos },
     { data: convenios },
     { data: planos },
+    { data: unidade },
   ] = await Promise.all([
     pacienteInicialPromise,
-    supabase.from("profissionais").select("id,nome_completo").eq("empresa_id", empresaId).eq("ativo", true).order("nome_completo").limit(500),
+    supabase.from("profissionais")
+      .select("id,nome_completo,conselho,numero_conselho,uf_conselho,cbo,especialidade")
+      .eq("empresa_id", empresaId).eq("ativo", true).order("nome_completo").limit(500),
     supabase.from("catalogos").select("codigo,descricao").eq("ativo", true).eq("tipo", "tipo_atendimento").order("descricao"),
     supabase.from("convenios").select("id,nome_fantasia,registro_ans").eq("empresa_id", empresaId).eq("ativo", true).order("nome_fantasia"),
-    supabase.from("convenio_planos").select("id,convenio_id,nome,codigo").eq("empresa_id", empresaId).eq("ativo", true).order("nome"),
+    supabase.from("convenio_planos")
+      .select("id,convenio_id,nome,codigo,carteirinha_mascara,carteirinha_regex,exige_validade_carteirinha")
+      .eq("empresa_id", empresaId).eq("ativo", true).order("nome"),
+    supabase.from("unidades").select("id,nome,cnes").eq("id", unidadeId).eq("empresa_id", empresaId).maybeSingle(),
   ]);
 
   if (pacienteInicialError) console.error("[admissao] falha ao carregar paciente da origem", { code: pacienteInicialError.code });
@@ -99,20 +115,23 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
   const action = isAgenda && agendamentoId ? abrirAtendimentoAgendado.bind(null, agendamentoId) : abrirAtendimento.bind(null, String(senhaId));
   const title = isAgenda ? "Abrir atendimento agendado" : `Abrir atendimento · Senha ${senha?.senha ?? "—"}`;
   const description = isAgenda
-    ? "Check-in confirmado na Agenda. Revise os dados administrativos e abra o episódio sem necessidade de senha do Totem."
+    ? "Check-in confirmado. Revise beneficiário, cobertura, profissional e classificação TISS antes de abrir o episódio."
     : `Admissão vinculada à senha do Totem${senha?.ponto_atendimento ? ` · ${senha.ponto_atendimento}` : ""}.`;
   const admissionReturn = senhaId ? `/atendimentos/novo?senha=${encodeURIComponent(senhaId)}` : null;
   const createPatientHref = admissionReturn ? `/pacientes/novo?retorno=${encodeURIComponent(admissionReturn)}` : null;
 
   return <SectionPage eyebrow={isAgenda ? "Agenda / Check-in / Admissão" : "Recepção / Admissão"} title={title} description={description}>
-    {mensagemErro ? <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{mensagemErro}</div> : null}
-    {cadastro === "parcial" ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">O paciente foi criado e já está selecionado, mas algum contato/endereço complementar não pôde ser salvo. Revise o cadastro depois da admissão.</div> : null}
+    {mensagemErro ? <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{mensagemErro}</div> : null}
+    {cadastro === "parcial" ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">O paciente foi criado e já está selecionado, mas algum dado complementar não pôde ser salvo. Revise o cadastro depois da admissão.</div> : null}
     <div className="mb-4 rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm text-brand-950">
-      {isAgenda ? <><strong>Check-in da Agenda validado.</strong> O paciente agendado está bloqueado para preservar o vínculo correto com RA/prontuário.</> : <><strong>Senha {senha?.senha}</strong> validada. {initialPatient ? (pacienteRetornoId && !senhaId ? "O paciente cadastrado foi selecionado automaticamente." : "O paciente está selecionado e a admissão pode continuar.") : "Pesquise o paciente por nome, CPF, RA ou número de registro; se ele ainda não existir, use “Cadastrar paciente”."}</>}
+      {isAgenda ? <><strong>Check-in da Agenda validado.</strong> O paciente agendado está protegido para preservar RA/prontuário.</> : <><strong>Senha {senha?.senha}</strong> validada. {initialPatient ? "O paciente está selecionado e a admissão pode continuar." : "Pesquise por nome, nome social, CPF, carteirinha, RA ou registro; se ainda não existir, cadastre o paciente."}</>}
     </div>
     <AdmissionForm
       action={action}
       empresaId={empresaId}
+      unidadeId={unidadeId}
+      unitCnes={unidade?.cnes ?? null}
+      serverNow={new Date().toISOString()}
       initialPatient={initialPatient}
       profissionais={profissionais ?? []}
       convenios={convenios ?? []}
