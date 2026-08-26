@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BellRing, Clock3, HeartPulse, Stethoscope, UserRound } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
-import { createClient } from "@/lib/supabase/server";
+import { getAssistencialContext } from "@/modules/assistencial/context";
 import { chamarPacienteTriagem, registrarTriagem } from "@/modules/triagem/actions";
 
 type PacienteRel = { nome_completo?: string; cpf?: string | null; ra?: string; numero_registro?: number };
@@ -16,13 +16,20 @@ function formatarHora(value: string | null | undefined) {
   return new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 }
 
+function mensagemSucesso(codigo: string | undefined) {
+  if (codigo === "encaminhado") return "Triagem concluída. O paciente saiu da fila de triagem e foi encaminhado para a especialidade.";
+  if (codigo === "autorizacao") return "Autorização liberada. O paciente foi encaminhado para a triagem e está selecionado para atendimento.";
+  return "Atendimento aberto e incluído na fila de triagem.";
+}
+
 export default async function TriagemPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string; atendimento?: string; chamado?: string }> }) {
   const params = await searchParams;
-  const supabase = await createClient();
+  const { supabase, unidadeId } = await getAssistencialContext();
   const [{ data: atendimentos }, { data: especialidades }] = await Promise.all([
     supabase
       .from("atendimentos")
       .select("id,numero_atendimento,data_abertura,status,cobertura,triagem_concluida_em,paciente:pacientes(nome_completo,cpf,ra,numero_registro)")
+      .eq("unidade_id", unidadeId)
       .is("triagem_concluida_em", null)
       .in("status", ["aberto", "em_espera", "em_atendimento"])
       .order("data_abertura", { ascending: true })
@@ -30,12 +37,20 @@ export default async function TriagemPage({ searchParams }: { searchParams: Prom
     supabase.from("catalogos").select("codigo,descricao").eq("ativo", true).eq("tipo", "especialidade").order("descricao").limit(300),
   ]);
 
-  const pendentes = atendimentos ?? [];
+  const pendentesBase = atendimentos ?? [];
+  const pendentes = params.atendimento
+    ? [...pendentesBase].sort((a, b) => {
+        if (a.id === params.atendimento) return -1;
+        if (b.id === params.atendimento) return 1;
+        return 0;
+      })
+    : pendentesBase;
   const ids = pendentes.map((item) => item.id);
   const { data: filas } = ids.length
     ? await supabase
         .from("filas_setoriais")
         .select("id,atendimento_id,status,ponto_atendimento,chamado_em")
+        .eq("unidade_id", unidadeId)
         .in("atendimento_id", ids)
         .eq("setor_codigo", "triagem")
         .in("status", ["aguardando", "chamado", "em_atendimento"])
@@ -51,7 +66,7 @@ export default async function TriagemPage({ searchParams }: { searchParams: Prom
   const pacienteSelecionado = selecionado ? relPaciente(selecionado.paciente) : null;
 
   return <SectionPage eyebrow="Assistencial / Triagem" title="Fila de triagem" description="Somente atendimentos já abertos e ainda sem triagem concluída aparecem nesta fila. Ao concluir, o paciente sai automaticamente daqui e segue para a fila médica.">
-    {params.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{params.sucesso === "encaminhado" ? "Triagem concluída. O paciente saiu da fila de triagem e foi encaminhado para a especialidade." : "Atendimento aberto e incluído na fila de triagem."}</div> : null}
+    {params.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{mensagemSucesso(params.sucesso)}</div> : null}
     {params.chamado ? <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">Paciente chamado no painel. A chamada pode ser repetida pelo mesmo botão.</div> : null}
     {params.erro ? <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Não foi possível concluir a operação. Verifique atendimento, autorização e permissões da unidade.</div> : null}
 
@@ -70,14 +85,18 @@ export default async function TriagemPage({ searchParams }: { searchParams: Prom
             const paciente = relPaciente(item.paciente);
             const fila = filaPorAtendimento.get(item.id);
             const ativo = selecionado?.id === item.id;
+            const veioDoFluxo = item.id === params.atendimento;
             const chamado = fila?.status === "chamado" || fila?.status === "em_atendimento";
-            return <article key={item.id} className={`rounded-2xl border p-4 transition ${ativo ? "border-brand-300 bg-brand-50/65" : "border-slate-200 bg-white"}`}>
+            return <article key={item.id} className={`rounded-2xl border p-4 transition ${ativo ? "border-brand-300 bg-brand-50/65 ring-2 ring-brand-100" : "border-slate-200 bg-white"}`}>
               <div className="flex items-start gap-3">
                 <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 font-black text-slate-600">{index + 1}</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h3 className="truncate text-sm font-black text-slate-900">{paciente?.nome_completo ?? "Paciente"}</h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="truncate text-sm font-black text-slate-900">{paciente?.nome_completo ?? "Paciente"}</h3>
+                        {veioDoFluxo ? <span className="rounded-lg bg-brand-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-700">{params.sucesso === "autorizacao" ? "Guia liberada" : "Selecionado"}</span> : null}
+                      </div>
                       <p className="mt-1 text-xs text-slate-500">RA {paciente?.ra ?? "—"} · Atendimento {item.numero_atendimento ?? "—"}</p>
                     </div>
                     {chamado ? <span className="rounded-lg bg-sky-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-700">Chamado</span> : <span className="rounded-lg bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">Aguardando</span>}

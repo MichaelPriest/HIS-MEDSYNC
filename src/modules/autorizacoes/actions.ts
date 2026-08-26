@@ -81,6 +81,14 @@ export async function atualizarAutorizacao(formData: FormData) {
       revalidatePath("/assistencial/urgencia");
       redirect(destino.prontoSocorro ? `/pronto-socorro?atendimento=${atendimento.id}&sucesso=autorizacao` : `/fila-medica?atendimento=${atendimento.id}&sucesso=autorizacao`);
     }
+
+    // Fluxo padrão do atendimento conveniado: após a liberação da guia, o paciente
+    // deve seguir imediatamente para a triagem, mantendo o atendimento selecionado.
+    if (atendimento && !atendimento.triagem_concluida_em) {
+      revalidatePath("/autorizacoes");
+      revalidatePath("/triagem");
+      redirect(`/triagem?atendimento=${atendimento.id}&sucesso=autorizacao`);
+    }
   }
 
   revalidatePath("/autorizacoes");
