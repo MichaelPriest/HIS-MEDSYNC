@@ -15,7 +15,18 @@ function optional(value: FormDataEntryValue | null) {
   return normalized || null;
 }
 
-const sexosValidos = new Set(["feminino", "masculino", "intersexo", "outros", "nao_informado"]);
+const sexosValidos = new Set(["feminino", "masculino", "nao_informado"]);
+const nomeValido = /^[\p{L}\p{M}][\p{L}\p{M}\s'-]*$/u;
+
+function idadeEmAnos(dataNascimento: string) {
+  const birth = new Date(`${dataNascimento}T12:00:00`);
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const beforeBirthday = today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate());
+  if (beforeBirthday) age -= 1;
+  return age;
+}
 
 function erroCadastro(code?: string | null) {
   if (code === "23505") return "documento-duplicado";
@@ -74,14 +85,9 @@ async function vincularPacienteNaSenhaEmAdmissao({
     .maybeSingle();
 
   if (senhaError) {
-    console.error("[pacientes.criar] falha ao consultar senha da admissao", {
-      senhaId,
-      pacienteId,
-      code: senhaError.code,
-    });
+    console.error("[pacientes.criar] falha ao consultar senha da admissao", { senhaId, pacienteId, code: senhaError.code });
     return;
   }
-
   if (!senha || senha.status !== "em_atendimento" || senha.atendimento_id || senha.paciente_id) return;
 
   const { error: vinculoError } = await supabase
@@ -92,13 +98,7 @@ async function vincularPacienteNaSenhaEmAdmissao({
     .is("atendimento_id", null)
     .is("paciente_id", null);
 
-  if (vinculoError) {
-    console.error("[pacientes.criar] paciente criado, mas falhou vinculo com senha em admissao", {
-      senhaId,
-      pacienteId,
-      code: vinculoError.code,
-    });
-  }
+  if (vinculoError) console.error("[pacientes.criar] paciente criado, mas falhou vinculo com senha", { senhaId, pacienteId, code: vinculoError.code });
 }
 
 export async function criarPaciente(formData: FormData) {
@@ -114,7 +114,6 @@ export async function criarPaciente(formData: FormData) {
     .eq("ativo", true)
     .limit(1)
     .maybeSingle();
-
   if (vinculoError || !vinculo) redirect(novoPacienteErro("sem-empresa", retorno));
 
   const { data: podeCriar, error: permissaoError } = await supabase.rpc("tem_permissao", {
@@ -122,28 +121,69 @@ export async function criarPaciente(formData: FormData) {
     p_unidade: null,
     p_codigo: "pacientes.criar",
   });
-
   if (permissaoError) {
-    console.error("[pacientes.criar] falha ao verificar permissao", {
-      userId: user.id,
-      empresaId: vinculo.empresa_id,
-      code: permissaoError.code,
-      message: permissaoError.message,
-      details: permissaoError.details,
-      hint: permissaoError.hint,
-    });
+    console.error("[pacientes.criar] falha ao verificar permissao", { code: permissaoError.code, message: permissaoError.message });
     redirect(novoPacienteErro("falha-permissao", retorno));
   }
-
   if (!podeCriar) redirect(novoPacienteErro("sem-permissao", retorno));
 
   const nomeCompleto = String(formData.get("nome_completo") ?? "").trim();
+  const nomeSocial = optional(formData.get("nome_social"));
   const dataNascimento = String(formData.get("data_nascimento") ?? "");
+  const cpf = digits(formData.get("cpf"));
+  const cns = digits(formData.get("cns"));
   const emails = parseEmails(formData);
   const phones = parsePhones(formData);
   const addresses = parseAddresses(formData);
-  if (nomeCompleto.length < 2 || !dataNascimento || !validateRequiredContacts(emails, phones, addresses)) {
+
+  if (nomeCompleto.length < 2 || !dataNascimento || !cpf || !validateRequiredContacts(emails, phones, addresses)) {
     redirect(novoPacienteErro("campos-obrigatorios", retorno));
+  }
+  if (!nomeValido.test(nomeCompleto) || (nomeSocial && !nomeValido.test(nomeSocial))) redirect(novoPacienteErro("nome-invalido", retorno));
+
+  const [{ data: cpfValido }, cnsResult] = await Promise.all([
+    supabase.rpc("validar_cpf_br", { p_cpf: cpf }),
+    cns ? supabase.rpc("validar_cns_local", { p_cns: cns }) : Promise.resolve({ data: true, error: null }),
+  ]);
+  if (!cpfValido) redirect(novoPacienteErro("cpf-invalido", retorno));
+  if (cns && !cnsResult.data) redirect(novoPacienteErro("cns-invalido", retorno));
+
+  const age = idadeEmAnos(dataNascimento);
+  if (age === null || age < 0) redirect(novoPacienteErro("dados-invalidos", retorno));
+  const menor = age < 18;
+  const responsavelNome = optional(formData.get("responsavel_nome"));
+  const responsavelCpf = digits(formData.get("responsavel_cpf"));
+  const responsavelParentesco = optional(formData.get("responsavel_parentesco"));
+  if (menor && (!responsavelNome || !responsavelCpf || !responsavelParentesco)) redirect(novoPacienteErro("responsavel-obrigatorio", retorno));
+  if (responsavelCpf) {
+    const { data: responsavelCpfValido } = await supabase.rpc("validar_cpf_br", { p_cpf: responsavelCpf });
+    if (!responsavelCpfValido) redirect(novoPacienteErro("responsavel-obrigatorio", retorno));
+  }
+
+  const pacienteConvenioId = optional(formData.get("paciente_convenio_id"));
+  const pacientePlanoId = optional(formData.get("paciente_plano_id"));
+  const pacienteCarteirinha = optional(formData.get("paciente_numero_carteirinha"));
+  const pacienteValidade = optional(formData.get("paciente_validade_carteirinha"));
+  let planoConfig: { convenio_id: string; carteirinha_regex: string | null; exige_validade_carteirinha: boolean } | null = null;
+  if (pacienteConvenioId || pacientePlanoId || pacienteCarteirinha || pacienteValidade) {
+    if (!pacienteConvenioId || !pacientePlanoId || !pacienteCarteirinha) redirect(novoPacienteErro("plano-invalido", retorno));
+    const { data: plano } = await supabase
+      .from("convenio_planos")
+      .select("convenio_id,carteirinha_regex,exige_validade_carteirinha")
+      .eq("id", pacientePlanoId)
+      .eq("empresa_id", vinculo.empresa_id)
+      .eq("ativo", true)
+      .maybeSingle();
+    if (!plano || plano.convenio_id !== pacienteConvenioId) redirect(novoPacienteErro("plano-invalido", retorno));
+    planoConfig = plano;
+    if (plano.exige_validade_carteirinha && !pacienteValidade) redirect(novoPacienteErro("plano-invalido", retorno));
+    if (plano.carteirinha_regex) {
+      try {
+        if (!new RegExp(plano.carteirinha_regex).test(pacienteCarteirinha)) redirect(novoPacienteErro("plano-invalido", retorno));
+      } catch {
+        console.error("[pacientes.criar] regex de carteirinha invalida", { planoId: pacientePlanoId });
+      }
+    }
   }
 
   const sexoInformado = optional(formData.get("sexo")) || "nao_informado";
@@ -160,7 +200,9 @@ export async function criarPaciente(formData: FormData) {
   const { data: paciente, error } = await supabase.from("pacientes").insert({
     empresa_id: vinculo.empresa_id,
     nome_completo: nomeCompleto,
-    cpf: digits(formData.get("cpf")) || null,
+    nome_social: nomeSocial,
+    cpf,
+    cns: cns || null,
     rg: optional(formData.get("rg")),
     data_nascimento: dataNascimento,
     nacionalidade: optional(formData.get("nacionalidade")),
@@ -182,39 +224,70 @@ export async function criarPaciente(formData: FormData) {
 
   if (error || !paciente) {
     if (fotoPath) await supabase.storage.from("cadastros-fotos").remove([fotoPath]);
-
-    console.error("[pacientes.criar] falha no insert", {
-      userId: user.id,
-      empresaId: vinculo.empresa_id,
-      code: error?.code,
-      message: error?.message,
-      details: error?.details,
-      hint: error?.hint,
-    });
-
+    console.error("[pacientes.criar] falha no insert", { code: error?.code, message: error?.message, details: error?.details });
     redirect(novoPacienteErro(erroCadastro(error?.code), retorno));
   }
 
-  await vincularPacienteNaSenhaEmAdmissao({
-    supabase,
-    retorno,
-    pacienteId: paciente.id,
-    userId: user.id,
-  });
+  await vincularPacienteNaSenhaEmAdmissao({ supabase, retorno, pacienteId: paciente.id, userId: user.id });
 
-  const [emailResult, phoneResult, addressResult] = await Promise.all([
+  const complementares: Array<PromiseLike<{ error: { code?: string } | null }>> = [
     supabase.from("paciente_emails").insert(emails.map((item) => ({ paciente_id: paciente.id, ...item }))),
     supabase.from("paciente_telefones").insert(phones.map((item) => ({ paciente_id: paciente.id, ...item }))),
     supabase.from("paciente_enderecos").insert(addresses.map((item) => ({ paciente_id: paciente.id, ...item }))),
-  ]);
+    supabase.from("paciente_comunicacao_consentimentos").insert([
+      { empresa_id: vinculo.empresa_id, paciente_id: paciente.id, canal: "whatsapp", autorizado: String(formData.get("consentimento_whatsapp") ?? "") === "1", created_by: user.id },
+      { empresa_id: vinculo.empresa_id, paciente_id: paciente.id, canal: "email", autorizado: String(formData.get("consentimento_email") ?? "") === "1", created_by: user.id },
+    ]),
+  ];
 
-  if (emailResult.error || phoneResult.error || addressResult.error) {
+  if (pacienteConvenioId && pacientePlanoId && pacienteCarteirinha && planoConfig) {
+    complementares.push(supabase.from("paciente_convenios").insert({
+      empresa_id: vinculo.empresa_id,
+      paciente_id: paciente.id,
+      convenio_id: pacienteConvenioId,
+      plano_id: pacientePlanoId,
+      numero_carteirinha: pacienteCarteirinha,
+      validade_carteirinha: pacienteValidade,
+      principal: true,
+      ativo: true,
+      elegibilidade_status: "pendente",
+      created_by: user.id,
+      updated_by: user.id,
+    }));
+  }
+
+  if (responsavelNome && responsavelCpf && responsavelParentesco) {
+    complementares.push(supabase.from("paciente_responsaveis").insert({
+      empresa_id: vinculo.empresa_id,
+      paciente_id: paciente.id,
+      nome: responsavelNome,
+      cpf: responsavelCpf,
+      parentesco: responsavelParentesco,
+      responsavel_legal: true,
+      responsavel_financeiro: true,
+      created_by: user.id,
+      updated_by: user.id,
+    }));
+  }
+
+  const alerta = optional(formData.get("alerta_assistencial"));
+  if (alerta) {
+    complementares.push(supabase.from("paciente_alertas").insert({
+      empresa_id: vinculo.empresa_id,
+      paciente_id: paciente.id,
+      tipo: "assistencial",
+      severidade: "alta",
+      descricao: alerta,
+      created_by: user.id,
+      updated_by: user.id,
+    }));
+  }
+
+  const results = await Promise.all(complementares);
+  if (results.some((result) => result.error)) {
     console.error("[pacientes.criar] paciente criado com falha em dados complementares", {
-      userId: user.id,
       pacienteId: paciente.id,
-      emailCode: emailResult.error?.code,
-      phoneCode: phoneResult.error?.code,
-      addressCode: addressResult.error?.code,
+      codes: results.map((result) => result.error?.code).filter(Boolean),
     });
     const retornoParcial = retornoAdmissaoSeguro(retorno, paciente.id, "parcial");
     if (retornoParcial) redirect(retornoParcial);

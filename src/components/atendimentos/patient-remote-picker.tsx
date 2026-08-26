@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 export type AdmissionPatient = {
   id: string;
   nome_completo: string;
+  nome_social: string | null;
   cpf: string | null;
   rg: string | null;
   cns: string | null;
@@ -29,7 +30,7 @@ export type AdmissionPatient = {
 
 type SearchResult = Pick<AdmissionPatient, "id" | "nome_completo" | "cpf" | "ra" | "numero_registro">;
 
-const PATIENT_SELECT = "id,nome_completo,cpf,rg,cns,data_nascimento,nacionalidade,estado_civil,sexo,telefone,email,cep,logradouro,numero,complemento,bairro,cidade,uf,ra,numero_registro";
+const PATIENT_SELECT = "id,nome_completo,nome_social,cpf,rg,cns,data_nascimento,nacionalidade,estado_civil,sexo,telefone,email,cep,logradouro,numero,complemento,bairro,cidade,uf,ra,numero_registro";
 
 export function PatientRemotePicker({
   empresaId,
@@ -105,16 +106,18 @@ export function PatientRemotePicker({
   }
 
   if (value) {
+    const displayName = value.nome_social?.trim() || value.nome_completo;
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm"><UserRound className="size-4" /></span>
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">{isLocked ? "Paciente identificado no Totem" : "Paciente selecionado"}</p>
-              <strong className="mt-1 block truncate text-sm text-slate-900">{value.nome_completo}</strong>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">{isLocked ? "Paciente identificado na origem" : "Paciente selecionado"}</p>
+              <strong className="mt-1 block truncate text-sm text-slate-900">{displayName}</strong>
+              {value.nome_social ? <p className="mt-0.5 text-xs text-slate-500">Nome de registro: {value.nome_completo}</p> : null}
               <p className="mt-1 text-xs text-slate-600">{value.ra} · Registro #{value.numero_registro}{value.cpf ? ` · CPF ${value.cpf}` : ""}</p>
-              {isLocked ? <p className="mt-1 text-xs font-medium text-emerald-700">Vínculo protegido para manter a continuidade da senha com o prontuário correto.</p> : null}
+              {isLocked ? <p className="mt-1 text-xs font-medium text-emerald-700">Vínculo protegido para manter a continuidade com o prontuário correto.</p> : null}
             </div>
           </div>
           {!isLocked ? <button type="button" onClick={() => onChange(null)} className="btn-secondary h-9 text-xs"><X className="size-3.5" /> Trocar paciente</button> : null}
@@ -136,7 +139,7 @@ export function PatientRemotePicker({
               setQuery(next);
               if (next.trim().length < 2) setResults([]);
             }}
-            placeholder="Digite nome, CPF, RA ou número de registro"
+            placeholder="Digite nome, CPF, carteirinha, RA ou registro"
             className="ui-input pl-9"
             autoComplete="off"
           />
