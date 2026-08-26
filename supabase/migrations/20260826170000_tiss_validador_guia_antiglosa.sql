@@ -418,7 +418,10 @@ begin
   if v_status not in ('rascunho','pronta') then
     raise exception 'TISS_GUIA_ITEM_IMUTAVEL_STATUS_%',upper(v_status) using errcode='23514';
   end if;
-  return case when tg_op='DELETE' then old else new end;
+  if tg_op='DELETE' then
+    return old;
+  end if;
+  return new;
 end
 $function$;
 
@@ -454,7 +457,7 @@ for each row execute function public.proteger_item_guia_tiss_fechada();
 
 drop trigger if exists trg_invalidar_guia_tiss_apos_atualizar_item on public.tiss_guia_itens;
 create trigger trg_invalidar_guia_tiss_apos_atualizar_item
-after update of sequencial,data_execucao,hora_inicio,hora_fim,tabela,codigo_procedimento,descricao,quantidade,via_acesso,tecnica_utilizada,reducao_acrescimo,valor_unitario,valor_total on public.tiss_guia_itens
+after update of sequencial,data_execucao,hora_inicial,hora_final,tabela,codigo_procedimento,descricao,quantidade,via_acesso,tecnica_utilizada,reducao_acrescimo,valor_unitario,valor_total on public.tiss_guia_itens
 for each row execute function public.invalidar_guia_tiss_apos_mutacao_item();
 
 drop trigger if exists trg_invalidar_guia_tiss_apos_excluir_item on public.tiss_guia_itens;
