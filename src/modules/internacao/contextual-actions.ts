@@ -25,7 +25,7 @@ export async function admitirPacienteInternacao(formData: FormData) {
 
   const { data: atendimento } = await supabase
     .from("atendimentos")
-    .select("id,paciente_id,status")
+    .select("id,paciente_id,status,cobertura")
     .eq("id", atendimentoId)
     .eq("empresa_id", empresaId)
     .eq("unidade_id", unidadeId)
@@ -46,6 +46,20 @@ export async function admitirPacienteInternacao(formData: FormData) {
 
   if (existente) return back(atendimentoId, `erro=internacao-ativa&internacao=${existente.id}`);
 
+  const acomodacaoAnsCodigo = text(formData, "acomodacao_tuss49_codigo");
+  if (atendimento.cobertura === "convenio" && !acomodacaoAnsCodigo) return back(atendimentoId, "erro=acomodacao-ans");
+
+  const { data: dominioAns, error: dominioAnsError } = acomodacaoAnsCodigo
+    ? await supabase
+        .from("ans_fhir_dominios_ativos")
+        .select("conceito_id,codigo,display,versao,canonical")
+        .eq("tabela", 49)
+        .eq("codigo", acomodacaoAnsCodigo)
+        .maybeSingle()
+    : { data: null, error: null };
+
+  if (dominioAnsError || (acomodacaoAnsCodigo && !dominioAns)) return back(atendimentoId, "erro=acomodacao-ans-invalida");
+
   const leitoId = text(formData, "leito_id");
   const { data: internacao, error } = await supabase
     .from("internacoes")
@@ -56,6 +70,11 @@ export async function admitirPacienteInternacao(formData: FormData) {
       profissional_responsavel_id: text(formData, "profissional_responsavel_id"),
       setor,
       acomodacao: text(formData, "acomodacao"),
+      acomodacao_tuss49_conceito_id: dominioAns?.conceito_id ?? null,
+      acomodacao_tuss49_codigo: dominioAns?.codigo ?? null,
+      acomodacao_tuss49_descricao: dominioAns?.display ?? null,
+      acomodacao_tuss49_versao: dominioAns?.versao ?? null,
+      acomodacao_tuss49_canonical: dominioAns?.canonical ?? null,
       motivo: text(formData, "motivo"),
       previsao_alta: text(formData, "previsao_alta"),
       observacoes: text(formData, "observacoes"),
