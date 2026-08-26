@@ -47,6 +47,29 @@ export async function assumirPaciente(formData: FormData) {
   const pacienteId = encaminhamento.paciente_id ?? atendimento.paciente_id;
   const now = new Date().toISOString();
 
+  // Faz primeiro a tomada otimista do encaminhamento. A condição no status garante
+  // que apenas um profissional vença a corrida e só o vencedor publique a chamada.
+  const { data: encaminhamentoAtualizado, error: claimError } = await supabase.from("encaminhamentos_assistenciais").update({
+    profissional_id: profissional.id,
+    status: "em_atendimento",
+    chamado_em: now,
+    iniciado_em: now,
+    updated_at: now,
+    updated_by: user.id,
+  }).eq("id", encaminhamentoId).eq("unidade_id", unidadeId).eq("status", "aguardando_profissional").select("id").maybeSingle();
+  if (claimError || !encaminhamentoAtualizado) redirect("/fila-medica?erro=assumir");
+
+  async function liberarClaim() {
+    await supabase.from("encaminhamentos_assistenciais").update({
+      profissional_id: null,
+      status: "aguardando_profissional",
+      chamado_em: null,
+      iniciado_em: null,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id,
+    }).eq("id", encaminhamentoId).eq("unidade_id", unidadeId).eq("profissional_id", profissional.id).eq("status", "em_atendimento");
+  }
+
   const { data: filaSetorial, error: filaSetorialConsultaError } = await supabase.from("filas_setoriais")
     .select("id,status")
     .eq("atendimento_id", encaminhamento.atendimento_id)
@@ -56,7 +79,10 @@ export async function assumirPaciente(formData: FormData) {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (filaSetorialConsultaError) redirect("/fila-medica?erro=fila-setorial");
+  if (filaSetorialConsultaError) {
+    await liberarClaim();
+    redirect("/fila-medica?erro=fila-setorial");
+  }
 
   const filaSetorialPayload = {
     status: "em_atendimento",
@@ -69,7 +95,7 @@ export async function assumirPaciente(formData: FormData) {
   };
 
   const filaSetorialResult = filaSetorial
-    ? await supabase.from("filas_setoriais").update(filaSetorialPayload).eq("id", filaSetorial.id)
+    ? await supabase.from("filas_setoriais").update(filaSetorialPayload).eq("id", filaSetorial.id).eq("unidade_id", unidadeId)
     : await supabase.from("filas_setoriais").insert({
       empresa_id: empresaId,
       unidade_id: unidadeId,
@@ -82,30 +108,9 @@ export async function assumirPaciente(formData: FormData) {
       created_by: user.id,
       ...filaSetorialPayload,
     });
-  if (filaSetorialResult.error) redirect("/fila-medica?erro=fila-setorial");
-
-  const { data: encaminhamentoAtualizado, error: filaError } = await supabase.from("encaminhamentos_assistenciais").update({
-    profissional_id: profissional.id,
-    status: "em_atendimento",
-    chamado_em: now,
-    iniciado_em: now,
-    updated_at: now,
-    updated_by: user.id,
-  }).eq("id", encaminhamentoId).eq("status", "aguardando_profissional").select("id").maybeSingle();
-  if (filaError || !encaminhamentoAtualizado) {
-    // Evita deixar uma chamada ativa no painel se outro profissional ganhou a corrida pela fila.
-    if (filaSetorial) {
-      await supabase.from("filas_setoriais").update({
-        status: "aguardando",
-        ponto_atendimento: null,
-        chamado_em: null,
-        iniciado_em: null,
-        profissional_destino_id: null,
-        updated_by: user.id,
-        updated_at: new Date().toISOString(),
-      }).eq("id", filaSetorial.id);
-    }
-    redirect("/fila-medica?erro=assumir");
+  if (filaSetorialResult.error) {
+    await liberarClaim();
+    redirect("/fila-medica?erro=fila-setorial");
   }
 
   const { error: atendimentoError } = await supabase.from("atendimentos").update({
@@ -116,7 +121,10 @@ export async function assumirPaciente(formData: FormData) {
     updated_at: now,
     updated_by: user.id,
   }).eq("id", encaminhamento.atendimento_id).eq("unidade_id", unidadeId);
-  if (atendimentoError) redirect("/fila-medica?erro=atendimento");
+  if (atendimentoError) {
+    await liberarClaim();
+    redirect("/fila-medica?erro=atendimento");
+  }
 
   revalidatePath("/fila-medica");
   revalidatePath(`/painel-chamadas/${unidadeId}`);
