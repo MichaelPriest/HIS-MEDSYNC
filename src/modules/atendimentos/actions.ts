@@ -37,7 +37,7 @@ function errorCode(message?: string | null) {
   if (value.includes("ADMISSAO_CARTEIRINHA_PADRAO_INVALIDO")) return "carteirinha-padrao";
   if (value.includes("ADMISSAO_TUSS_OBRIGATORIO") || value.includes("ADMISSAO_TUSS_NAO_CADASTRADO")) return "tuss";
   if (value.includes("ADMISSAO_INDICACAO_OBRIGATORIA")) return "indicacao-clinica";
-  if (value.includes("ADMISSAO_REGIME_TISS_INVALIDO") || value.includes("ADMISSAO_TIPO_TISS_INVALIDO")) return "classificacao-tiss";
+  if (value.includes("ADMISSAO_REGIME_TISS_INVALIDO") || value.includes("ADMISSAO_TIPO_TISS_INVALIDO") || value.includes("ADMISSAO_TUSS50_") || value.includes("ADMISSAO_TUSS52_")) return "classificacao-tiss";
   if (value.includes("ADMISSAO_PLANO_INVALIDO") || value.includes("ADMISSAO_COBERTURA_INVALIDA") || value.includes("ADMISSAO_COBERTURA_INCOMPLETA")) return "cobertura";
   if (value.includes("ADMISSAO_CAMPOS_OBRIGATORIOS") || value.includes("ADMISSAO_DADOS_INVALIDOS")) return "campos-obrigatorios";
   return "falha-cadastro";
@@ -113,6 +113,8 @@ function admissionInput(formData: FormData) {
       observacoes: optional(formData, "observacoes"),
       regime_atendimento: optional(formData, "regime_atendimento"),
       tipo_atendimento_tiss: optional(formData, "tipo_atendimento_tiss"),
+      tipo_atendimento_tuss50_codigo: optional(formData, "tipo_atendimento_tuss50_codigo"),
+      tipo_consulta_tuss52_codigo: optional(formData, "tipo_consulta_tuss52_codigo"),
       codigo_tuss_principal: optional(formData, "codigo_tuss_principal"),
       descricao_tuss_principal: optional(formData, "descricao_tuss_principal"),
       tabela_tiss_principal: optional(formData, "tabela_tiss_principal"),
