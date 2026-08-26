@@ -18,6 +18,7 @@ type PacienteResumo = {
 
 type ConvenioResumo = { nome_fantasia: string | null; razao_social: string | null };
 type PlanoResumo = { nome: string | null };
+type AnsDomain = { codigo: string; display: string; versao: string; canonical: string };
 
 function one<T>(value: Rel<T>) {
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -39,7 +40,7 @@ export default async function NovaInternacaoContextualPage({
 
   if (!unidadeId) notFound();
 
-  const [{ data: atendimento }, { data: profissionais }, { data: leitos }, { data: internacaoAtiva }] = await Promise.all([
+  const [{ data: atendimento }, { data: profissionais }, { data: leitos }, { data: internacaoAtiva }, { data: acomodacoesAns }] = await Promise.all([
     supabase
       .from("atendimentos")
       .select("id,numero_atendimento,status,tipo_atendimento,origem,cobertura,paciente:pacientes(nome_completo,cpf,cns,ra,numero_registro),convenio:convenios(nome_fantasia,razao_social),plano:convenio_planos(nome)")
@@ -74,6 +75,11 @@ export default async function NovaInternacaoContextualPage({
       .order("data_internacao", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("ans_fhir_dominios_ativos")
+      .select("codigo,display,versao,canonical,ordem")
+      .eq("tabela", 49)
+      .order("ordem"),
   ]);
 
   if (!atendimento) notFound();
@@ -82,6 +88,8 @@ export default async function NovaInternacaoContextualPage({
   const convenio = one(atendimento.convenio as Rel<ConvenioResumo>);
   const plano = one(atendimento.plano as Rel<PlanoResumo>);
   const prontuarioHref = `/prontuario/${atendimentoId}` as Route;
+  const acomodacoes = (acomodacoesAns ?? []) as AnsDomain[];
+  const versaoAns = acomodacoes[0]?.versao ?? null;
 
   return (
     <SectionPage
@@ -136,11 +144,14 @@ export default async function NovaInternacaoContextualPage({
         </section>
       ) : (
         <section className="ui-card mt-5 p-5 sm:p-6">
-          <div className="mb-5">
-            <h2 className="text-lg font-black text-slate-950">Dados da admissão</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              O atendimento já está definido. Se nenhum leito for escolhido, o paciente ficará em aguardando leito no NIR/mapa de internação.
-            </p>
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-slate-950">Dados da admissão</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                O atendimento já está definido. Se nenhum leito for escolhido, o paciente ficará em aguardando leito no NIR/mapa de internação.
+              </p>
+            </div>
+            {versaoAns ? <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">ANS/FHIR {versaoAns}</span> : null}
           </div>
 
           <form action={admitirPacienteInternacao} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -172,7 +183,7 @@ export default async function NovaInternacaoContextualPage({
               </select>
             </label>
             <label className="text-sm font-semibold text-slate-700">
-              Acomodação
+              Categoria contratual da acomodação
               <select name="acomodacao" defaultValue="" className="ui-input mt-1.5">
                 <option value="">Não informada</option>
                 <option value="enfermaria">Enfermaria</option>
@@ -180,6 +191,15 @@ export default async function NovaInternacaoContextualPage({
                 <option value="uti">UTI</option>
                 <option value="observacao">Observação</option>
               </select>
+              <span className="mt-1 block text-xs font-normal text-slate-400">Usada nas regras contratuais e de precificação.</span>
+            </label>
+            <label className="text-sm font-semibold text-slate-700 md:col-span-2">
+              Acomodação ANS · Tabela 49{atendimento.cobertura === "convenio" ? " *" : ""}
+              <select name="acomodacao_tuss49_codigo" defaultValue="" required={atendimento.cobertura === "convenio"} className="ui-input mt-1.5">
+                <option value="">Selecione a acomodação oficial</option>
+                {acomodacoes.map((item) => <option key={item.codigo} value={item.codigo}>{item.codigo} — {item.display}</option>)}
+              </select>
+              <span className="mt-1 block text-xs font-normal text-slate-400">O código, descrição, canonical e versão são preservados na internação.</span>
             </label>
             <label className="text-sm font-semibold text-slate-700">
               Previsão de alta
