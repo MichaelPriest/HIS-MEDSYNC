@@ -24,6 +24,7 @@ export async function assumirPaciente(formData: FormData) {
     profissional = fallback.data;
   }
   if (!profissional) redirect("/fila-medica?erro=perfil-profissional");
+  const profissionalId = profissional.id;
 
   const { data: encaminhamento } = await supabase.from("encaminhamentos_assistenciais")
     .select("id,atendimento_id,paciente_id,especialidade,status,prioridade,motivo")
@@ -50,7 +51,7 @@ export async function assumirPaciente(formData: FormData) {
   // Faz primeiro a tomada otimista do encaminhamento. A condição no status garante
   // que apenas um profissional vença a corrida e só o vencedor publique a chamada.
   const { data: encaminhamentoAtualizado, error: claimError } = await supabase.from("encaminhamentos_assistenciais").update({
-    profissional_id: profissional.id,
+    profissional_id: profissionalId,
     status: "em_atendimento",
     chamado_em: now,
     iniciado_em: now,
@@ -67,7 +68,7 @@ export async function assumirPaciente(formData: FormData) {
       iniciado_em: null,
       updated_at: new Date().toISOString(),
       updated_by: user.id,
-    }).eq("id", encaminhamentoId).eq("unidade_id", unidadeId).eq("profissional_id", profissional.id).eq("status", "em_atendimento");
+    }).eq("id", encaminhamentoId).eq("unidade_id", unidadeId).eq("profissional_id", profissionalId).eq("status", "em_atendimento");
   }
 
   const { data: filaSetorial, error: filaSetorialConsultaError } = await supabase.from("filas_setoriais")
@@ -89,7 +90,7 @@ export async function assumirPaciente(formData: FormData) {
     ponto_atendimento: pontoAtendimento,
     chamado_em: now,
     iniciado_em: now,
-    profissional_destino_id: profissional.id,
+    profissional_destino_id: profissionalId,
     updated_by: user.id,
     updated_at: now,
   };
@@ -114,7 +115,7 @@ export async function assumirPaciente(formData: FormData) {
   }
 
   const { error: atendimentoError } = await supabase.from("atendimentos").update({
-    profissional_id: profissional.id,
+    profissional_id: profissionalId,
     status: "em_atendimento",
     setor_atual: setorCodigo,
     ultima_movimentacao_em: now,
