@@ -142,7 +142,7 @@ async function recalcularConta(contaId: string) {
 
 export async function validarContaTiss(contaId: string) {
   const { supabase, user } = await getAssistencialContext();
-  const { data: conta } = await supabase.from("contas_faturamento").select("id,tipo_cobranca,auditoria_liberada,contas_medicas_liberada,atendimento_id,convenio_id,paciente_id,atendimento:atendimentos(numero_carteirinha,profissional_id),convenio:convenios(registro_ans),paciente:pacientes(cns),itens:conta_faturamento_itens(id,origem_tipo,categoria_item,codigo,tabela,descricao,valor_total)").eq("id", contaId).maybeSingle();
+  const { data: conta } = await supabase.from("contas_faturamento").select("id,tipo_cobranca,auditoria_liberada,contas_medicas_liberada,atendimento_id,convenio_id,paciente_id,atendimento:atendimentos(numero_carteirinha,profissional_id,tipo_atendimento_tuss50_codigo,tipo_consulta_tuss52_codigo),convenio:convenios(registro_ans),paciente:pacientes(cns),itens:conta_faturamento_itens(id,origem_tipo,categoria_item,codigo,tabela,descricao,valor_total)").eq("id", contaId).maybeSingle();
   if (!conta) redirect("/faturamento?erro=conta");
   await supabase.from("conta_faturamento_criticas").delete().eq("conta_id", contaId).eq("resolvida", false);
   const criticas: Array<{ conta_id: string; item_id?: string | null; codigo: string; severidade: "erro" | "alerta"; campo?: string; mensagem: string }> = [];
@@ -153,6 +153,8 @@ export async function validarContaTiss(contaId: string) {
   if (!conta.contas_medicas_liberada) criticas.push({ conta_id: contaId, codigo: "CM-001", severidade: "erro", campo: "contas_medicas_liberada", mensagem: "Conta ainda não liberada por Contas Médicas." });
   if (conta.tipo_cobranca === "convenio" && !convenio?.registro_ans) criticas.push({ conta_id: contaId, codigo: "TISS-CONV-001", severidade: "erro", campo: "registro_ans", mensagem: "Convênio sem Registro ANS válido." });
   if (conta.tipo_cobranca === "convenio" && !atendimento?.numero_carteirinha) criticas.push({ conta_id: contaId, codigo: "TISS-BEN-001", severidade: "erro", campo: "numero_carteirinha", mensagem: "Número da carteirinha não informado no atendimento." });
+  if (conta.tipo_cobranca === "convenio" && !atendimento?.tipo_atendimento_tuss50_codigo) criticas.push({ conta_id: contaId, codigo: "TISS-DOM-050", severidade: "erro", campo: "tipo_atendimento_tuss50_codigo", mensagem: "Tipo de atendimento ANS (Tabela 50) não foi fotografado na admissão." });
+  if (conta.tipo_cobranca === "convenio" && atendimento?.tipo_atendimento_tuss50_codigo === "04" && !atendimento?.tipo_consulta_tuss52_codigo) criticas.push({ conta_id: contaId, codigo: "TISS-DOM-052", severidade: "erro", campo: "tipo_consulta_tuss52_codigo", mensagem: "Tipo de consulta ANS (Tabela 52) é obrigatório quando a Tabela 50 estiver classificada como Consulta (04)." });
   if (!paciente?.cns) criticas.push({ conta_id: contaId, codigo: "TISS-BEN-002", severidade: "alerta", campo: "cns", mensagem: "CNS do beneficiário não informado; confirme exigência da guia aplicável." });
   const itens = Array.isArray(conta.itens) ? conta.itens : [];
   if (!itens.length) criticas.push({ conta_id: contaId, codigo: "FAT-ITEM-001", severidade: "erro", mensagem: "Conta sem itens faturáveis." });
@@ -172,7 +174,7 @@ export async function validarContaTiss(contaId: string) {
 
 export async function gerarGuiaTiss(contaId: string) {
   const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
-  const { data: conta } = await supabase.from("contas_faturamento").select("id,status,auditoria_liberada,contas_medicas_liberada,tipo_cobranca,valor_liquido,atendimento_id,paciente_id,convenio_id,plano_id,atendimento:atendimentos(numero_atendimento,data_abertura,tipo_atendimento,numero_carteirinha,validade_carteirinha,senha_autorizacao,numero_autorizacao,profissional_id,paciente_cns,atendimento_rn),convenio:convenios(registro_ans),itens:conta_faturamento_itens(id,data_execucao,tabela,codigo,descricao,quantidade,valor_unitario,valor_total)").eq("id", contaId).maybeSingle();
+  const { data: conta } = await supabase.from("contas_faturamento").select("id,status,auditoria_liberada,contas_medicas_liberada,tipo_cobranca,valor_liquido,atendimento_id,paciente_id,convenio_id,plano_id,atendimento:atendimentos(numero_atendimento,data_abertura,tipo_atendimento,numero_carteirinha,validade_carteirinha,senha_autorizacao,numero_autorizacao,profissional_id,paciente_cns,atendimento_rn,tipo_atendimento_tuss50_codigo,tipo_atendimento_tuss50_descricao,tipo_atendimento_tuss50_versao,tipo_atendimento_tuss50_canonical,tipo_consulta_tuss52_codigo,tipo_consulta_tuss52_descricao,tipo_consulta_tuss52_versao,tipo_consulta_tuss52_canonical),convenio:convenios(registro_ans),itens:conta_faturamento_itens(id,data_execucao,tabela,codigo,descricao,quantidade,valor_unitario,valor_total)").eq("id", contaId).maybeSingle();
   if (!conta || !conta.auditoria_liberada || !conta.contas_medicas_liberada || conta.status !== "pronta" || conta.tipo_cobranca !== "convenio" || !conta.convenio_id) redirect(`/faturamento/${contaId}?erro=auditoria-contas-medicas-ou-guia-nao-pronta`);
   const { count: erros } = await supabase.from("conta_faturamento_criticas").select("id", { count: "exact", head: true }).eq("conta_id", contaId).eq("resolvida", false).eq("severidade", "erro");
   if ((erros ?? 0) > 0) redirect(`/faturamento/${contaId}?erro=criticas`);
@@ -182,12 +184,46 @@ export async function gerarGuiaTiss(contaId: string) {
   if (!versao) redirect(`/faturamento/${contaId}?erro=versao-tiss`);
   const atendimento = one(conta.atendimento);
   const convenio = one(conta.convenio);
+  if (!atendimento?.tipo_atendimento_tuss50_codigo || (atendimento.tipo_atendimento_tuss50_codigo === "04" && !atendimento.tipo_consulta_tuss52_codigo)) redirect(`/faturamento/${contaId}?erro=dominio-ans`);
   const { count: internacoes } = await supabase.from("internacoes").select("id", { count: "exact", head: true }).eq("atendimento_id", conta.atendimento_id);
   const tipoTexto = String(atendimento?.tipo_atendimento ?? "").toLowerCase();
   const tipoGuia = (internacoes ?? 0) > 0 ? "resumo_internacao" : tipoTexto.includes("consulta") ? "consulta" : "sp_sadt";
   const numeroGuia = `G${Date.now()}${Math.floor(Math.random() * 900 + 100)}`;
   const dataAbertura = atendimento?.data_abertura ? new Date(atendimento.data_abertura) : new Date();
-  const { data: guia, error } = await supabase.from("tiss_guias").insert({ empresa_id: empresaId, unidade_id: unidadeId, conta_id: contaId, atendimento_id: conta.atendimento_id, paciente_id: conta.paciente_id, convenio_id: conta.convenio_id, plano_id: conta.plano_id, profissional_id: atendimento?.profissional_id ?? null, versao_id: versao.id, tipo_guia: tipoGuia, numero_guia_prestador: numeroGuia, numero_guia_operadora: atendimento?.numero_autorizacao ?? null, registro_ans: convenio?.registro_ans ?? null, numero_carteirinha: atendimento?.numero_carteirinha ?? null, validade_carteirinha: atendimento?.validade_carteirinha ?? null, senha_autorizacao: atendimento?.senha_autorizacao ?? null, atendimento_rn: Boolean(atendimento?.atendimento_rn), tipo_atendimento: atendimento?.tipo_atendimento ?? null, data_atendimento: dataAbertura.toISOString().slice(0,10), hora_inicio: dataAbertura.toISOString().slice(11,19), status: "rascunho", valor_total: Number(conta.valor_liquido ?? 0), created_by: user.id, updated_by: user.id }).select("id").single();
+  const { data: guia, error } = await supabase.from("tiss_guias").insert({
+    empresa_id: empresaId,
+    unidade_id: unidadeId,
+    conta_id: contaId,
+    atendimento_id: conta.atendimento_id,
+    paciente_id: conta.paciente_id,
+    convenio_id: conta.convenio_id,
+    plano_id: conta.plano_id,
+    profissional_id: atendimento?.profissional_id ?? null,
+    versao_id: versao.id,
+    tipo_guia: tipoGuia,
+    numero_guia_prestador: numeroGuia,
+    numero_guia_operadora: atendimento?.numero_autorizacao ?? null,
+    registro_ans: convenio?.registro_ans ?? null,
+    numero_carteirinha: atendimento?.numero_carteirinha ?? null,
+    validade_carteirinha: atendimento?.validade_carteirinha ?? null,
+    senha_autorizacao: atendimento?.senha_autorizacao ?? null,
+    atendimento_rn: Boolean(atendimento?.atendimento_rn),
+    tipo_atendimento: atendimento?.tipo_atendimento ?? null,
+    tipo_atendimento_tuss50_codigo: atendimento.tipo_atendimento_tuss50_codigo,
+    tipo_atendimento_tuss50_descricao: atendimento.tipo_atendimento_tuss50_descricao,
+    tipo_atendimento_tuss50_versao: atendimento.tipo_atendimento_tuss50_versao,
+    tipo_atendimento_tuss50_canonical: atendimento.tipo_atendimento_tuss50_canonical,
+    tipo_consulta_tuss52_codigo: atendimento.tipo_consulta_tuss52_codigo,
+    tipo_consulta_tuss52_descricao: atendimento.tipo_consulta_tuss52_descricao,
+    tipo_consulta_tuss52_versao: atendimento.tipo_consulta_tuss52_versao,
+    tipo_consulta_tuss52_canonical: atendimento.tipo_consulta_tuss52_canonical,
+    data_atendimento: dataAbertura.toISOString().slice(0,10),
+    hora_inicio: dataAbertura.toISOString().slice(11,19),
+    status: "rascunho",
+    valor_total: Number(conta.valor_liquido ?? 0),
+    created_by: user.id,
+    updated_by: user.id,
+  }).select("id").single();
   if (error || !guia) redirect(`/faturamento/${contaId}?erro=gerar-guia`);
   const itens = Array.isArray(conta.itens) ? conta.itens : [];
   if (itens.length) {
