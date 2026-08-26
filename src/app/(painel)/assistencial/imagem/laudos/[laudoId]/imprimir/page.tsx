@@ -38,7 +38,7 @@ export default async function ImprimirLaudoImagemPage({ params }: { params: Prom
   const solicitacao = solReq.data;
   const execucao = execReq.data;
   const atendimento = atReq.data;
-  const paciente = one(atendimento?.paciente as any) as any;
+  const paciente = one(atendimento?.paciente);
   const profissional = profReq.data;
   const unidade = unidadeReq.data;
   const rascunho = laudo.status !== "liberado";
