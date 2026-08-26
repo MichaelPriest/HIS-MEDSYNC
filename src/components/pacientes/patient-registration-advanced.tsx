@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { AlertTriangle, Baby, BadgeCheck, HeartPulse, ShieldCheck, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ContactSections } from "@/components/cadastros/contact-sections";
@@ -104,7 +103,7 @@ export function PatientRegistrationAdvanced({
       </section>
 
       <div className="flex flex-wrap justify-end gap-3">
-        <Link href={retornoAdmissao ?? "/pacientes"} className="btn-secondary">Cancelar</Link>
+        <a href={retornoAdmissao ?? "/pacientes"} className="btn-secondary">Cancelar</a>
         <button type="submit" disabled={Boolean(name && !nameIsValid(name))} className="ui-button-primary"><HeartPulse className="size-4" />{retornoAdmissao ? "Salvar e voltar à admissão" : "Salvar paciente"}</button>
       </div>
     </form>
