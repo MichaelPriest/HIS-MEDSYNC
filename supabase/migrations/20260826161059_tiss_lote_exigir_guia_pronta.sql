@@ -1,3 +1,4 @@
+-- Segurança do ciclo da receita: somente guia regulatoriamente validada como pronta pode ser agrupada em lote.
 create or replace function public.criar_lote_tiss_transacional(
   p_unidade_id uuid,
   p_convenio_id uuid,
