@@ -95,7 +95,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   }))].sort();
 
   const profileNames = selectedProfileId === "all"
-    ? profileOptions.map((item) => item.nome)
+    ? ["Todos os perfis"]
     : [profileMap.get(selectedProfileId)?.nome ?? "Perfil"];
 
   const unidadeAtual = one(unidade?.unidade as NamedRow | NamedRow[] | null);
