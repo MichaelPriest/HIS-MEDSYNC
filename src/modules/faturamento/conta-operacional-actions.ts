@@ -196,6 +196,8 @@ export async function sincronizarProducaoConta(contaId: string) {
   const { supabase, empresaId, unidadeId } = await requirePermission("producao.reprocessar");
   const { data: conta } = await supabase.from("contas_faturamento").select("atendimento_id").eq("id", contaId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle();
   if (!conta) redirect("/faturamento?erro=conta");
+  const { count: guiasAtivas } = await supabase.from("tiss_guias").select("id", { count: "exact", head: true }).eq("conta_id", contaId).neq("status", "cancelada");
+  if ((guiasAtivas ?? 0) > 0) redirect(`/faturamento/${contaId}?erro=guia-tiss-ativa#producao`);
   const { error } = await supabase.rpc("sincronizar_producao_atendimento", { p_atendimento_id: conta.atendimento_id });
   if (error) redirect(`/faturamento/${contaId}?erro=sincronizacao-producao`);
   revalidatePath(`/faturamento/${contaId}`);
@@ -205,6 +207,8 @@ export async function sincronizarProducaoConta(contaId: string) {
 
 export async function recalcularPrecosConta(contaId: string) {
   const { supabase } = await requirePermission("faturamento.criar");
+  const { count: guiasAtivas } = await supabase.from("tiss_guias").select("id", { count: "exact", head: true }).eq("conta_id", contaId).neq("status", "cancelada");
+  if ((guiasAtivas ?? 0) > 0) redirect(`/faturamento/${contaId}?erro=guia-tiss-ativa#lancamentos`);
   const { error } = await supabase.rpc("recalcular_conta_contratual_avancada", { p_conta_id: contaId });
   if (error) redirect(`/faturamento/${contaId}?erro=recalculo-contratual`);
   revalidatePath(`/faturamento/${contaId}`);
