@@ -14,6 +14,7 @@ O Livro recebe, de forma idempotente, eventos originados de:
 - consulta de pronto atendimento concluída;
 - visita/avaliação médica e interconsulta concluída;
 - procedimentos realizados;
+- sessões TEA/ABA realizadas;
 - exames laboratoriais liberados;
 - exames de imagem liberados;
 - diárias de internação;
@@ -21,7 +22,6 @@ O Livro recebe, de forma idempotente, eventos originados de:
 - OPME entregues;
 - gases medicinais entregues;
 - medicamentos dispensados, descontadas as devoluções;
-- sessões TEA/ABA, quando o módulo de sessão estiver vinculado ao motor;
 - taxas e outros eventos configurados por contrato.
 
 Cancelamento, estorno ou mudança da origem também é refletido no Livro. Se uma origem cancelada voltar legitimamente para um estado executado, o evento é reativado sem gerar duplicidade.
@@ -38,6 +38,36 @@ Os seguintes códigos funcionam como **fallback padrão quando não existe pacot
 
 A classificação não depende do texto livre de `tipo_atendimento`. O sistema usa a origem operacional do episódio: agenda/check-in para ambulatório e demanda espontânea/Totem/PS/urgência/emergência para pronto atendimento.
 
+## Sessões TEA / ABA
+
+A sessão clínica continua sendo registrada na fonte assistencial `procedimentos_assistenciais`. O Livro não cria uma segunda fonte clínica concorrente; ele **classifica o fato realizado** como `sessao_tea_aba` quando houver evidência suficiente.
+
+A classificação pode ocorrer por:
+
+1. metadados do item assistencial (`tipo_producao`, `linha_cuidado` ou `programa_assistencial`);
+2. códigos de compatibilidade TEA/TGD já usados no projeto (`66600480`, `66600499`, `66600502`, `66600510`);
+3. descrição assistencial contendo marcadores TEA, TGD, ABA ou autismo.
+
+A prioridade recomendada é cadastrar corretamente o item e o contrato. A detecção por descrição serve como compatibilidade e não substitui parametrização comercial.
+
+Quando o atendimento é por convênio, sessões TEA/ABA exigem autorização por padrão, salvo regra contratual explícita em `contrato_producao_mapeamentos.exige_autorizacao`.
+
+## Autorizações e consumo de guia
+
+A consolidação do Livro consome autorização por **quantidade**, em ordem determinística, sem ultrapassar a quantidade autorizada da guia.
+
+Para cada evento são registrados:
+
+- guia utilizada;
+- código e tabela conciliados;
+- quantidade produzida;
+- quantidade efetivamente alocada na autorização;
+- status da autorização: `autorizada`, `ausente`, `insuficiente`, `codigo_pendente` ou `nao_exigida`.
+
+Se a autorização for ausente ou insuficiente, o fato clínico permanece preservado, porém a cobrança fica bloqueada. O usuário deve corrigir autorização/contrato; não deve alterar o prontuário para contornar a pendência.
+
+A tabela `producao_autorizacao_consumos` mantém essa trilha. Reprocessamentos apagam apenas os registros **derivados** e os reconstruem a partir da produção e das guias válidas, evitando dupla utilização da mesma quantidade autorizada.
+
 ## Pacotes
 
 Um pacote **explicitamente aplicado ao atendimento** tem prioridade sobre a cobrança individual.
@@ -48,9 +78,19 @@ Fluxo de resolução:
 2. procurar mapeamento contratual específico para o tipo de evento, acomodação e/ou setor;
 3. obter o código técnico candidato;
 4. verificar se existe pacote ativo aplicado ao atendimento contendo esse código;
-5. se houver pacote, absorver a quantidade prevista no pacote;
-6. se o contrato permitir, lançar apenas o excedente separadamente;
-7. somente na ausência de pacote, seguir para cobrança individual.
+5. consumir a quantidade incluída no pacote de forma **acumulada entre os eventos**;
+6. registrar a quantidade absorvida e a quantidade excedente;
+7. se o contrato permitir cobrança de excedente e houver autorização suficiente, lançar somente o excedente;
+8. somente na ausência de pacote, seguir para cobrança individual.
+
+Exemplo: um pacote com `quantidade_inclusa=10` não absorve 12 sessões apenas porque cada evento possui quantidade 1. As dez primeiras unidades consomem a cota; as demais passam a excedente.
+
+A tabela `atendimento_pacote_consumos` registra, por evento:
+
+- quantidade total produzida;
+- quantidade absorvida pelo pacote;
+- quantidade excedente;
+- vínculo de pacote e item contratual utilizados.
 
 O item absorvido pelo pacote permanece registrado com valor zero e `cobravel=false`, mantendo a trilha de auditoria da produção real.
 
@@ -78,7 +118,7 @@ Uma devolução integral cancela a produção financeira daquele medicamento, se
 - `registrado`: fato capturado e aguardando consolidação;
 - `consolidado`: evento já foi associado à conta;
 - `cancelado`: origem deixou de ser válida;
-- `estornado`: evento revertido por processo formal.
+- `estornado`: evento revertido por processo formal ou reclassificação.
 
 ## Consolidação pós-alta
 
@@ -89,12 +129,28 @@ Na alta médica:
 3. todos os fatos do episódio são sincronizados de forma idempotente;
 4. a conta de pré-faturamento é criada ou reutilizada;
 5. cada evento é resolvido por pacote/contrato/catálogo/fallback;
-6. itens individuais e absorvidos por pacote são gravados na conta;
-7. a precificação contratual é executada;
-8. o valor da conta é recalculado;
-9. a conta é encaminhada para Auditoria.
+6. cotas de pacote e autorizações são consumidas cronologicamente;
+7. itens individuais, absorvidos e excedentes são gravados na conta;
+8. produção sem autorização suficiente fica bloqueada e rastreável;
+9. a precificação contratual é executada;
+10. o valor da conta é recalculado;
+11. a conta é encaminhada para Auditoria.
 
 Contas `pronta`, `faturada` ou `cancelada` são protegidas contra reprocessamento automático destrutivo.
+
+## Reconstrução determinística
+
+Os registros de `atendimento_pacote_consumos`, `producao_autorizacao_consumos` e os itens derivados do Livro são reconstruíveis.
+
+Ao reprocessar uma conta ainda editável, o sistema:
+
+1. remove somente derivados do Livro;
+2. preserva os fatos clínicos originais;
+3. relê contrato, pacote e guias autorizadas atuais;
+4. recalcula consumo acumulado e excedentes;
+5. recria a memória de cálculo.
+
+Isso permite corrigir parametrização sem gerar duplicidade ou alterar fatos assistenciais.
 
 ## Sincronização manual
 
@@ -105,6 +161,14 @@ A tela **Faturamento → Livro de produção** possui uma sincronização manual
 - conferir idempotência.
 
 Ela **não cria fatos clínicos arbitrários**. A RPC apenas relê as fontes assistenciais válidas e sincroniza o Livro.
+
+A mesma tela mostra:
+
+- total de sessões TEA/ABA;
+- autorizações pendentes;
+- consumo e excedente de pacote;
+- quantidade alocada por autorização;
+- bloqueios de cobrança.
 
 Permissões:
 
@@ -126,7 +190,8 @@ Cada evento guarda:
 - data/hora real;
 - quantidade;
 - item assistencial e fallback TUSS quando houver;
-- metadados da execução;
+- autorização conciliada quando aplicável;
+- metadados da execução e do consumo de autorização;
 - status e data de consolidação.
 
-Cada item da conta pode apontar de volta para `producao_evento_id`, guardar `pacote_id` e `memoria_calculo`. Assim Auditoria, Contas Médicas e Faturamento conseguem explicar de onde veio cada cobrança e por que ela foi absorvida, cobrada individualmente ou bloqueada.
+Cada item da conta pode apontar de volta para `producao_evento_id`, guardar `pacote_id` e `memoria_calculo`. Assim Auditoria, Contas Médicas e Faturamento conseguem explicar de onde veio cada cobrança e por que ela foi absorvida, cobrada individualmente, transformada em excedente ou bloqueada.
