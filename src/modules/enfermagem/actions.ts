@@ -15,6 +15,24 @@ function retorno(fd: FormData, fallback = "/assistencial/enfermagem") {
   return value && value.startsWith("/assistencial/enfermagem") ? value : fallback;
 }
 
+function mensagemErroAdministracao(message: string) {
+  const mensagens: Record<string, string> = {
+    APRAZAMENTO_NAO_ENCONTRADO: "A dose aprazada não foi encontrada. Atualize a tela e tente novamente.",
+    APRAZAMENTO_JA_CHECADO: "Esta dose já foi checada por outro profissional. Atualize a tela.",
+    SEM_PERMISSAO: "Seu perfil não possui permissão para checagem de medicamentos à beira-leito.",
+    PRESCRICAO_NAO_ATIVA_ASSINADA: "A prescrição não está ativa e assinada para administração.",
+    VALIDACAO_FARMACEUTICA_PENDENTE: "A prescrição ainda aguarda validação/liberação da Farmácia.",
+    PACIENTE_DIVERGENTE: "A pulseira informada não corresponde ao paciente deste atendimento.",
+    USUARIO_SEM_PROFISSIONAL: "Seu usuário não está vinculado a um profissional ativo.",
+    DISPENSACAO_INVALIDA: "Selecione a dispensação válida liberada pela Farmácia antes de administrar.",
+    MEDICAMENTO_DIVERGENTE: "O código lido não corresponde ao medicamento dispensado.",
+    JUSTIFICATIVA_OBRIGATORIA: "Informe a justificativa para registrar recusa ou omissão.",
+    SEGUNDO_PROFISSIONAL_INVALIDO: "Na dupla checagem, selecione um segundo profissional diferente do profissional logado.",
+    STATUS_INVALIDO: "O status informado para a checagem é inválido.",
+  };
+  return mensagens[message] ?? "Não foi possível concluir a checagem. Atualize a tela e confira os dados informados.";
+}
+
 async function resolveProfissional(
   supabase: Awaited<ReturnType<typeof getAssistencialContext>>["supabase"],
   empresaId: string,
@@ -31,7 +49,7 @@ export async function checarAdministracaoEnfermagemAction(fd: FormData) {
   const aprazamentoId = String(fd.get("aprazamento_id") ?? "").trim();
   const status = String(fd.get("status") ?? "administrado").trim();
   const voltar = retorno(fd);
-  if (!aprazamentoId) go(`${voltar}${voltar.includes("?") ? "&" : "?"}erro=aprazamento`);
+  if (!aprazamentoId) go(`${voltar}${voltar.includes("?") ? "&" : "?"}erro=${encodeURIComponent("A dose aprazada não foi informada.")}`);
 
   const { error } = await supabase.rpc("registrar_administracao_beira_leito", {
     p_aprazamento_id: aprazamentoId,
@@ -47,8 +65,8 @@ export async function checarAdministracaoEnfermagemAction(fd: FormData) {
   });
 
   if (error) {
-    console.error("[enfermagem] checagem", { code: error.code, message: error.message });
-    go(`${voltar}${voltar.includes("?") ? "&" : "?"}erro=${encodeURIComponent(error.message)}`);
+    console.error("[enfermagem] checagem", { code: error.code, operation: "registrar_administracao_beira_leito" });
+    go(`${voltar}${voltar.includes("?") ? "&" : "?"}erro=${encodeURIComponent(mensagemErroAdministracao(error.message))}`);
   }
 
   revalidatePath("/assistencial/enfermagem");
