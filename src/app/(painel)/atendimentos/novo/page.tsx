@@ -21,7 +21,7 @@ const ERROS: Record<string, string> = {
   "carteirinha-padrao": "A carteirinha não corresponde ao padrão configurado para o plano selecionado.",
   tuss: "Selecione um procedimento TUSS válido para este atendimento.",
   "indicacao-clinica": "A indicação clínica é obrigatória para SADT, exames, pequena cirurgia e sessão de terapia.",
-  "classificacao-tiss": "Revise o regime e o tipo de atendimento TISS.",
+  "classificacao-tiss": "Revise os domínios regulatórios ANS/TISS e a classificação operacional do atendimento.",
   permissao: "Seu perfil não possui permissão para abrir atendimentos nesta unidade.",
   "senha-invalida": "Esta senha não está mais disponível para admissão. Ela pode ter sido processada por outro guichê.",
   "agendamento-invalido": "Este agendamento não está mais disponível para abertura de atendimento. Verifique o check-in ou se ele já foi admitido.",
@@ -42,6 +42,14 @@ type AgendaInicial = {
   plano_id: string | null;
   tipo_atendimento: string | null;
   especialidade: string | null;
+};
+
+type AnsDomain = {
+  tabela: number;
+  codigo: string;
+  display: string;
+  versao: string;
+  canonical: string;
 };
 
 export default async function NovoAtendimentoPage({ searchParams }: { searchParams: Promise<Search> }) {
@@ -94,6 +102,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
     { data: convenios },
     { data: planos },
     { data: unidade },
+    { data: dominiosAns, error: dominiosAnsError },
   ] = await Promise.all([
     pacienteInicialPromise,
     supabase.from("profissionais")
@@ -105,11 +114,18 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
       .select("id,convenio_id,nome,codigo,carteirinha_mascara,carteirinha_regex,exige_validade_carteirinha")
       .eq("empresa_id", empresaId).eq("ativo", true).order("nome"),
     supabase.from("unidades").select("id,nome,cnes").eq("id", unidadeId).eq("empresa_id", empresaId).maybeSingle(),
+    supabase.from("ans_fhir_dominios_ativos")
+      .select("tabela,codigo,display,versao,canonical,ordem")
+      .in("tabela", [50, 52])
+      .order("tabela")
+      .order("ordem"),
   ]);
 
   if (pacienteInicialError) console.error("[admissao] falha ao carregar paciente da origem", { code: pacienteInicialError.code });
+  if (dominiosAnsError) console.error("[admissao] falha ao carregar domínios ANS", { code: dominiosAnsError.code });
 
   const initialPatient = (pacienteInicial ?? null) as AdmissionPatient | null;
+  const ans = (dominiosAns ?? []) as AnsDomain[];
   const mensagemErro = erro ? ERROS[erro] ?? ERROS["falha-cadastro"] : null;
   const isAgenda = Boolean(agenda && agendamentoId);
   const action = isAgenda && agendamentoId ? abrirAtendimentoAgendado.bind(null, agendamentoId) : abrirAtendimento.bind(null, String(senhaId));
@@ -137,6 +153,8 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
       convenios={convenios ?? []}
       planos={planos ?? []}
       tipos={tipos ?? []}
+      tiposAtendimentoAns={ans.filter((item) => item.tabela === 50)}
+      tiposConsultaAns={ans.filter((item) => item.tabela === 52)}
       initialProfissionalId={agenda?.profissional_id ?? null}
       initialCoverage={agenda?.convenio_id ? "convenio" : "particular"}
       initialConvenioId={agenda?.convenio_id ?? null}
