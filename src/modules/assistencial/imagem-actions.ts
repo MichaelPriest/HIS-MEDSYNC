@@ -100,18 +100,35 @@ export async function registrarDoseImagem(formData: FormData) {
 }
 
 export async function salvarLaudoImagem(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
+  const { supabase } = await getAssistencialContext();
   const execucaoId = txt(formData, "execucao_id");
-  const { data: exec } = await supabase.from("imagem_execucoes").select("id,solicitacao_id,atendimento_id").eq("id", execucaoId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle();
-  if (!exec) return go("erro=execucao");
-  const { error } = await supabase.from("imagem_laudos").insert({ empresa_id: empresaId, unidade_id: unidadeId, solicitacao_id: exec.solicitacao_id, execucao_id: exec.id, atendimento_id: exec.atendimento_id, tecnica: txt(formData, "tecnica") || null, achados: txt(formData, "achados") || null, conclusao: txt(formData, "conclusao") || null, recomendacoes: txt(formData, "recomendacoes") || null, status: "rascunho", created_by: user.id, updated_by: user.id });
-  if (error) return go(`erro=${encodeURIComponent(error.message)}`);
-  return go("sucesso=laudo");
+  if (!execucaoId) return go("erro=execucao");
+  const { data: laudoId, error } = await supabase.rpc("salvar_laudo_imagem", {
+    p_execucao_id: execucaoId,
+    p_tecnica: txt(formData, "tecnica") || null,
+    p_achados: txt(formData, "achados") || null,
+    p_conclusao: txt(formData, "conclusao") || null,
+    p_recomendacoes: txt(formData, "recomendacoes") || null,
+  });
+  if (error || !laudoId) return go(`erro=${encodeURIComponent(error?.message ?? "Não foi possível salvar o laudo")}`);
+  redirect(`${base}/laudos/${String(laudoId)}?sucesso=rascunho` as never);
 }
 
 export async function liberarLaudoImagem(formData: FormData) {
   const { supabase } = await getAssistencialContext();
-  const { error } = await supabase.rpc("liberar_laudo_imagem", { p_laudo_id: txt(formData, "laudo_id") });
+  const laudoId = txt(formData, "laudo_id");
+  const { error } = await supabase.rpc("liberar_laudo_imagem", { p_laudo_id: laudoId });
   if (error) return go(`erro=${encodeURIComponent(error.message)}`);
+  const retorno = txt(formData, "retorno");
+  if (retorno === "editor") redirect(`${base}/laudos/${laudoId}?sucesso=liberado` as never);
   return go("sucesso=laudo-liberado");
+}
+
+export async function abrirRetificacaoLaudoImagem(formData: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const laudoId = txt(formData, "laudo_id");
+  const motivo = txt(formData, "motivo");
+  const { error } = await supabase.rpc("abrir_retificacao_laudo_imagem", { p_laudo_id: laudoId, p_motivo: motivo });
+  if (error) redirect(`${base}/laudos/${laudoId}?erro=${encodeURIComponent(error.message)}` as never);
+  redirect(`${base}/laudos/${laudoId}?sucesso=retificacao` as never);
 }
