@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { Activity, ClipboardCheck, HeartPulse, LayoutDashboard, Pill, Stethoscope, Syringe } from "lucide-react";
+import { Activity, ClipboardCheck, HeartPulse, LayoutDashboard, LogOut, Pill, Stethoscope, Syringe } from "lucide-react";
 
 type MedicalWorkspaceNavProps = { atendimentoId: string };
 
@@ -12,6 +12,7 @@ const items = [
   { key: "clinico", label: "Anamnese e evolução", icon: ClipboardCheck, path: (id: string) => `/prontuario/${id}/clinico` },
   { key: "prescricao", label: "Prescrição", icon: Pill, path: (id: string) => `/prontuario/${id}/prescricao` },
   { key: "avaliacoes", label: "Avaliações", icon: Stethoscope, path: (id: string) => `/prontuario/${id}/avaliacoes` },
+  { key: "alta", label: "Conclusão / Alta", icon: LogOut, path: (id: string) => `/prontuario/${id}/alta` },
 ] as const;
 
 export function MedicalWorkspaceNav({ atendimentoId }: MedicalWorkspaceNavProps) {
