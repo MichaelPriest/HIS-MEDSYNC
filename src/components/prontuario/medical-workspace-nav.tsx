@@ -3,14 +3,16 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { Activity, ClipboardCheck, HeartPulse, IdCard, LayoutDashboard, LogOut, Pill, Stethoscope, Syringe } from "lucide-react";
+import { Activity, ClipboardCheck, FileText, HeartPulse, History, IdCard, LayoutDashboard, LogOut, Pill, Stethoscope, Syringe } from "lucide-react";
 
 type MedicalWorkspaceNavProps = { atendimentoId: string };
 
 const items = [
   { key: "resumo", label: "Resumo", icon: LayoutDashboard, path: (id: string) => `/prontuario/${id}` },
   { key: "clinico", label: "Anamnese e evolução", icon: ClipboardCheck, path: (id: string) => `/prontuario/${id}/clinico` },
+  { key: "historico", label: "Histórico clínico", icon: History, path: (id: string) => `/prontuario/${id}/historico` },
   { key: "prescricao", label: "Prescrição", icon: Pill, path: (id: string) => `/prontuario/${id}/prescricao` },
+  { key: "documentos", label: "Receituários", icon: FileText, path: (id: string) => `/prontuario/${id}/documentos` },
   { key: "avaliacoes", label: "Avaliações", icon: Stethoscope, path: (id: string) => `/prontuario/${id}/avaliacoes` },
   { key: "identificacao", label: "Identificação", icon: IdCard, path: (id: string) => `/prontuario/${id}/identificacao` },
   { key: "alta", label: "Conclusão / Alta", icon: LogOut, path: (id: string) => `/prontuario/${id}/alta` },
