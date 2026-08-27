@@ -175,9 +175,12 @@ export async function registrarCriticidadeLaudoImagem(formData: FormData) {
 export async function liberarLaudoImagem(formData: FormData) {
   const { supabase } = await getAssistencialContext();
   const laudoId = txt(formData, "laudo_id");
-  const { error } = await supabase.rpc("liberar_laudo_imagem", { p_laudo_id: laudoId });
-  if (error) return go(`erro=${encodeURIComponent(error.message)}`);
   const retorno = txt(formData, "retorno");
+  const { error } = await supabase.rpc("liberar_laudo_imagem", { p_laudo_id: laudoId });
+  if (error) {
+    if (retorno === "editor") redirect(`${base}/laudos/${laudoId}?erro=${encodeURIComponent(error.message)}` as never);
+    return go(`erro=${encodeURIComponent(error.message)}`);
+  }
   if (retorno === "editor") redirect(`${base}/laudos/${laudoId}?sucesso=liberado` as never);
   return go("sucesso=laudo-liberado");
 }
