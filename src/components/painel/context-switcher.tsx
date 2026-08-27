@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Building2, ShieldCheck } from "lucide-react";
@@ -24,13 +25,21 @@ export function ContextSwitcher({
   const [pending, startTransition] = useTransition();
 
   const apply = (nextProfile: string, nextUnit: string) => {
+    const profileChanged = nextProfile !== profile;
     setProfile(nextProfile);
     setUnit(nextUnit);
     startTransition(async () => {
       const result = await selecionarContextoTrabalho(nextProfile, nextUnit);
-      if (result.ok) {
-        setProfile(result.perfil);
-        setUnit(result.unidade);
+      if (!result.ok) {
+        router.refresh();
+        return;
+      }
+
+      setProfile(result.perfil);
+      setUnit(result.unidade);
+      if (profileChanged) {
+        router.push(result.paginaInicial as Route);
+        return;
       }
       router.refresh();
     });
@@ -46,7 +55,7 @@ export function ContextSwitcher({
           disabled={pending}
           onChange={(event) => apply(event.target.value, unit)}
           className="max-w-44 bg-transparent pr-1 text-xs font-bold text-slate-700 outline-none disabled:opacity-60"
-          title="Filtrar atalhos pelo perfil"
+          title="Trocar setor/perfil de trabalho"
         >
           <option value="all">Todos os perfis</option>
           {profiles.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}
