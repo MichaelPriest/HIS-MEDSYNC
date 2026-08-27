@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Boxes, Monitor, Scissors, ShieldCheck } from "lucide-react";
+import { Boxes, ListChecks, Monitor, Scissors, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/assistencial/centro-cirurgico", label: "Central Cirúrgica", icon: Scissors, exact: true },
   { href: "/assistencial/centro-cirurgico/painel-salas", label: "Painel de Salas", icon: Monitor },
+  { href: "/assistencial/centro-cirurgico/procedimentos", label: "Procedimentos e Equipe", icon: ListChecks },
   { href: "/assistencial/centro-cirurgico/equipamentos", label: "Prontidão", icon: ShieldCheck },
   { href: "/assistencial/centro-cirurgico/cme", label: "CME", icon: Boxes },
 ] as const;
