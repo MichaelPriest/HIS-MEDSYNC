@@ -155,6 +155,23 @@ export async function salvarLaudoImagem(formData: FormData) {
   redirect(`${base}/laudos/${String(laudoId)}?sucesso=rascunho` as never);
 }
 
+export async function registrarCriticidadeLaudoImagem(formData: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const laudoId = txt(formData, "laudo_id");
+  if (!laudoId) return go("erro=laudo");
+
+  const { error } = await supabase.rpc("registrar_criticidade_laudo_imagem", {
+    p_laudo_id: laudoId,
+    p_achado_critico: formData.get("achado_critico") === "on",
+    p_comunicada_a: txt(formData, "comunicada_a") || null,
+    p_meio: txt(formData, "meio") || null,
+    p_readback: formData.get("readback") === "on",
+    p_observacao: txt(formData, "observacao") || null,
+  });
+  if (error) redirect(`${base}/laudos/${laudoId}?erro=${encodeURIComponent(error.message)}` as never);
+  redirect(`${base}/laudos/${laudoId}?sucesso=criticidade` as never);
+}
+
 export async function liberarLaudoImagem(formData: FormData) {
   const { supabase } = await getAssistencialContext();
   const laudoId = txt(formData, "laudo_id");
