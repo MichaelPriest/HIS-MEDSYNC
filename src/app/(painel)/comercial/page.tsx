@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -144,10 +145,10 @@ function resolveEdition(vinculo: Vinculo, editions: Edicao[], convenioId: string
     .sort((a, b) => Number(Boolean(b.convenio_id)) - Number(Boolean(a.convenio_id)) || b.vigencia_inicio.localeCompare(a.vigencia_inicio))[0] ?? null;
 }
 
-function href(params: Record<string, string | number | null | undefined>) {
+function href(params: Record<string, string | number | null | undefined>): Route {
   const qs = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) if (value !== null && value !== undefined && value !== "") qs.set(key, String(value));
-  return `/comercial${qs.size ? `?${qs.toString()}` : ""}`;
+  return `/comercial${qs.size ? `?${qs.toString()}` : ""}` as Route;
 }
 
 export default async function ComercialPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -370,7 +371,7 @@ function ItemForm({ contrato, vinculo, edicao, item }: { contrato: string; vincu
   return <form action={salvarItemEdicaoComercial} className="mt-3 grid gap-2 md:grid-cols-2"><ReturnFields contrato={contrato} vinculo={vinculo} edicao={edicao} aba="itens"/><input type="hidden" name="edicao_id" value={edicao}/>{item ? <input type="hidden" name="item_id" value={item.id}/> : null}<input name="codigo" required defaultValue={item?.codigo ?? ""} className="ui-input" placeholder="Código"/><input name="codigo_tuss" defaultValue={item?.codigo_tuss ?? ""} className="ui-input" placeholder="TUSS"/><input name="descricao" required defaultValue={item?.descricao ?? ""} className="ui-input md:col-span-2" placeholder="Descrição"/><input name="valor_referencia" required defaultValue={item?.valor_referencia ?? ""} className="ui-input" placeholder="Valor referência"/><select name="categoria_item" defaultValue={item?.categoria_item ?? "procedimento"} className="ui-input"><option value="procedimento">Procedimento</option><option value="diaria">Diária</option><option value="taxa">Taxa</option><option value="gas_medicinal">Gás</option><option value="material">Material</option><option value="opme">OPME</option><option value="medicamento">Medicamento</option><option value="pacote">Pacote</option><option value="outro">Outro</option></select><select name="tabela_tiss_codigo" defaultValue={item?.tabela_tiss_codigo ?? "22"} className="ui-input"><option value="00">00 · Própria</option><option value="18">18 · Diárias/taxas/gases</option><option value="19">19 · Materiais/OPME</option><option value="20">20 · Medicamentos</option><option value="22">22 · Procedimentos</option><option value="98">98 · Pacotes</option></select><input name="codigo_tabela_propria" defaultValue={item?.codigo_tabela_propria ?? ""} className="ui-input" placeholder="Código próprio"/><input name="pontos_ch" defaultValue={item?.pontos_ch ?? ""} className="ui-input" placeholder="Pontos CH"/><input name="pontos_hm" defaultValue={item?.pontos_hm ?? ""} className="ui-input" placeholder="Pontos HM"/><input name="pontos_sadt" defaultValue={item?.pontos_sadt ?? ""} className="ui-input" placeholder="Pontos SADT"/><input name="porte" defaultValue={item?.porte ?? ""} className="ui-input" placeholder="Porte"/><input name="porte_anestesico" defaultValue={item?.porte_anestesico ?? ""} className="ui-input" placeholder="Porte anestésico"/><input name="quantidade_uco" defaultValue={item?.quantidade_uco ?? ""} className="ui-input" placeholder="Qtd. UCO"/><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="exige_autorizacao" defaultChecked={item?.exige_autorizacao ?? false}/>Exige autorização</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="ativo" defaultChecked={item?.ativo ?? true}/>Item ativo</label><button className="ui-button-primary md:col-span-2">{item ? "Salvar item" : "Incluir item"}</button></form>;
 }
 
-function Tab({ active, href: target, label, detail }: { active: boolean; href: string; label: string; detail: string }) {
+function Tab({ active, href: target, label, detail }: { active: boolean; href: Route; label: string; detail: string }) {
   return <Link href={target} className={`rounded-xl px-3 py-3 transition ${active ? "bg-white text-brand-800 shadow-sm ring-1 ring-brand-100" : "text-slate-600 hover:bg-white/70"}`}><span className="block text-sm font-black">{label}</span><span className="mt-0.5 block text-[11px] text-slate-400">{detail}</span></Link>;
 }
 function Status({ status }: { status: string }) { const style = status === "ativo" ? "bg-emerald-50 text-emerald-700" : status === "negociacao" ? "bg-blue-50 text-blue-700" : status === "suspenso" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"; return <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${style}`}>{status}</span>; }
