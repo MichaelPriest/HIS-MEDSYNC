@@ -1,6 +1,7 @@
 "use server";
 
 import { createHash } from "node:crypto";
+import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
@@ -29,6 +30,15 @@ function tituloDocumento(tipo: string) {
   return "Receituário médico";
 }
 
+function rotaDocumentos(atendimentoId: string, erro?: string): Route {
+  const base = `/prontuario/${encodeURIComponent(atendimentoId)}/documentos`;
+  return (erro ? `${base}?erro=${encodeURIComponent(erro)}` : base) as Route;
+}
+
+function rotaDocumento(atendimentoId: string, documentoId: string): Route {
+  return `/prontuario/${encodeURIComponent(atendimentoId)}/documentos/${encodeURIComponent(documentoId)}` as Route;
+}
+
 async function possuiPermissao(supabase: Awaited<ReturnType<typeof getAssistencialContext>>["supabase"], empresaId: string, unidadeId: string, codigo: string) {
   const { data, error } = await supabase.rpc("tem_permissao", { p_empresa: empresaId, p_unidade: unidadeId, p_codigo: codigo });
   return !error && data === true;
@@ -41,7 +51,8 @@ export async function emitirDocumentoClinicoAction(formData: FormData) {
   const acao = String(formData.get("acao") ?? "salvar").trim();
   const assinar = acao === "assinar";
 
-  if (!atendimentoId || !TIPOS_DOCUMENTO.has(tipoDocumento)) redirect(`/prontuario/${atendimentoId || ""}/documentos?erro=campos`);
+  if (!atendimentoId) redirect("/fila-medica?erro=atendimento" as Route);
+  if (!TIPOS_DOCUMENTO.has(tipoDocumento)) redirect(rotaDocumentos(atendimentoId, "campos"));
 
   const [{ data: atendimento }, { data: profissional }] = await Promise.all([
     ctx.supabase.from("atendimentos")
@@ -52,23 +63,23 @@ export async function emitirDocumentoClinicoAction(formData: FormData) {
       .eq("empresa_id", ctx.empresaId).eq("usuario_id", ctx.user.id).eq("ativo", true).limit(1).maybeSingle(),
   ]);
 
-  if (!atendimento) redirect(`/prontuario/${atendimentoId}/documentos?erro=atendimento`);
-  if (["alta", "cancelado"].includes(String(atendimento.status))) redirect(`/prontuario/${atendimentoId}/documentos?erro=atendimento-encerrado`);
-  if (!profissional) redirect(`/prontuario/${atendimentoId}/documentos?erro=profissional`);
+  if (!atendimento) redirect(rotaDocumentos(atendimentoId, "atendimento"));
+  if (["alta", "cancelado"].includes(String(atendimento.status))) redirect(rotaDocumentos(atendimentoId, "atendimento-encerrado"));
+  if (!profissional) redirect(rotaDocumentos(atendimentoId, "profissional"));
 
   const permissaoCriar = TIPOS_RECEITA.has(tipoDocumento) ? "prescricao.criar" : "prontuario.evoluir";
   const permissaoAssinar = TIPOS_RECEITA.has(tipoDocumento) ? "prescricao.assinar" : "prontuario.assinar";
-  if (!(await possuiPermissao(ctx.supabase, ctx.empresaId, ctx.unidadeId, permissaoCriar))) redirect(`/prontuario/${atendimentoId}/documentos?erro=permissao`);
-  if (assinar && !(await possuiPermissao(ctx.supabase, ctx.empresaId, ctx.unidadeId, permissaoAssinar))) redirect(`/prontuario/${atendimentoId}/documentos?erro=assinatura`);
+  if (!(await possuiPermissao(ctx.supabase, ctx.empresaId, ctx.unidadeId, permissaoCriar))) redirect(rotaDocumentos(atendimentoId, "permissao"));
+  if (assinar && !(await possuiPermissao(ctx.supabase, ctx.empresaId, ctx.unidadeId, permissaoAssinar))) redirect(rotaDocumentos(atendimentoId, "assinatura"));
 
   const paciente = Array.isArray(atendimento.paciente) ? atendimento.paciente[0] : atendimento.paciente;
-  if (!paciente) redirect(`/prontuario/${atendimentoId}/documentos?erro=paciente`);
+  if (!paciente) redirect(rotaDocumentos(atendimentoId, "paciente"));
 
   const linhas = itensReceita(texto(formData, "itens_texto"));
   const orientacoes = texto(formData, "orientacoes");
   const numeroNotificacao = texto(formData, "numero_notificacao");
-  if (tipoDocumento === "orientacao_nao_medicamentosa" ? !orientacoes : linhas.length === 0) redirect(`/prontuario/${atendimentoId}/documentos?erro=conteudo`);
-  if (tipoDocumento === "b1_azul" && assinar && !numeroNotificacao) redirect(`/prontuario/${atendimentoId}/documentos?erro=notificacao`);
+  if (tipoDocumento === "orientacao_nao_medicamentosa" ? !orientacoes : linhas.length === 0) redirect(rotaDocumentos(atendimentoId, "conteudo"));
+  if (tipoDocumento === "b1_azul" && assinar && !numeroNotificacao) redirect(rotaDocumentos(atendimentoId, "notificacao"));
 
   const [{ data: empresa }, { data: unidade }] = await Promise.all([
     ctx.supabase.from("empresas").select("razao_social,nome_fantasia,cnpj,cnes,telefone,email,logradouro,numero,complemento,bairro,cidade,uf,cep,rodape_documentos").eq("id", ctx.empresaId).maybeSingle(),
@@ -138,10 +149,10 @@ export async function emitirDocumentoClinicoAction(formData: FormData) {
   const { data: documento, error } = await ctx.supabase.from("documentos_clinicos_medicos").insert(payload).select("id").single();
   if (error || !documento) {
     console.error("[prontuario] emitir documento clinico", { code: error?.code });
-    redirect(`/prontuario/${atendimentoId}/documentos?erro=salvar`);
+    redirect(rotaDocumentos(atendimentoId, "salvar"));
   }
 
   revalidatePath(`/prontuario/${atendimentoId}/documentos`);
   revalidatePath(`/prontuario/${atendimentoId}/historico`);
-  redirect(`/prontuario/${atendimentoId}/documentos/${documento.id}`);
+  redirect(rotaDocumento(atendimentoId, documento.id));
 }
