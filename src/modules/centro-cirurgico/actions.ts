@@ -7,9 +7,17 @@ const base = "/assistencial/centro-cirurgico";
 const txt = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
 const nullable = (value: string) => value || null;
 const checked = (fd: FormData, key: string) => fd.get(key) === "on";
-const numberOrNull = (value: string) => value === "" ? null : Number(value);
+const numberOrNull = (value: string) => {
+  if (value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
 const lines = (value: string) => value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
 const go = (query: string, path = base): never => redirect(`${path}?${query}` as never);
+const saoPauloTimestamp = (value: string) => {
+  const normalized = value.length === 16 ? `${value}:00` : value;
+  return `${normalized}-03:00`;
+};
 
 function rpcError(message: string | undefined, path = base): never {
   return go(`erro=${encodeURIComponent(message || "Não foi possível concluir a operação")}`, path);
@@ -32,7 +40,7 @@ export async function agendarCirurgia(formData: FormData) {
     p_sala: nullable(txt(formData, "sala")),
     p_classificacao: nullable(txt(formData, "classificacao")),
     p_porte: nullable(txt(formData, "porte")),
-    p_inicio_previsto: new Date(inicioPrevisto).toISOString(),
+    p_inicio_previsto: saoPauloTimestamp(inicioPrevisto),
     p_cirurgiao_id: nullable(txt(formData, "cirurgiao_id")),
     p_anestesista_id: nullable(txt(formData, "anestesista_id")),
     p_diagnostico_pre: nullable(txt(formData, "diagnostico_pre")),
@@ -144,7 +152,8 @@ export async function registrarOpme(formData: FormData) {
   const { supabase } = await getAssistencialContext();
   const cirurgiaId = txt(formData, "cirurgia_id");
   const item = txt(formData, "item");
-  if (!cirurgiaId || !item) return go("erro=opme-campos");
+  const quantidade = numberOrNull(txt(formData, "quantidade") || "1");
+  if (!cirurgiaId || !item || !quantidade || quantidade <= 0) return go("erro=opme-campos");
 
   const { error } = await supabase.rpc("centro_cirurgico_registrar_opme_operacional", {
     p_cirurgia_id: cirurgiaId,
@@ -154,7 +163,7 @@ export async function registrarOpme(formData: FormData) {
     p_lote: nullable(txt(formData, "lote")),
     p_serie: nullable(txt(formData, "serie")),
     p_registro_anvisa: nullable(txt(formData, "registro_anvisa")),
-    p_quantidade: Number(txt(formData, "quantidade") || "1"),
+    p_quantidade: quantidade,
     p_status: txt(formData, "status") || "previsto",
     p_observacoes: nullable(txt(formData, "observacoes")),
   });
@@ -166,12 +175,15 @@ export async function salvarCicloCme(formData: FormData) {
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
   const path = `${base}/cme`;
   const liberar = checked(formData, "liberar");
+  const resultado = txt(formData, "resultado");
   const indicadores = {
     quimico: checked(formData, "indicador_quimico"),
     biologico: checked(formData, "indicador_biologico"),
     fisico: checked(formData, "indicador_fisico"),
     observacao: nullable(txt(formData, "indicador_observacao")),
   };
+  if (liberar && !resultado) return go("erro=liberacao-exige-resultado", path);
+  if (liberar && !indicadores.quimico && !indicadores.biologico && !indicadores.fisico) return go("erro=liberacao-exige-indicador", path);
 
   const { error } = await supabase.rpc("cme_salvar_ciclo_operacional", {
     p_empresa_id: empresaId,
@@ -182,7 +194,7 @@ export async function salvarCicloCme(formData: FormData) {
     p_metodo: nullable(txt(formData, "metodo")),
     p_carga: nullable(txt(formData, "carga")),
     p_indicadores: indicadores,
-    p_resultado: nullable(txt(formData, "resultado")),
+    p_resultado: nullable(resultado),
     p_status: txt(formData, "status") || "em_processamento",
     p_observacoes: nullable(txt(formData, "observacoes")),
     p_liberar: liberar,
