@@ -20,6 +20,7 @@ type EncounterPickerProps = {
   name: string;
   required?: boolean;
   defaultValue?: string;
+  onChange?: (id: string) => void;
 };
 
 function normalize(value: string | number | null | undefined) {
@@ -32,7 +33,7 @@ function formatCpf(value?: string | null) {
   return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
 }
 
-export function EncounterPicker({ encounters, name, required = true, defaultValue = "" }: EncounterPickerProps) {
+export function EncounterPicker({ encounters, name, required = true, defaultValue = "", onChange }: EncounterPickerProps) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(defaultValue);
 
@@ -47,6 +48,17 @@ export function EncounterPicker({ encounters, name, required = true, defaultValu
   }, [encounters, query]);
 
   const selected = encounters.find((item) => item.id === selectedId) ?? null;
+
+  function select(id: string) {
+    setSelectedId(id);
+    setQuery("");
+    onChange?.(id);
+  }
+
+  function clear() {
+    setSelectedId("");
+    onChange?.("");
+  }
 
   return <div className="space-y-3">
     <input type="hidden" name={name} value={selectedId} required={required} />
@@ -71,13 +83,13 @@ export function EncounterPicker({ encounters, name, required = true, defaultValu
           <p className="mt-1 text-xs text-brand-800">Atendimento #{selected.numero_atendimento ?? "—"} · RA {selected.paciente.ra ?? "—"} · Registro #{selected.paciente.numero_registro ?? "—"}</p>
           <p className="mt-1 text-xs text-brand-700">CPF {formatCpf(selected.paciente.cpf)}</p>
         </div>
-        <button type="button" onClick={() => setSelectedId("")} className="rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-800 hover:bg-brand-100">Trocar</button>
+        <button type="button" onClick={clear} className="rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-800 hover:bg-brand-100">Trocar</button>
       </div>
     </div> : <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white">
       {filtered.length ? filtered.map((item) => <button
         key={item.id}
         type="button"
-        onClick={() => { setSelectedId(item.id); setQuery(""); }}
+        onClick={() => select(item.id)}
         className="block w-full border-b border-slate-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-slate-50"
       >
         <p className="font-medium text-slate-900">{item.paciente.nome_completo}</p>
