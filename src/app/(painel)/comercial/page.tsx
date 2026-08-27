@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   AlertTriangle,
-  ArrowLeft,
   ArrowRight,
   BookOpenCheck,
   CheckCircle2,
