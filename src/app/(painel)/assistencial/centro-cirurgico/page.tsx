@@ -9,15 +9,15 @@ import {
   ShieldCheck,
   Stethoscope,
 } from "lucide-react";
+import { AnesthesiaAutosaveForm } from "@/components/centro-cirurgico/anesthesia-autosave-form";
+import { RpaAutosaveForm } from "@/components/centro-cirurgico/rpa-autosave-form";
 import { SurgerySchedulingForm } from "@/components/centro-cirurgico/surgery-scheduling-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 import {
   agendarCirurgia,
   registrarOpme,
-  salvarAnestesia,
   salvarChecklistCirurgico,
-  salvarRpa,
   transicionarCirurgia,
   vincularCicloCme,
 } from "@/modules/centro-cirurgico/actions";
@@ -64,15 +64,40 @@ type Cirurgia = {
   paciente: Rel<{ nome_completo: string | null; ra: string | null }>;
 };
 type Checklist = { cirurgia_id: string; etapa: string; itens: Record<string, unknown> | null; concluido: boolean; concluido_em: string | null; observacoes: string | null };
-type Anestesia = { cirurgia_id: string; tecnica: string | null; asa: string | null; via_aerea: string | null; inicio_em: string | null; fim_em: string | null; observacoes: string | null };
-type Rpa = { cirurgia_id: string; aldrete_entrada: number | null; aldrete_alta: number | null; dor: number | null; nauseas: boolean; destino: string | null; status: string; alta_em: string | null };
+type Anestesia = {
+  cirurgia_id: string;
+  tecnica: string | null;
+  asa: string | null;
+  via_aerea: string | null;
+  monitorizacao: Record<string, unknown> | null;
+  medicamentos: unknown[] | null;
+  fluidos: unknown[] | null;
+  eventos: unknown[] | null;
+  inicio_em: string | null;
+  fim_em: string | null;
+  observacoes: string | null;
+};
+type Rpa = {
+  cirurgia_id: string;
+  aldrete_entrada: number | null;
+  aldrete_alta: number | null;
+  dor: number | null;
+  nauseas: boolean;
+  sinais_vitais: Record<string, unknown> | null;
+  intercorrencias: string | null;
+  destino: string | null;
+  status: string;
+  alta_em: string | null;
+};
 type Opme = { id: string; cirurgia_id: string; item: string; codigo: string | null; lote: string | null; serie: string | null; quantidade: number; status: string };
 type CmeCiclo = { id: string; codigo_ciclo: string; equipamento: string | null; metodo: string | null; resultado: string | null; status: string; liberado_em: string | null };
 type CmeVinculo = { cirurgia_id: string; ciclo_id: string };
 type Params = { sucesso?: string; erro?: string; cirurgia?: string };
 
 const one = <T,>(value: Rel<T>): T | null => Array.isArray(value) ? value[0] ?? null : value;
-const fmt = (value?: string | null) => value ? new Date(value).toLocaleString("pt-BR") : "—";
+const fmt = (value?: string | null) => value
+  ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value))
+  : "—";
 const statusLabel = (value: string) => ({ agendada: "Agendada", em_preparo: "Em preparo", em_andamento: "Em cirurgia", recuperacao: "Recuperação", concluida: "Concluída", cancelada: "Cancelada" }[value] ?? value.replaceAll("_", " "));
 const etapaLabel = (value: string) => ({ entrada: "Entrada / Sign in", pausa: "Pausa / Time out", saida: "Saída / Sign out" }[value] ?? value);
 const checklistConfig = {
@@ -98,8 +123,8 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
     supabase.from("vw_salas_cirurgicas_prontidao").select("sala_id,codigo,nome,status,equipamentos_prontos,equipamentos_obrigatorios_indisponiveis").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("nome"),
     supabase.from("cirurgias").select("id,atendimento_id,paciente_id,procedimento,codigo_tuss,codigo_contratado,tabela_referencia,contrato_id,tabela_item_id,cirurgia,lateralidade,sala,sala_id,classificacao,porte,porte_anestesico,status,inicio_previsto,inicio_em,fim_em,cirurgiao_id,anestesista_id,diagnostico_pre,intercorrencias,paciente:pacientes(nome_completo,ra)").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("inicio_previsto", { ascending: true, nullsFirst: false }).limit(150),
     supabase.from("cirurgia_checklist").select("cirurgia_id,etapa,itens,concluido,concluido_em,observacoes").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(1000),
-    supabase.from("anestesia_registros").select("cirurgia_id,tecnica,asa,via_aerea,inicio_em,fim_em,observacoes").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
-    supabase.from("rpa_registros").select("cirurgia_id,aldrete_entrada,aldrete_alta,dor,nauseas,destino,status,alta_em").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
+    supabase.from("anestesia_registros").select("cirurgia_id,tecnica,asa,via_aerea,monitorizacao,medicamentos,fluidos,eventos,inicio_em,fim_em,observacoes").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
+    supabase.from("rpa_registros").select("cirurgia_id,aldrete_entrada,aldrete_alta,dor,nauseas,sinais_vitais,intercorrencias,destino,status,alta_em").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
     supabase.from("cirurgia_opme").select("id,cirurgia_id,item,codigo,lote,serie,quantidade,status").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(1000),
     supabase.from("cme_ciclos").select("id,codigo_ciclo,equipamento,metodo,resultado,status,liberado_em").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).eq("status", "liberado").order("liberado_em", { ascending: false }).limit(300),
     supabase.from("cirurgia_cme_ciclos").select("cirurgia_id,ciclo_id").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).limit(1000),
@@ -163,7 +188,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
     <SectionPage
       eyebrow="Assistencial / Bloco Cirúrgico"
       title="Centro Cirúrgico"
-      description="Agenda, cirurgia segura, anestesia, OPME, CME, recuperação pós-anestésica e fechamento assistencial/faturamento em um único fluxo transacional."
+      description="Agenda, cirurgia segura, anestesia, OPME, CME, recuperação pós-anestésica e fechamento assistencial/faturamento em um único fluxo transacional. Horários exibidos em Brasília."
       actions={<div className="flex flex-wrap gap-2"><Link href="/assistencial/centro-cirurgico/equipamentos" className="ui-button-secondary"><ShieldCheck className="size-4" />Prontidão das salas</Link><Link href="/assistencial/centro-cirurgico/cme" className="ui-button-primary"><Boxes className="size-4" />Abrir CME</Link></div>}
     >
       {params.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"><CheckCircle2 className="mr-2 inline size-4" />Operação cirúrgica registrada com sucesso.</div> : null}
@@ -225,7 +250,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
 
                 <details className="rounded-xl border border-slate-200 p-4" open={cirurgia.status === "em_andamento"}>
                   <summary className="cursor-pointer font-black text-slate-900"><Stethoscope className="mr-2 inline size-4" />Anestesia</summary>
-                  <form action={salvarAnestesia} className="mt-4 grid gap-3 sm:grid-cols-2"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input name="tecnica" defaultValue={anestesia?.tecnica ?? ""} className="ui-input" placeholder="Técnica anestésica" /><input name="asa" defaultValue={anestesia?.asa ?? ""} className="ui-input" placeholder="ASA" /><input name="via_aerea" defaultValue={anestesia?.via_aerea ?? ""} className="ui-input" placeholder="Via aérea" /><div className="rounded-xl border border-slate-100 p-3 text-sm"><b className="block mb-2">Monitorização</b>{[["monitor_ecg","ECG"],["monitor_spo2","SpO₂"],["monitor_pressao","PA"],["monitor_capnografia","Capnografia"],["monitor_temperatura","Temperatura"]].map(([key,label]) => <label key={key} className="mr-3 inline-flex items-center gap-1.5"><input type="checkbox" name={key} />{label}</label>)}</div><textarea name="medicamentos" className="ui-input min-h-24" placeholder="Medicamentos — um por linha" /><textarea name="fluidos" className="ui-input min-h-24" placeholder="Fluidos — um por linha" /><textarea name="eventos" className="ui-input min-h-24" placeholder="Eventos/intercorrências — um por linha" /><textarea name="observacoes" defaultValue={anestesia?.observacoes ?? ""} className="ui-input min-h-24" placeholder="Observações" /><div className="sm:col-span-2 flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="iniciar" />Registrar início</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" name="finalizar" />Finalizar anestesia</label><button className="ui-button-secondary">Salvar anestesia</button>{anestesia ? <span className="text-xs text-slate-500">Início {fmt(anestesia.inicio_em)} · fim {fmt(anestesia.fim_em)}</span> : null}</div></form>
+                  <AnesthesiaAutosaveForm cirurgiaId={cirurgia.id} initial={anestesia ?? null} />
                 </details>
 
                 <details className="rounded-xl border border-slate-200 p-4">
@@ -237,7 +262,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
 
                 <details className="rounded-xl border border-slate-200 p-4" open={cirurgia.status === "recuperacao"}>
                   <summary className="cursor-pointer font-black text-slate-900"><Activity className="mr-2 inline size-4" />RPA / Recuperação pós-anestésica</summary>
-                  <form action={salvarRpa} className="mt-4 grid gap-3 sm:grid-cols-4"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input name="aldrete_entrada" type="number" step="0.1" defaultValue={rpa?.aldrete_entrada ?? ""} className="ui-input" placeholder="Aldrete entrada" /><input name="aldrete_alta" type="number" step="0.1" defaultValue={rpa?.aldrete_alta ?? ""} className="ui-input" placeholder="Aldrete alta" /><input name="dor" type="number" min="0" max="10" step="0.1" defaultValue={rpa?.dor ?? ""} className="ui-input" placeholder="Dor 0–10" /><input name="pa" className="ui-input" placeholder="PA" /><input name="fc" type="number" className="ui-input" placeholder="FC" /><input name="spo2" type="number" step="0.1" className="ui-input" placeholder="SpO₂" /><input name="temperatura" type="number" step="0.1" className="ui-input" placeholder="Temperatura" /><input name="destino" defaultValue={rpa?.destino ?? ""} className="ui-input" placeholder="Destino" /><textarea name="intercorrencias" className="ui-input min-h-20 sm:col-span-3" placeholder="Intercorrências" /><div className="flex flex-wrap items-center gap-3 sm:col-span-4"><label className="flex items-center gap-2 text-sm"><input type="checkbox" name="nauseas" defaultChecked={rpa?.nauseas ?? false} />Náuseas</label><label className="flex items-center gap-2 text-sm font-black"><input type="checkbox" name="alta" defaultChecked={rpa?.status === "alta"} />Registrar alta da RPA</label><button className="ui-button-secondary">Salvar RPA</button>{rpa ? <span className="text-xs text-slate-500">Status {rpa.status} · alta {fmt(rpa.alta_em)}</span> : null}</div></form>
+                  <RpaAutosaveForm cirurgiaId={cirurgia.id} initial={rpa ?? null} />
                 </details>
               </div>
 
