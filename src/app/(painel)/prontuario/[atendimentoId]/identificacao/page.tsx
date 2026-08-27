@@ -67,20 +67,24 @@ export default async function IdentificacaoPacientePage({
   const printCss = tipo === "pulseira" ? `
     @media print {
       @page { size: 250mm 25mm; margin: 0; }
+      html, body { width: 250mm !important; min-width: 250mm !important; min-height: 25mm !important; margin: 0 !important; padding: 0 !important; background: white !important; }
       body * { visibility: hidden !important; }
       .patient-print-area, .patient-print-area * { visibility: visible !important; }
-      .patient-print-area { position: absolute !important; inset: 0 auto auto 0 !important; margin: 0 !important; padding: 0 !important; width: 250mm !important; background: white !important; }
-      .patient-print-item { page-break-after: always; break-after: page; box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 250mm !important; height: 25mm !important; }
+      .patient-print-area { position: absolute !important; inset: 0 auto auto 0 !important; margin: 0 !important; padding: 0 !important; width: 250mm !important; max-width: none !important; overflow: visible !important; background: white !important; transform: none !important; }
+      .patient-print-item { page-break-after: always; break-after: page; box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 250mm !important; max-width: none !important; height: 25mm !important; overflow: hidden !important; transform: none !important; }
       .patient-print-item:last-child { page-break-after: auto; break-after: auto; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
   ` : `
     @media print {
       @page { size: 80mm 50mm; margin: 0; }
+      html, body { width: 80mm !important; min-width: 80mm !important; min-height: 50mm !important; margin: 0 !important; padding: 0 !important; background: white !important; }
       body * { visibility: hidden !important; }
       .patient-print-area, .patient-print-area * { visibility: visible !important; }
-      .patient-print-area { position: absolute !important; inset: 0 auto auto 0 !important; margin: 0 !important; padding: 0 !important; width: 80mm !important; background: white !important; }
-      .patient-print-item { page-break-after: always; break-after: page; box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 80mm !important; height: 50mm !important; }
+      .patient-print-area { position: absolute !important; inset: 0 auto auto 0 !important; margin: 0 !important; padding: 0 !important; width: 80mm !important; max-width: none !important; overflow: visible !important; background: white !important; transform: none !important; }
+      .patient-print-item { page-break-after: always; break-after: page; box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 80mm !important; max-width: none !important; height: 50mm !important; overflow: hidden !important; transform: none !important; }
       .patient-print-item:last-child { page-break-after: auto; break-after: auto; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
   `;
 
