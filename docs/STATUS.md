@@ -15,7 +15,7 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | Agenda | Base em evolução: visão diária/semanal, confirmação, check-in, faltas/cancelamentos, encaixe, retorno, especialidade, local, convênio/plano e identificação de cirurgia eletiva. | disponibilidade/bloqueios, recorrência, lembretes, reagendamento e integração cirúrgica completa |
 | Atendimento / ADT | Base funcional, mantendo um único episódio/RA para o atendimento. Identificação já suporta etiqueta e pulseira com QR para o ciclo assistencial. | regras ADT completas, transferências, documentos e configuração de formatos/impressoras por unidade |
 | Triagem / Fila médica | Base funcional ampliada. Fila médica setorial por PS, Ambulatório, Internação e outros setores; `Chamar e assumir` preserva o setor do episódio. | protocolos configuráveis, SLA, reclassificação e lotação por consultório/setor |
-| Prontuário / histórico longitudinal | Workspace central do episódio. Resumo, histórico, anamnese/evolução, prescrição e documentos usam o mesmo atendimento. PR #70 integra laudos LIS/RIS liberados e alertas críticos; PR #71 amplia a leitura clínica para anexos GED vinculados a laudos liberados, sem dar gestão do GED ao médico. | assinatura/adendos adicionais, protocolos, interações/alergias e homologação clínica/regulatória |
+| Prontuário / histórico longitudinal | Workspace central do episódio. Resumo, histórico, anamnese/evolução, prescrição e documentos usam o mesmo atendimento. PR #70 integra laudos LIS/RIS liberados e alertas críticos; PR #71 amplia a leitura clínica para anexos GED vinculados a laudos liberados; PR #72 acrescenta a aba **Cirurgia**, reunindo histórico cirúrgico acessível do paciente, checklists, anestesia, RPA, OPME, CME e timeline auditável sem transformar o médico em operador do Centro Cirúrgico. | assinatura/adendos adicionais, protocolos, interações/alergias e homologação clínica/regulatória |
 | Prescrição | Base funcional com documentos/receituários e ciclo medicamentoso conectado à Farmácia/Enfermagem. | regras clínicas adicionais, interações, função renal, protocolos e homologação |
 | Enfermagem | Base funcional em evolução. Checagem à beira-leito, aprazamento, pulseira/QR, lote, dispensação, dupla checagem, contingência e eventos auditáveis. | SAE completo, balanço, evolução, escalas, alto risco e indicadores |
 | Farmácia | Base funcional avançada. FEFO transacional, divisão entre lotes, bloqueio/quarentena/vencimento, devolução por lote, estoque e conciliação medicamentosa integrados. | análise clínica ampliada, reposição setorial, indicadores e homologação farmacêutica |
@@ -24,7 +24,7 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | GED | Evoluído no PR #71 de listagem para fluxo funcional: Storage privado, upload direto por URL assinada, limite/MIME no bucket, SHA-256, detalhe, download/visualização temporária, status, assinatura de integridade, imutabilidade após assinatura e versionamento sem sobrescrever arquivo. Pode vincular atendimento, paciente, profissional, convênio, lote TISS, conta e laudos LIS/RIS. | homologar categorias/documentos por setor, retenção/temporalidade, política de descarte e integrações adicionais |
 | Internação / NIR | Base funcional em evolução. Painel, mapa de leitos, NIR e Central de Altas têm responsabilidades separadas; alocação revalida disponibilidade e compatibilidade no banco. | regras regulatórias, SLA/prioridade, transferências interunidades, giro/censo e homologação |
 | Urgência / Emergência | Base funcional com ABCDE, risco, reavaliações e destino no mesmo atendimento. | protocolos configuráveis, observação, SLA, indicadores e homologação operacional |
-| Centro Cirúrgico / CME | Estrutura parcial; existem base assistencial e estrutura física, mas fluxo hospitalar cirúrgico completo ainda não está homologado. | pré-admissão, agenda de sala/equipe, anestesia, intraoperatório, RPA, CME, OPME e integração de conta |
+| Centro Cirúrgico / CME | Base operacional avançada no PR #72: agendamento transacional, prontidão de sala/equipamentos, cirurgia segura em três etapas, transições assistenciais controladas, anestesia, RPA, OPME, ciclos CME liberados e imutáveis, vínculo cirurgia↔CME, timeline append-only e integração ao prontuário, livro de produção e conta hospitalar. Escritas clínicas críticas deixam de ocorrer diretamente nas tabelas e passam por RPCs com RBAC/locks. | homologação presencial com equipe cirúrgica/CME, equipe multiprofissional completa, tempos cirúrgicos adicionais, protocolos anestésicos, integração de estoque/consumo e impressos/termos especializados |
 | Nutrição / Hemoterapia / CCIH / UTI / Multiprofissional / especialidades | Há fundações e workspaces em vários módulos, mas o nível de completude varia. No PR #71 deixam de ficar em uma lista única e passam a ser organizados pela macroárea/setor correspondente. | evoluir cada fluxo para operação hospitalar completa e homologar por equipe |
 | RH | Banco, RLS e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/rh` com indicadores de colaboradores, escalas, treinamentos e documentos. | CRUD/fluxos completos, escalas, documentos no GED, saúde ocupacional e integrações de acesso |
 | Segurança / Portaria / Visitantes | Banco e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/seguranca` com acessos, credenciais, visitantes e ocorrências. | operação de check-in/out, credenciais, dispositivos/portaria e relatórios de segurança |
@@ -32,7 +32,7 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | Compras / Almoxarifado | Bases funcionais; estoque e catálogo assistencial já se relacionam. | alçadas, recebimento divergente/parcial, inventário, reposição e rastreabilidade completa |
 | Comercial / Credenciamento / Tabelas | Base avançada com tabelas comerciais, referências e regras contratuais. | importar dados licenciados reais, códigos próprios por operadora e homologar contratos |
 | Auditoria / Contas Médicas | Bases funcionais com hardening de operações sensíveis. | regras automáticas, segregação de funções, checklist por convênio e testes de autorização |
-| Faturamento / Livro de produção | Base funcional e integrada aos eventos assistenciais/conta. | completar automações de consumo, fechamento e homologação financeira/TISS |
+| Faturamento / Livro de produção | Base funcional e integrada aos eventos assistenciais/conta. PR #72 registra automaticamente o procedimento cirúrgico e OPME utilizada no livro de produção durante a conclusão e cria/atualiza o grupo do ato cirúrgico quando existe conta aberta compatível. | completar automações de consumo, fechamento e homologação financeira/TISS |
 | TISS | Estrutura funcional, ainda não homologada integralmente. Validador anti-glosa, status de guia, requisitos para lote e proteção de itens já existem. | XSD oficial por versão/tipo, XML definitivo, adapters das operadoras e homologação |
 | Glosas / Recursos | Base funcional. | importação automática de demonstrativos, XML definitivo e ciclo de recurso/retorno completo |
 | Financeiro | Parcialmente integrado ao ciclo da receita. | baixas, retenções, conciliação, contas a pagar e caixa |
@@ -61,11 +61,36 @@ O bucket `ged-documentos` é privado e os caminhos são segmentados por empresa/
 
 Para LIS/RIS, a escrita do anexo exige permissão do respectivo setor (`laboratorio.*`/`imagem.*`) ou administração explícita do GED. Para o prontuário, documentos vinculados a laudos podem ser lidos com `prontuario.visualizar` **somente quando o laudo correspondente já estiver liberado**. Isso preserva a visão longitudinal sem transformar o médico em operador do GED/LIS/RIS.
 
+## Centro Cirúrgico + CME — PR #72
+
+As migrations `20260827163718_centro_cirurgico_cme_operacional_transacional.sql` e `20260827164619_centro_cirurgico_cme_indices_fk.sql` correspondem ao estado efetivamente aplicado no Supabase.
+
+O fluxo operacional passa a seguir:
+
+`Atendimento/RA → Agendamento cirúrgico → Em preparo → Sign in → Time out → Cirurgia → Sign out → Recuperação/RPA → Alta da RPA → Conclusão → Livro de produção/conta hospitalar`.
+
+Regras consolidadas no banco:
+
+- agendamento e transições críticas são feitos por RPCs autenticados e com verificação de permissão;
+- a cirurgia não inicia sem sala definida, prontidão de equipamentos quando houver cadastro físico correspondente e checklists de entrada/pausa concluídos;
+- a recuperação exige checklist de saída; se houver anestesista, a anestesia deve estar finalizada;
+- a conclusão exige alta da RPA quando houver anestesista vinculado;
+- cancelamento exige permissão gerencial e motivo;
+- OPME registra código, fabricante, lote, série, registro ANVISA, quantidade e situação de uso;
+- somente ciclo CME liberado pode ser vinculado à cirurgia e ciclo liberado torna-se imutável;
+- `cirurgia_eventos` mantém timeline append-only das ações operacionais;
+- ao concluir, procedimento e OPME utilizada são registrados no livro de produção e a conta hospitalar aberta recebe o grupo do ato cirúrgico quando aplicável;
+- leitura clínica das cirurgias, checklists, anestesia, RPA, OPME, CME e eventos é disponibilizada ao prontuário com `prontuario.visualizar`, sem conceder permissão operacional ao usuário médico.
+
+A validação funcional no Supabase foi executada com dados de teste explicitamente identificados dentro de uma transação com `ROLLBACK`: o caso percorreu agendamento, três checklists, anestesia, OPME, ciclo CME, RPA e conclusão, sem persistir registros de teste.
+
 ## Segurança e autorização
 
 A matriz operacional em `public.permissoes` permanece a fonte de verdade. O catálogo TypeScript referencia códigos usados estaticamente pela aplicação e possui teste automatizado que garante que toda permissão exigida pela navegação esteja presente no catálogo tipado.
 
 O PR #71 preserva o isolamento por empresa/unidade e não cria bypass de RLS. O hardening do GED usa RLS forçado e policies específicas para leitura, inserção, atualização e Storage. RPCs sensíveis de GED são executáveis apenas por `authenticated` e revalidam permissões funcionais dentro do fluxo.
+
+No PR #72, as tabelas clínicas críticas do Centro Cirúrgico/CME deixam de aceitar mutação direta do papel `authenticated`; as escritas operacionais passam pelos RPCs `centro_cirurgico_*_operacional` e `cme_salvar_ciclo_operacional`. Esses RPCs exigem usuário autenticado, revalidam `tem_unidade`/`tem_permissao`, utilizam locks nas transições e não são executáveis por `anon`.
 
 O Security/Performance Advisor deve ser analisado por objeto. Avisos históricos de `SECURITY DEFINER`, endpoints públicos do Totem/Painel e outras rotinas legadas não devem ser corrigidos de forma indiscriminada dentro de um pacote funcional sem validar o fluxo que depende deles.
 
@@ -85,18 +110,18 @@ Paciente agendado comum:
 
 `Agenda → confirmação → check-in direto → admissão/atendimento → fila médica ambulatorial → prontuário`.
 
-Cirurgia eletiva deve seguir programação especializada e integrar pré-admissão, Centro Cirúrgico, equipe/anestesia, RPA, CME/OPME e conta hospitalar.
+Cirurgia eletiva segue programação especializada e mantém o mesmo atendimento/RA, integrando Centro Cirúrgico, sala/equipe, cirurgia segura, anestesia, RPA, CME/OPME, prontuário longitudinal, produção e conta hospitalar.
 
 Na Internação, `Painel da Internação`, `Mapa de Leitos`, `NIR` e `Central de Altas` mantêm responsabilidades distintas. Seleção visual de leito nunca substitui revalidação transacional.
 
 No atendimento médico, o mesmo episódio deve ser preservado em toda a jornada:
 
-`Fila médica setorial → Resumo → Histórico longitudinal → Anamnese/Evolução → Prescrição/Documentos → Laboratório/Imagem/Farmácia/Enfermagem/demais setores`.
+`Fila médica setorial → Resumo → Histórico longitudinal → Anamnese/Evolução → Prescrição/Documentos → Laboratório/Imagem/Farmácia/Enfermagem/Centro Cirúrgico/demais setores`.
 
-Pedidos, resultados, laudos e documentos assistenciais pertencem ao mesmo paciente/atendimento quando clinicamente aplicável. Dados produzidos pelos setores devem reaparecer no prontuário e nos fluxos subsequentes sem criar episódios paralelos.
+Pedidos, resultados, laudos, documentos e registros assistenciais pertencem ao mesmo paciente/atendimento quando clinicamente aplicável. Dados produzidos pelos setores devem reaparecer no prontuário e nos fluxos subsequentes sem criar episódios paralelos.
 
 ## Validação do pacote atual
 
-PR ativo: **#71 — `feat(navegacao): reorganizar HIS por setor e perfil + GED integrado`**.
+PR ativo: **#72 — `feat(centro-cirurgico): fluxo transacional Centro Cirúrgico + CME integrado`**.
 
-O primeiro CI do PR passou em `lint` e `typecheck`, mas falhou no teste unitário que exige sincronismo entre requisitos de navegação e catálogo tipado de permissões. A correção foi aplicada no commit posterior do PR, sincronizando RH, Segurança/Visitantes e permissões LIS/RIS. O PR deve permanecer em draft até o novo head passar por `lint`, `typecheck`, testes, `build`, Chromium/Playwright, smoke E2E, Vercel e revisão dos Supabase Advisors.
+O PR permanece em **draft**. O banco foi validado em fluxo transacional completo com `ROLLBACK`, as migrations aplicadas foram versionadas de forma imutável no repositório e o preview Vercel anterior à integração longitudinal estava verde. O head final deve passar por `lint`, `typecheck`, testes, `build`, Chromium/Playwright, smoke E2E, preview Vercel e revisão final dos Supabase Advisors antes de sair de draft ou ser considerado para merge.
