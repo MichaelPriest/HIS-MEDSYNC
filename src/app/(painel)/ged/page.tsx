@@ -25,7 +25,7 @@ export default async function GedPage({
     .select("id,categoria,subcategoria,titulo,nome_arquivo,mime_type,versao,status,confidencial,created_at,assinado_em,atendimento_id,paciente_id,solicitacao_exame_id,laboratorio_laudo_id,imagem_laudo_id")
     .order("created_at", { ascending: false })
     .limit(200);
-  if (q) query = query.ilike("titulo", `%${q.replace(/[%_]/g, "")} %`.trim());
+  if (q) query = query.ilike("titulo", `%${q.replace(/[%_]/g, "")}%`);
   if (status && status !== "todos") query = query.eq("status", status);
   if (categoria && categoria !== "todas") query = query.eq("categoria", categoria);
 
