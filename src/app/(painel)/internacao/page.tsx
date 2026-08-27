@@ -1,15 +1,15 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { BedDouble, ClipboardCheck, DoorOpen, Hospital, ShieldAlert, UserRoundCheck } from "lucide-react";
-import { SectionPage } from "@/components/painel/section-page";
 import { EncounterPicker } from "@/components/atendimentos/encounter-picker";
+import { SectionPage } from "@/components/painel/section-page";
+import { ProfessionalRemotePicker } from "@/components/profissionais/professional-remote-picker";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 import { criarInternacao } from "@/modules/internacao/actions";
 
 type Rel<T> = T | T[] | null;
 type Paciente = { nome_completo: string | null; cpf: string | null; ra: string | null; numero_registro: string | null };
 type Atendimento = { id: string; numero_atendimento: string | number | null; data_abertura: string; paciente: Rel<Paciente> };
-type Profissional = { id: string; nome_completo: string };
 type Internacao = {
   id: string;
   atendimento_id: string;
@@ -40,7 +40,7 @@ export default async function InternacaoPage({ searchParams }: { searchParams: P
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
   if (!unidadeId) return null;
 
-  const [atendimentosReq, profissionaisReq, internacoesReq, leitosReq, pendenciasReq] = await Promise.all([
+  const [atendimentosReq, internacoesReq, leitosReq, pendenciasReq] = await Promise.all([
     supabase
       .from("atendimentos")
       .select("id,numero_atendimento,data_abertura,paciente:pacientes(nome_completo,cpf,ra,numero_registro)")
@@ -49,13 +49,6 @@ export default async function InternacaoPage({ searchParams }: { searchParams: P
       .in("status", ["aberto", "em_espera", "em_atendimento"])
       .order("data_abertura", { ascending: false })
       .limit(300),
-    supabase
-      .from("profissionais")
-      .select("id,nome_completo")
-      .eq("empresa_id", empresaId)
-      .eq("ativo", true)
-      .order("nome_completo")
-      .limit(500),
     supabase
       .from("internacoes")
       .select("id,atendimento_id,setor,quarto,leito,leito_id,acomodacao,motivo,previsao_alta,status,data_internacao,isolamento,tipo_isolamento,atendimento:atendimentos(id,numero_atendimento,paciente:pacientes(nome_completo,ra)),profissional:profissionais(nome_completo)")
@@ -84,7 +77,6 @@ export default async function InternacaoPage({ searchParams }: { searchParams: P
   ]);
 
   const atendimentos = (atendimentosReq.data ?? []) as Atendimento[];
-  const profissionais = (profissionaisReq.data ?? []) as Profissional[];
   const internacoes = (internacoesReq.data ?? []) as Internacao[];
   const leitos = (leitosReq.data ?? []) as Leito[];
   const pendencias = (pendenciasReq.data ?? []) as PendenciaAlta[];
@@ -145,7 +137,12 @@ export default async function InternacaoPage({ searchParams }: { searchParams: P
         </div>
         <form action={criarInternacao} className="grid gap-3 lg:grid-cols-4">
           <div className="lg:col-span-4"><EncounterPicker encounters={encounters} name="atendimento_id" /></div>
-          <select name="profissional_responsavel_id" defaultValue="" className="ui-input"><option value="">Responsável a definir</option>{profissionais.map((item) => <option key={item.id} value={item.id}>{item.nome_completo}</option>)}</select>
+          <ProfessionalRemotePicker
+            empresaId={empresaId}
+            name="profissional_responsavel_id"
+            label="Responsável clínico"
+            placeholder="Buscar responsável por nome, conselho, especialidade ou CBO"
+          />
           <input name="setor" required className="ui-input" placeholder="Setor de internação" />
           <select name="leito_id" defaultValue="" className="ui-input"><option value="">Sem leito — enviar para NIR</option>{leitos.filter((item) => item.status === "livre").map((item) => <option key={item.id} value={item.id}>{item.setor} · {item.quarto ?? ""} · {item.codigo}</option>)}</select>
           <select name="acomodacao" defaultValue="" className="ui-input"><option value="">Acomodação</option><option value="enfermaria">Enfermaria</option><option value="apartamento">Apartamento</option><option value="uti">UTI</option><option value="observacao">Observação</option></select>
