@@ -23,9 +23,11 @@ function target(fd: FormData, extra?: Record<string, string | null | undefined>)
   const contrato = text(fd, "retorno_contrato");
   const vinculo = text(fd, "retorno_vinculo");
   const edicao = text(fd, "retorno_edicao");
+  const aba = text(fd, "retorno_aba");
   if (contrato) params.set("contrato", contrato);
   if (vinculo) params.set("vinculo", vinculo);
   if (edicao) params.set("edicao", edicao);
+  if (aba) params.set("aba", aba);
   for (const [key, value] of Object.entries(extra ?? {})) if (value) params.set(key, value);
   return `/comercial${params.size ? `?${params.toString()}` : ""}`;
 }
@@ -54,6 +56,48 @@ export async function atualizarContratoComercial(formData: FormData) {
   if (error) return fail(formData, error.message);
   revalidatePath("/comercial");
   redirect(target(formData, { sucesso: "contrato-atualizado" }) as never);
+}
+
+export async function vincularTabelaContratoWorkspace(formData: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const contratoId = text(formData, "contrato_id");
+  const fonteId = text(formData, "fonte_id");
+  const categoria = text(formData, "categoria") || "geral";
+  const modoEdicao = text(formData, "modo_edicao") || "edicao_fixa";
+  const edicaoFixaId = nullable(text(formData, "edicao_fixa_id"));
+  if (!contratoId || !fonteId) return fail(formData, "Informe contrato e tabela comercial.");
+  if (modoEdicao === "edicao_fixa" && !edicaoFixaId) return fail(formData, "Selecione a edição fixa que será usada pelo contrato.");
+
+  const payload = {
+    contrato_id: contratoId,
+    fonte_id: fonteId,
+    edicao_fixa_id: modoEdicao === "edicao_fixa" ? edicaoFixaId : null,
+    categoria,
+    modo_edicao: modoEdicao,
+    percentual_ajuste: numeric(text(formData, "percentual_ajuste")) ?? 0,
+    prioridade: integer(text(formData, "prioridade")) ?? 100,
+    valor_ch: numeric(text(formData, "valor_ch")),
+    valor_hm: numeric(text(formData, "valor_hm")),
+    valor_sadt: numeric(text(formData, "valor_sadt")),
+    valor_uco_contratual: numeric(text(formData, "valor_uco_contratual")),
+    regras_adicionais: {
+      urgencia_percentual: numeric(text(formData, "urgencia_percentual")) ?? 0,
+      apartamento_percentual: numeric(text(formData, "apartamento_percentual")) ?? 0,
+      horario_especial_regra: nullable(text(formData, "horario_especial_regra")),
+    },
+    arredondamento_casas: integer(text(formData, "arredondamento_casas")) ?? 2,
+    ativo: true,
+    observacoes: nullable(text(formData, "observacoes")),
+  };
+  const { data, error } = await supabase
+    .from("contrato_tabelas_comerciais")
+    .upsert(payload, { onConflict: "contrato_id,fonte_id,categoria" })
+    .select("id")
+    .single();
+  if (error || !data?.id) return fail(formData, error?.message || "Não foi possível vincular a tabela ao contrato.");
+  revalidatePath("/comercial");
+  revalidatePath("/comercial/tabelas");
+  redirect(target(formData, { vinculo: String(data.id), aba: "negociacao", sucesso: "tabela-vinculada" }) as never);
 }
 
 export async function atualizarNegociacaoTabela(formData: FormData) {
@@ -97,7 +141,7 @@ export async function criarVersaoNegociacao(formData: FormData) {
   if (error || !data) return fail(formData, error?.message || "Não foi possível criar a nova versão.");
   revalidatePath("/comercial");
   revalidatePath("/comercial/tabelas");
-  redirect(target(formData, { edicao: String(data), sucesso: "versao-criada" }) as never);
+  redirect(target(formData, { edicao: String(data), aba: "itens", sucesso: "versao-criada" }) as never);
 }
 
 export async function salvarItemEdicaoComercial(formData: FormData) {
@@ -129,7 +173,7 @@ export async function salvarItemEdicaoComercial(formData: FormData) {
   });
   if (error) return fail(formData, error.message);
   revalidatePath("/comercial");
-  redirect(target(formData, { edicao: edicaoId, sucesso: itemId ? "item-atualizado" : "item-incluido" }) as never);
+  redirect(target(formData, { edicao: edicaoId, aba: "itens", sucesso: itemId ? "item-atualizado" : "item-incluido" }) as never);
 }
 
 export async function publicarEdicaoComercial(formData: FormData) {
@@ -140,5 +184,5 @@ export async function publicarEdicaoComercial(formData: FormData) {
   if (error) return fail(formData, error.message);
   revalidatePath("/comercial");
   revalidatePath("/comercial/tabelas");
-  redirect(target(formData, { edicao: edicaoId, sucesso: "edicao-publicada" }) as never);
+  redirect(target(formData, { edicao: edicaoId, aba: "itens", sucesso: "edicao-publicada" }) as never);
 }
