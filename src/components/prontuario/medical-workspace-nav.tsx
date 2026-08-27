@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { Activity, ClipboardCheck, HeartPulse, LayoutDashboard, LogOut, Pill, Stethoscope, Syringe } from "lucide-react";
+import { Activity, ClipboardCheck, HeartPulse, IdCard, LayoutDashboard, LogOut, Pill, Stethoscope, Syringe } from "lucide-react";
 
 type MedicalWorkspaceNavProps = { atendimentoId: string };
 
@@ -12,6 +12,7 @@ const items = [
   { key: "clinico", label: "Anamnese e evolução", icon: ClipboardCheck, path: (id: string) => `/prontuario/${id}/clinico` },
   { key: "prescricao", label: "Prescrição", icon: Pill, path: (id: string) => `/prontuario/${id}/prescricao` },
   { key: "avaliacoes", label: "Avaliações", icon: Stethoscope, path: (id: string) => `/prontuario/${id}/avaliacoes` },
+  { key: "identificacao", label: "Identificação", icon: IdCard, path: (id: string) => `/prontuario/${id}/identificacao` },
   { key: "alta", label: "Conclusão / Alta", icon: LogOut, path: (id: string) => `/prontuario/${id}/alta` },
 ] as const;
 
@@ -19,7 +20,7 @@ export function MedicalWorkspaceNav({ atendimentoId }: MedicalWorkspaceNavProps)
   const pathname = usePathname();
   const retorno = encodeURIComponent(pathname);
   return (
-    <nav aria-label="Atendimento médico" className="mb-5 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+    <nav aria-label="Atendimento médico" className="mb-5 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm print:hidden">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 hidden items-center gap-2 px-2 text-[10px] font-black uppercase tracking-[.14em] text-slate-400 md:inline-flex"><Activity className="size-3.5 text-brand-600" /> Atendimento médico</span>
         {items.map((item) => {
