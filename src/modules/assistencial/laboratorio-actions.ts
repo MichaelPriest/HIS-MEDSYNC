@@ -44,6 +44,21 @@ export async function atualizarStatusAmostraLaboratorio(formData: FormData) {
   return go("sucesso=amostra-status");
 }
 
+export async function encaminharAmostraLaboratorio(formData: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const id = txt(formData, "amostra_id");
+  const setor = txt(formData, "setor");
+  if (!id || !setor) return go("erro=setor-obrigatorio");
+
+  const { error } = await supabase.rpc("encaminhar_amostra_laboratorio_operacional", {
+    p_amostra_id: id,
+    p_setor: setor,
+    p_bancada: txt(formData, "bancada") || null,
+  });
+  if (error) return go(`erro=${encodeURIComponent(error.message)}`);
+  return go("sucesso=amostra-encaminhada");
+}
+
 export async function registrarResultadoLaboratorio(formData: FormData) {
   const { supabase } = await getAssistencialContext();
   const amostraId = txt(formData, "amostra_id");
