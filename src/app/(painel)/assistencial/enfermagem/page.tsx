@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { AlertTriangle, Barcode, CheckCircle2, Clock3, Pill, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, Barcode, CheckCircle2, Clock3, Pill, Printer, UserRoundCheck } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 import { checarAdministracaoEnfermagemAction } from "@/modules/enfermagem/actions";
@@ -8,38 +8,167 @@ import { checarAdministracaoEnfermagemAction } from "@/modules/enfermagem/action
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type PacienteRel={nome_completo:string|null;ra:string|null;numero_registro:string|null;cpf:string|null;cns:string|null};
-type AtendimentoRel={numero_atendimento:number|string|null;paciente_id:string|null;paciente:PacienteRel|PacienteRel[]|null};
-type PrescricaoRel={item:string|null;dose:string|null;via:string|null;frequencia:string|null;produto_id:string|null;atendimento_id:string|null;atendimento:AtendimentoRel|AtendimentoRel[]|null};
-type Aprazamento={id:string;prescricao_id:string;programado_em:string;tolerancia_minutos:number|null;status:string;justificativa:string|null;prescricao:PrescricaoRel|PrescricaoRel[]|null};
-type Dispensacao={id:string;prescricao_id:string;item:string;lote:string|null;dispensado_em:string|null;status:string};
-type Profissional={id:string;nome_completo:string;especialidade:string|null};
-function one<T>(v:T|T[]|null){return Array.isArray(v)?v[0]??null:v;}
-function when(v:string|null|undefined){return v?new Intl.DateTimeFormat("pt-BR",{dateStyle:"short",timeStyle:"short",timeZone:"America/Sao_Paulo"}).format(new Date(v)):"—";}
+type PacienteRel = { nome_completo: string | null; ra: string | null; numero_registro: string | number | null; cpf: string | null; cns: string | null };
+type AtendimentoRel = { numero_atendimento: number | string | null; paciente_id: string | null; paciente: PacienteRel | PacienteRel[] | null };
+type PrescricaoRel = { item: string | null; dose: string | null; via: string | null; frequencia: string | null; produto_id: string | null; atendimento_id: string | null; atendimento: AtendimentoRel | AtendimentoRel[] | null };
+type Aprazamento = { id: string; prescricao_id: string; programado_em: string; tolerancia_minutos: number | null; status: string; justificativa: string | null; prescricao: PrescricaoRel | PrescricaoRel[] | null };
+type Dispensacao = {
+  id: string;
+  prescricao_id: string;
+  item: string;
+  lote: string | null;
+  validade: string | null;
+  quantidade: number;
+  quantidade_devolvida: number;
+  dispensado_em: string | null;
+  status: string;
+  selecao_lote: string;
+  fefo_sequencia: number | null;
+};
+type Profissional = { id: string; nome_completo: string; especialidade: string | null };
 
-export default async function EnfermagemChecagemPage({searchParams}:{searchParams:Promise<{sucesso?:string;erro?:string;atendimento?:string;retorno?:string}>}){
- const sp=await searchParams; const {supabase,user,empresaId,unidadeId}=await getAssistencialContext();
- const agora=new Date(),inicio=new Date(agora.getTime()-12*3600000).toISOString(),fim=new Date(agora.getTime()+36*3600000).toISOString();
- let aq=supabase.from("prescricao_aprazamentos").select("id,prescricao_id,programado_em,tolerancia_minutos,status,justificativa,prescricao:prescricoes(item,dose,via,frequencia,produto_id,atendimento_id,atendimento:atendimentos(numero_atendimento,paciente_id,paciente:pacientes(nome_completo,ra,numero_registro,cpf,cns)))").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).gte("programado_em",inicio).lte("programado_em",fim).order("programado_em",{ascending:true}).limit(300);
- if(sp.atendimento) aq=aq.eq("atendimento_id",sp.atendimento);
- const [aprazRes,dispRes,profissionalRes,segundoProfRes]=await Promise.all([
-  aq,
-  supabase.from("dispensacoes_medicamentos").select("id,prescricao_id,item,lote,dispensado_em,status").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).in("status",["dispensado","parcial"]).order("dispensado_em",{ascending:false}).limit(300),
-  supabase.from("profissionais").select("id,nome_completo,especialidade").eq("empresa_id",empresaId).eq("usuario_id",user.id).eq("ativo",true).limit(1).maybeSingle(),
-  supabase.from("profissionais").select("id,nome_completo,especialidade").eq("empresa_id",empresaId).eq("ativo",true).order("nome_completo").limit(500),
- ]);
- let profissional=profissionalRes.data;if(!profissional&&user.email)profissional=(await supabase.from("profissionais").select("id,nome_completo,especialidade").eq("empresa_id",empresaId).ilike("email",user.email).eq("ativo",true).limit(1).maybeSingle()).data;
- const aprazamentos=(aprazRes.data??[]) as unknown as Aprazamento[],dispensacoes=(dispRes.data??[]) as unknown as Dispensacao[],profissionais=(segundoProfRes.data??[]) as unknown as Profissional[];
- const pendentes=aprazamentos.filter(i=>i.status==="pendente"),atrasados=pendentes.filter(i=>new Date(i.programado_em).getTime()+Number(i.tolerancia_minutos??30)*60000<Date.now()),proximas=pendentes.filter(i=>!atrasados.includes(i));
- const retorno=(sp.retorno&&sp.retorno.startsWith("/assistencial/enfermagem")?sp.retorno:"/assistencial/enfermagem") as Route;
- const pacienteContexto=sp.atendimento?one(one(pendentes[0]?.prescricao??null)?.atendimento??null):null;
- const paciente=one(pacienteContexto?.paciente??null);
- return <SectionPage eyebrow="Assistencial / Enfermagem" title={sp.atendimento?`Checagem · ${paciente?.nome_completo??"Paciente"}`:"Checagem de Prescrição"} description="Administração de medicamentos aprazados com rastreabilidade, identificação do paciente, dispensação/lote, recusa/omissão e dupla checagem.">
-  <div className="mb-4 flex flex-wrap gap-2"><Link href="/assistencial/enfermagem/andares" className="btn-secondary">Andares</Link><Link href="/assistencial/enfermagem/pronto-socorro" className="btn-secondary">Pronto-Socorro</Link>{sp.atendimento?<Link href={retorno} className="btn-secondary">← Voltar ao painel</Link>:null}</div>
-  {sp.sucesso?<div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Checagem registrada: {sp.sucesso}.</div>:null}{sp.erro?<div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Não foi possível registrar: {decodeURIComponent(sp.erro)}.</div>:null}
-  <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><div className="his-kpi"><p className="text-xs font-black uppercase text-slate-400">Pendentes</p><p className="mt-2 text-3xl font-black text-amber-700">{pendentes.length}</p></div><div className="his-kpi"><p className="text-xs font-black uppercase text-slate-400">Atrasadas</p><p className="mt-2 text-3xl font-black text-rose-700">{atrasados.length}</p></div><div className="his-kpi"><p className="text-xs font-black uppercase text-slate-400">Próximas</p><p className="mt-2 text-3xl font-black text-brand-700">{proximas.length}</p></div><div className="his-kpi"><p className="text-xs font-black uppercase text-slate-400">Profissional logado</p><p className="mt-2 font-black text-slate-950">{profissional?.nome_completo??"Sem vínculo"}</p><p className="mt-1 text-xs text-slate-500">{profissional?.especialidade??"Vincule o usuário"}</p></div></section>
-  {!profissional?<section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="flex items-center gap-3"><UserRoundCheck className="size-5 text-amber-700"/><p className="text-sm font-semibold text-amber-900">Checagem bloqueada até o usuário estar vinculado a um profissional ativo.</p></div></section>:null}
-  <section className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"><b>Contingência sem etiqueta:</b> durante os testes, o medicamento pode ser confirmado manualmente pela dispensação e pelo lote liberados pela Farmácia. A identificação do paciente continua obrigatória e a confirmação manual fica registrada na auditoria. Não use a contingência quando a etiqueta/código estiver disponível.</section>
-  <section className="mt-6"><div className="mb-3 flex items-center gap-3"><Barcode className="size-5 text-brand-700"/><div><h2 className="font-black text-slate-900">Doses aprazadas</h2><p className="text-sm text-slate-500">Somente doses do atendimento selecionado quando aberto pelos painéis assistenciais.</p></div></div><div className="space-y-3">{pendentes.length?pendentes.map(ap=>{const prescricao=one(ap.prescricao),atendimento=one(prescricao?.atendimento??null),pac=one(atendimento?.paciente??null),disponiveis=dispensacoes.filter(d=>d.prescricao_id===ap.prescricao_id),atrasado=new Date(ap.programado_em).getTime()+Number(ap.tolerancia_minutos??30)*60000<Date.now();return <article key={ap.id} className={`his-card p-5 ${atrasado?"border-rose-200":""}`}><div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-black text-slate-950">{prescricao?.item??"Medicamento"}</p>{atrasado?<span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-[11px] font-black text-rose-700"><AlertTriangle className="size-3"/>Atrasada</span>:<span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700"><Clock3 className="size-3"/>No prazo</span>}</div><p className="mt-1 text-sm text-slate-600">{prescricao?.dose??"—"} · {prescricao?.via??"—"} · {prescricao?.frequencia??"—"}</p><p className="mt-2 text-sm font-bold text-slate-800">{pac?.nome_completo??"Paciente"}</p><p className="mt-1 text-xs text-slate-500">Atend. #{atendimento?.numero_atendimento??"—"} · RA {pac?.ra??"—"} · Registro {pac?.numero_registro??"—"}</p><p className="mt-2 text-xs font-black text-brand-700">Programada para {when(ap.programado_em)}</p></div>{profissional?<form action={checarAdministracaoEnfermagemAction} className="grid w-full gap-2 lg:max-w-3xl lg:grid-cols-2"><input type="hidden" name="aprazamento_id" value={ap.id}/><input type="hidden" name="retorno" value={sp.atendimento?`/assistencial/enfermagem?atendimento=${sp.atendimento}&retorno=${encodeURIComponent(retorno)}`:retorno}/><select name="dispensacao_id" className="ui-input" defaultValue=""><option value="">Dispensação / lote liberado pela Farmácia</option>{disponiveis.map(d=><option key={d.id} value={d.id}>{d.item} · lote {d.lote??"—"} · {when(d.dispensado_em)}</option>)}</select><select name="status" className="ui-input" defaultValue="administrado"><option value="administrado">Administrado</option><option value="recusado">Recusado</option><option value="omitido">Omitido / não administrado</option></select><input name="codigo_paciente" required className="ui-input" autoComplete="off" placeholder="Paciente: digitar/ler RA, registro, CNS ou CPF"/><input name="codigo_medicamento" className="ui-input" autoComplete="off" placeholder="Código do medicamento (quando houver etiqueta)"/><label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 lg:col-span-2"><input type="checkbox" name="confirmacao_manual_medicamento" className="mt-1"/><span><b>Medicamento sem etiqueta</b><br/><span className="text-xs font-medium">Confirmar manualmente pelo item, dispensação e lote acima. Esta exceção será registrada na administração.</span></span></label><input name="dose" className="ui-input" defaultValue={prescricao?.dose??""} placeholder="Dose administrada"/><input name="via" className="ui-input" defaultValue={prescricao?.via??""} placeholder="Via"/><select name="segundo_profissional_id" className="ui-input" defaultValue=""><option value="">Sem segundo profissional</option>{profissionais.filter(pr=>pr.id!==profissional.id).map(pr=><option key={pr.id} value={pr.id}>{pr.nome_completo}</option>)}</select><label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold"><input type="checkbox" name="dupla_checagem"/>Dupla checagem</label><input name="justificativa" className="ui-input lg:col-span-2" placeholder="Justificativa de recusa/omissão ou motivo da contingência sem etiqueta"/><button className="ui-button-primary lg:col-span-2 lg:justify-self-end"><CheckCircle2 className="size-4"/>Confirmar checagem</button></form>:null}</div></article>}):<div className="his-card p-8 text-center text-sm text-slate-500"><Pill className="mx-auto mb-2 size-5"/>Nenhuma dose pendente na janela atual.</div>}</div></section>
- </SectionPage>;
+function one<T>(v: T | T[] | null) { return Array.isArray(v) ? v[0] ?? null : v; }
+function when(v: string | null | undefined) { return v ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(v)) : "—"; }
+function saldoDispensacao(d: Dispensacao) { return Math.max(0, Number(d.quantidade) - Number(d.quantidade_devolvida ?? 0)); }
+
+export default async function EnfermagemChecagemPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string; atendimento?: string; retorno?: string }> }) {
+  const sp = await searchParams;
+  const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
+  const agora = new Date();
+  const inicio = new Date(agora.getTime() - 12 * 3600000).toISOString();
+  const fim = new Date(agora.getTime() + 36 * 3600000).toISOString();
+
+  let aq = supabase
+    .from("prescricao_aprazamentos")
+    .select("id,prescricao_id,programado_em,tolerancia_minutos,status,justificativa,prescricao:prescricoes(item,dose,via,frequencia,produto_id,atendimento_id,atendimento:atendimentos(numero_atendimento,paciente_id,paciente:pacientes(nome_completo,ra,numero_registro,cpf,cns)))")
+    .eq("empresa_id", empresaId)
+    .eq("unidade_id", unidadeId)
+    .gte("programado_em", inicio)
+    .lte("programado_em", fim)
+    .order("programado_em", { ascending: true })
+    .limit(300);
+  if (sp.atendimento) aq = aq.eq("atendimento_id", sp.atendimento);
+
+  const [aprazRes, dispRes, profissionalRes, segundoProfRes] = await Promise.all([
+    aq,
+    supabase
+      .from("dispensacoes_medicamentos")
+      .select("id,prescricao_id,item,lote,validade,quantidade,quantidade_devolvida,dispensado_em,status,selecao_lote,fefo_sequencia")
+      .eq("empresa_id", empresaId)
+      .eq("unidade_id", unidadeId)
+      .in("status", ["dispensado", "parcial"])
+      .order("dispensado_em", { ascending: false })
+      .limit(500),
+    supabase.from("profissionais").select("id,nome_completo,especialidade").eq("empresa_id", empresaId).eq("usuario_id", user.id).eq("ativo", true).limit(1).maybeSingle(),
+    supabase.from("profissionais").select("id,nome_completo,especialidade").eq("empresa_id", empresaId).eq("ativo", true).order("nome_completo").limit(500),
+  ]);
+
+  let profissional = profissionalRes.data;
+  if (!profissional && user.email) profissional = (await supabase.from("profissionais").select("id,nome_completo,especialidade").eq("empresa_id", empresaId).ilike("email", user.email).eq("ativo", true).limit(1).maybeSingle()).data;
+
+  const aprazamentos = (aprazRes.data ?? []) as unknown as Aprazamento[];
+  const dispensacoes = ((dispRes.data ?? []) as unknown as Dispensacao[]).filter((d) => saldoDispensacao(d) > 0);
+  const profissionais = (segundoProfRes.data ?? []) as unknown as Profissional[];
+  const pendentes = aprazamentos.filter((i) => i.status === "pendente");
+  const atrasados = pendentes.filter((i) => new Date(i.programado_em).getTime() + Number(i.tolerancia_minutos ?? 30) * 60000 < Date.now());
+  const proximas = pendentes.filter((i) => !atrasados.includes(i));
+
+  const retornoSolicitado = sp.retorno && (sp.retorno.startsWith("/assistencial/enfermagem") || sp.retorno.startsWith("/prontuario/")) ? sp.retorno : null;
+  const retorno = (retornoSolicitado ?? "/assistencial/enfermagem") as Route;
+  const pacienteContexto = sp.atendimento ? one(one(pendentes[0]?.prescricao ?? null)?.atendimento ?? null) : null;
+  const paciente = one(pacienteContexto?.paciente ?? null);
+
+  return (
+    <SectionPage
+      eyebrow="Assistencial / Enfermagem"
+      title={sp.atendimento ? `Checagem · ${paciente?.nome_completo ?? "Paciente"}` : "Checagem de Prescrição"}
+      description="Administração de medicamentos aprazados com pulseira do paciente, dispensação FEFO, lote válido, recusa/omissão e dupla checagem."
+    >
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Link href="/assistencial/enfermagem/andares" className="btn-secondary">Andares</Link>
+        <Link href="/assistencial/enfermagem/pronto-socorro" className="btn-secondary">Pronto-Socorro</Link>
+        {sp.atendimento ? <Link href={retorno} className="btn-secondary">← Voltar</Link> : null}
+      </div>
+
+      {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Checagem registrada: {sp.sucesso}.</div> : null}
+      {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Não foi possível registrar: {sp.erro}</div> : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Pendentes" value={pendentes.length} tone="amber" />
+        <Kpi label="Atrasadas" value={atrasados.length} tone="rose" />
+        <Kpi label="Próximas" value={proximas.length} tone="brand" />
+        <div className="his-kpi"><p className="text-xs font-black uppercase text-slate-400">Profissional logado</p><p className="mt-2 font-black text-slate-950">{profissional?.nome_completo ?? "Sem vínculo"}</p><p className="mt-1 text-xs text-slate-500">{profissional?.especialidade ?? "Vincule o usuário"}</p></div>
+      </section>
+
+      {!profissional ? <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="flex items-center gap-3"><UserRoundCheck className="size-5 text-amber-700" /><p className="text-sm font-semibold text-amber-900">Checagem bloqueada até o usuário estar vinculado a um profissional ativo.</p></div></section> : null}
+
+      <section className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+        <b>Contingência sem etiqueta do medicamento:</b> a dispensação e o lote liberados pela Farmácia podem ser confirmados manualmente enquanto a etiqueta não estiver disponível. A identificação do paciente continua obrigatória e a exceção fica auditada.
+      </section>
+
+      <section className="mt-6">
+        <div className="mb-3 flex items-center gap-3"><Barcode className="size-5 text-brand-700" /><div><h2 className="font-black text-slate-900">Doses aprazadas</h2><p className="text-sm text-slate-500">A lista de dispensações já exclui itens totalmente devolvidos. Lotes vencidos, bloqueados ou em quarentena são recusados novamente pelo banco no momento da checagem.</p></div></div>
+        <div className="space-y-3">
+          {pendentes.length ? pendentes.map((ap) => {
+            const prescricao = one(ap.prescricao);
+            const atendimento = one(prescricao?.atendimento ?? null);
+            const pac = one(atendimento?.paciente ?? null);
+            const disponiveis = dispensacoes.filter((d) => d.prescricao_id === ap.prescricao_id);
+            const atrasado = new Date(ap.programado_em).getTime() + Number(ap.tolerancia_minutos ?? 30) * 60000 < Date.now();
+            const identificacaoHref = prescricao?.atendimento_id ? `/prontuario/${prescricao.atendimento_id}/identificacao?tipo=pulseira` as Route : null;
+            const voltarForm = sp.atendimento
+              ? `/assistencial/enfermagem?atendimento=${encodeURIComponent(sp.atendimento)}&retorno=${encodeURIComponent(retorno)}`
+              : retorno;
+
+            return (
+              <article key={ap.id} className={`his-card p-5 ${atrasado ? "border-rose-200" : ""}`}>
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0 xl:max-w-md">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-black text-slate-950">{prescricao?.item ?? "Medicamento"}</p>
+                      {atrasado ? <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-[11px] font-black text-rose-700"><AlertTriangle className="size-3" />Atrasada</span> : <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700"><Clock3 className="size-3" />No prazo</span>}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">{prescricao?.dose ?? "—"} · {prescricao?.via ?? "—"} · {prescricao?.frequencia ?? "—"}</p>
+                    <p className="mt-2 text-sm font-bold text-slate-800">{pac?.nome_completo ?? "Paciente"}</p>
+                    <p className="mt-1 text-xs text-slate-500">Atend. #{atendimento?.numero_atendimento ?? "—"} · RA {pac?.ra ?? "—"} · Registro {pac?.numero_registro ?? "—"}</p>
+                    <p className="mt-2 text-xs font-black text-brand-700">Programada para {when(ap.programado_em)}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {identificacaoHref ? <Link href={identificacaoHref} className="ui-button-secondary"><Printer className="size-4" />Pulseira / identificação</Link> : null}
+                      {!disponiveis.length ? <span className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">Aguardando dispensação da Farmácia</span> : null}
+                    </div>
+                  </div>
+
+                  {profissional ? (
+                    <form action={checarAdministracaoEnfermagemAction} className="grid w-full gap-2 lg:max-w-3xl lg:grid-cols-2">
+                      <input type="hidden" name="aprazamento_id" value={ap.id} />
+                      <input type="hidden" name="retorno" value={voltarForm} />
+                      <select name="dispensacao_id" className="ui-input" defaultValue="">
+                        <option value="">Dispensação / lote liberado pela Farmácia</option>
+                        {disponiveis.map((d) => <option key={d.id} value={d.id}>{d.selecao_lote === "fefo" ? `FEFO${d.fefo_sequencia ? ` #${d.fefo_sequencia}` : ""}` : "Manual"} · {d.item} · lote {d.lote ?? "—"} · val. {d.validade ?? "—"} · saldo {saldoDispensacao(d)} · {when(d.dispensado_em)}</option>)}
+                      </select>
+                      <select name="status" className="ui-input" defaultValue="administrado"><option value="administrado">Administrado</option><option value="recusado">Recusado</option><option value="omitido">Omitido / não administrado</option></select>
+                      <input name="codigo_paciente" required className="ui-input" autoComplete="off" placeholder="Paciente: ler/digitar QR, RA, registro, CNS ou CPF" />
+                      <input name="codigo_medicamento" className="ui-input" autoComplete="off" placeholder="Código do medicamento (quando houver etiqueta)" />
+                      <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 lg:col-span-2"><input type="checkbox" name="confirmacao_manual_medicamento" className="mt-1" /><span><b>Medicamento sem etiqueta</b><br /><span className="text-xs font-medium">Confirmar manualmente pelo item, dispensação e lote acima. Esta exceção será registrada na administração.</span></span></label>
+                      <input name="dose" className="ui-input" defaultValue={prescricao?.dose ?? ""} placeholder="Dose administrada" />
+                      <input name="via" className="ui-input" defaultValue={prescricao?.via ?? ""} placeholder="Via" />
+                      <select name="segundo_profissional_id" className="ui-input" defaultValue=""><option value="">Sem segundo profissional</option>{profissionais.filter((pr) => pr.id !== profissional.id).map((pr) => <option key={pr.id} value={pr.id}>{pr.nome_completo}</option>)}</select>
+                      <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold"><input type="checkbox" name="dupla_checagem" />Dupla checagem</label>
+                      <input name="justificativa" className="ui-input lg:col-span-2" placeholder="Justificativa de recusa/omissão ou motivo da contingência sem etiqueta" />
+                      <button className="ui-button-primary lg:col-span-2 lg:justify-self-end"><CheckCircle2 className="size-4" />Confirmar checagem</button>
+                    </form>
+                  ) : null}
+                </div>
+              </article>
+            );
+          }) : <div className="his-card p-8 text-center text-sm text-slate-500"><Pill className="mx-auto mb-2 size-5" />Nenhuma dose pendente na janela atual.</div>}
+        </div>
+      </section>
+    </SectionPage>
+  );
+}
+
+function Kpi({ label, value, tone }: { label: string; value: number; tone: "brand" | "amber" | "rose" }) {
+  const tones = { brand: "text-brand-700", amber: "text-amber-700", rose: "text-rose-700" } as const;
+  return <div className="his-kpi"><p className="text-xs font-black uppercase text-slate-400">{label}</p><p className={`mt-2 text-3xl font-black ${tones[tone]}`}>{value}</p></div>;
 }

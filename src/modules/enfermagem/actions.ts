@@ -12,7 +12,7 @@ function text(fd: FormData, key: string) {
 function go(url: string): never { redirect(url as Route); }
 function retorno(fd: FormData, fallback = "/assistencial/enfermagem") {
   const value = text(fd, "retorno");
-  return value && value.startsWith("/assistencial/enfermagem") ? value : fallback;
+  return value && (value.startsWith("/assistencial/enfermagem") || value.startsWith("/prontuario/")) ? value : fallback;
 }
 
 function mensagemErroAdministracao(message: string) {
@@ -24,8 +24,11 @@ function mensagemErroAdministracao(message: string) {
     VALIDACAO_FARMACEUTICA_PENDENTE: "A prescrição ainda aguarda validação/liberação da Farmácia.",
     PACIENTE_DIVERGENTE: "A pulseira ou identificação informada não corresponde ao paciente deste atendimento.",
     USUARIO_SEM_PROFISSIONAL: "Seu usuário não está vinculado a um profissional ativo.",
-    DISPENSACAO_INVALIDA: "Selecione a dispensação válida liberada pela Farmácia antes de administrar.",
+    DISPENSACAO_INVALIDA: "Selecione uma dispensação válida liberada pela Farmácia antes de administrar.",
     DISPENSACAO_SEM_LOTE: "A dispensação selecionada não possui lote rastreável. Corrija a dispensação na Farmácia.",
+    DISPENSACAO_SEM_SALDO: "A dispensação selecionada já foi totalmente devolvida e não possui saldo disponível.",
+    DISPENSACAO_LOTE_VENCIDO: "O lote da dispensação está vencido. Não administre; devolva o item à Farmácia.",
+    DISPENSACAO_LOTE_BLOQUEADO: "O lote foi bloqueado ou colocado em quarentena após a dispensação. Não administre e contate a Farmácia.",
     PRODUTO_NAO_LOCALIZADO: "O produto da dispensação não foi localizado no estoque.",
     MEDICAMENTO_DIVERGENTE: "O código lido não corresponde ao medicamento dispensado.",
     MOTIVO_CONTINGENCIA_OBRIGATORIO: "Informe o motivo da confirmação manual quando o medicamento estiver sem etiqueta.",
