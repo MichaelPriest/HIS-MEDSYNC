@@ -94,7 +94,7 @@ async function localizarRascunhoAnamnese(
 ) {
   if (!ctx) return null;
   const solicitado = texto(formData, "registro_id");
-  let query = ctx.supabase.from("prontuario_anamneses").select("id")
+  const query = ctx.supabase.from("prontuario_anamneses").select("id")
     .eq("atendimento_id", ctx.atendimentoId)
     .eq("profissional_id", ctx.profissional.id)
     .is("assinado_em", null)
@@ -116,7 +116,7 @@ async function localizarRascunhoSoap(
 ) {
   if (!ctx) return null;
   const solicitado = texto(formData, "registro_id");
-  let query = ctx.supabase.from("prontuario_evolucoes").select("id")
+  const query = ctx.supabase.from("prontuario_evolucoes").select("id")
     .eq("atendimento_id", ctx.atendimentoId)
     .eq("profissional_id", ctx.profissional.id)
     .eq("tipo_evolucao", "soap")
