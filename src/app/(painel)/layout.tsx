@@ -7,7 +7,15 @@ import { criarUrlFotoAssinada } from "@/modules/cadastros/fotos";
 
 type NamedRow = { nome: string | null };
 type CompanyRow = { nome_fantasia: string | null; razao_social: string | null };
-type PerfilRow = { id: string; nome: string; ativo: boolean };
+type PerfilRow = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  setor_chave: string | null;
+  nivel_acesso: "operacional" | "supervisao" | "gestao" | "administrador";
+  pagina_inicial: string | null;
+  ordem_navegacao: number;
+};
 type PerfilLink = {
   perfil_id: string;
   unidade_id: string | null;
@@ -47,7 +55,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   const perfisPromise = empresaId
     ? supabase
         .from("usuario_perfis")
-        .select("perfil_id,unidade_id,perfil:perfis(id,nome,ativo)")
+        .select("perfil_id,unidade_id,perfil:perfis(id,nome,ativo,setor_chave,nivel_acesso,pagina_inicial,ordem_navegacao)")
         .eq("usuario_id", user.id)
         .eq("empresa_id", empresaId)
         .eq("ativo", true)
@@ -68,10 +76,13 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     const perfil = one(item.perfil);
     if (perfil) profileMap.set(perfil.id, perfil);
   }
-  const profileOptions = [...profileMap.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const profileOptions = [...profileMap.values()].sort((a, b) =>
+    a.ordem_navegacao - b.ordem_navegacao || a.nome.localeCompare(b.nome, "pt-BR"),
+  );
   const selectedProfileId = requestedProfileId !== "all" && profileMap.has(requestedProfileId)
     ? requestedProfileId
     : "all";
+  const selectedProfile = selectedProfileId === "all" ? null : profileMap.get(selectedProfileId) ?? null;
 
   const permissionProfileIds = selectedProfileId === "all"
     ? profileOptions.map((item) => item.id)
@@ -94,9 +105,19 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     return permissao?.ativo && permissao.codigo ? [permissao.codigo] : [];
   }))].sort();
 
-  const profileNames = selectedProfileId === "all"
-    ? ["Todos os perfis"]
-    : [profileMap.get(selectedProfileId)?.nome ?? "Perfil"];
+  const profileNames = selectedProfile
+    ? [selectedProfile.nome]
+    : ["Todos os perfis"];
+
+  const activeProfile = selectedProfile
+    ? {
+        id: selectedProfile.id,
+        nome: selectedProfile.nome,
+        setorChave: selectedProfile.setor_chave,
+        nivelAcesso: selectedProfile.nivel_acesso,
+        paginaInicial: selectedProfile.pagina_inicial,
+      }
+    : null;
 
   const unidadeAtual = one(unidade?.unidade as NamedRow | NamedRow[] | null);
   const empresaAtual = one(unidade?.empresa as CompanyRow | CompanyRow[] | null);
@@ -116,6 +137,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       unidadeNome={unidadeAtual?.nome ?? null}
       empresaNome={empresaAtual?.nome_fantasia ?? empresaAtual?.razao_social ?? null}
       profileNames={profileNames}
+      activeProfile={activeProfile}
       grantedPermissions={grantedPermissions}
       profileOptions={profileOptions.map((item) => ({ id: item.id, nome: item.nome }))}
       unitOptions={unitOptions}

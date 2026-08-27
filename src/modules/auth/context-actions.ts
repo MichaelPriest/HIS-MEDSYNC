@@ -19,7 +19,7 @@ export async function selecionarContextoTrabalho(perfilSolicitado: string, unida
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { ok: false as const, perfil: "all", unidade: "all" };
+  if (!user) return { ok: false as const, perfil: "all", unidade: "all", paginaInicial: "/painel" };
 
   const perfil = normalize(perfilSolicitado);
   const unidade = normalize(unidadeSolicitada);
@@ -57,6 +57,18 @@ export async function selecionarContextoTrabalho(perfilSolicitado: string, unida
     if (!vinculo) perfilPersistido = "all";
   }
 
+  let paginaInicial = "/painel";
+  if (perfilPersistido !== "all" && empresaId) {
+    const { data: perfilMeta } = await supabase
+      .from("perfis")
+      .select("pagina_inicial")
+      .eq("id", perfilPersistido)
+      .eq("empresa_id", empresaId)
+      .eq("ativo", true)
+      .maybeSingle();
+    paginaInicial = perfilMeta?.pagina_inicial || "/painel";
+  }
+
   const store = await cookies();
   const options = {
     path: "/",
@@ -74,5 +86,6 @@ export async function selecionarContextoTrabalho(perfilSolicitado: string, unida
     ok: true as const,
     perfil: perfilPersistido,
     unidade: unidadePersistida,
+    paginaInicial,
   };
 }
