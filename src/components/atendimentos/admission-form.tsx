@@ -7,17 +7,10 @@ import { PatientRemotePicker, type AdmissionPatient } from "@/components/atendim
 import { TussProcedurePicker } from "@/components/atendimentos/tuss-procedure-picker";
 import { FormTabs } from "@/components/cadastros/form-tabs";
 import { MaskedInput } from "@/components/forms/masked-input";
+import { ProfessionalRemotePicker, type ProfessionalSearchResult } from "@/components/profissionais/professional-remote-picker";
 import { createClient } from "@/lib/supabase/client";
 
-type Profissional = {
-  id: string;
-  nome_completo: string;
-  conselho: string | null;
-  numero_conselho: string | null;
-  uf_conselho: string | null;
-  cbo: string | null;
-  especialidade: string | null;
-};
+type Profissional = Omit<ProfessionalSearchResult, "cpf_mascarado"> & { cpf_mascarado?: string | null };
 type Convenio = { id: string; nome_fantasia: string; registro_ans: string | null };
 type Plano = {
   id: string;
@@ -87,7 +80,6 @@ function tipoAnsPorOperacao(tipo: string, regime: string) {
   if (tipo === "pequena_cirurgia") return "02";
   if (tipo === "sessao_terapia") return "03";
   if (tipo === "internacao") return "07";
-  // SADT/exames é propositalmente não inferido: Tabela 50 distingue 05 e 23.
   return "";
 }
 
@@ -154,7 +146,9 @@ export function AdmissionForm({
   const [alerts, setAlerts] = useState<string[]>([]);
   const [atendimentoRn, setAtendimentoRn] = useState(false);
   const [identificacaoMetodo, setIdentificacaoMetodo] = useState<"biometria_digital" | "token">("biometria_digital");
-  const [profissionalId, setProfissionalId] = useState(initialProfissionalId ?? "");
+  const initialProfessional = profissionais.find((item) => item.id === initialProfissionalId) ?? null;
+  const [selectedProfessional, setSelectedProfessional] = useState<ProfessionalSearchResult | null>(initialProfessional ? { ...initialProfessional, cpf_mascarado: initialProfessional.cpf_mascarado ?? null } : null);
+  const profissionalId = selectedProfessional?.id ?? "";
   const [returnInfo, setReturnInfo] = useState<ReturnInfo | null>(null);
   const [regime, setRegime] = useState(initialRegime);
   const [tipoTiss, setTipoTiss] = useState("consulta");
@@ -164,7 +158,6 @@ export function AdmissionForm({
   const [eligibilityMessage, setEligibilityMessage] = useState<string | null>(null);
   const planosFiltrados = useMemo(() => planos.filter((item) => item.convenio_id === convenioId), [planos, convenioId]);
   const selectedPlan = planos.find((item) => item.id === planoId) ?? null;
-  const selectedProfessional = profissionais.find((item) => item.id === profissionalId) ?? null;
   const selectedAns50 = tiposAtendimentoAns.find((item) => item.codigo === tipoAns50) ?? null;
   const isExpired = expired(cardValidity);
   const indicationRequired = ["sadt_exames", "pequena_cirurgia", "sessao_terapia"].includes(tipoTiss);
@@ -308,7 +301,14 @@ export function AdmissionForm({
 
   const profissional = <div className="space-y-5">
     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-      <label className="space-y-2 text-sm font-medium text-slate-700"><span>Profissional responsável{coverage === "convenio" ? " *" : ""}</span><select name="profissional_id" value={profissionalId} onChange={(event) => { setProfissionalId(event.target.value); if (event.target.value) beep(); }} className="ui-input"><option value="">A definir</option>{profissionais.map((item) => <option key={item.id} value={item.id}>{item.nome_completo}</option>)}</select></label>
+      <ProfessionalRemotePicker
+        empresaId={empresaId}
+        name="profissional_id"
+        label="Profissional responsável"
+        required={coverage === "convenio"}
+        value={selectedProfessional}
+        onChange={(value) => { setSelectedProfessional(value); if (value) beep(); }}
+      />
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Conselho</p><p className="mt-1 font-semibold text-slate-800">{selectedProfessional ? `${selectedProfessional.conselho ?? "—"} ${selectedProfessional.numero_conselho ?? "—"} / ${selectedProfessional.uf_conselho ?? "—"}` : "Selecione o profissional"}</p></div>
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">CBO / Especialidade</p><p className="mt-1 font-semibold text-slate-800">{selectedProfessional ? `${selectedProfessional.cbo ?? "CBO ausente"} · ${selectedProfessional.especialidade ?? "Especialidade não informada"}` : "—"}</p></div>
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">CNES da unidade</p><p className={`mt-1 font-semibold ${unitCnes ? "text-slate-800" : "text-rose-700"}`}>{unitCnes ?? "CNES não cadastrado"}</p></div>
