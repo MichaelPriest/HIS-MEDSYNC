@@ -95,9 +95,18 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
     ? supabase.from("pacientes").select(PATIENT_SELECT).eq("id", sourcePatientId).eq("empresa_id", empresaId).eq("ativo", true).maybeSingle()
     : Promise.resolve({ data: null, error: null });
 
+  const profissionalInicialPromise = agenda?.profissional_id
+    ? supabase.from("profissionais")
+      .select("id,nome_completo,conselho,numero_conselho,uf_conselho,cbo,especialidade")
+      .eq("empresa_id", empresaId)
+      .eq("id", agenda.profissional_id)
+      .eq("ativo", true)
+      .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
   const [
     { data: pacienteInicial, error: pacienteInicialError },
-    { data: profissionais },
+    { data: profissionalInicial, error: profissionalInicialError },
     { data: tipos },
     { data: convenios },
     { data: planos },
@@ -105,9 +114,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
     { data: dominiosAns, error: dominiosAnsError },
   ] = await Promise.all([
     pacienteInicialPromise,
-    supabase.from("profissionais")
-      .select("id,nome_completo,conselho,numero_conselho,uf_conselho,cbo,especialidade")
-      .eq("empresa_id", empresaId).eq("ativo", true).order("nome_completo").limit(500),
+    profissionalInicialPromise,
     supabase.from("catalogos").select("codigo,descricao").eq("ativo", true).eq("tipo", "tipo_atendimento").order("descricao"),
     supabase.from("convenios").select("id,nome_fantasia,registro_ans").eq("empresa_id", empresaId).eq("ativo", true).order("nome_fantasia"),
     supabase.from("convenio_planos")
@@ -122,6 +129,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
   ]);
 
   if (pacienteInicialError) console.error("[admissao] falha ao carregar paciente da origem", { code: pacienteInicialError.code });
+  if (profissionalInicialError) console.error("[admissao] falha ao carregar profissional inicial", { code: profissionalInicialError.code });
   if (dominiosAnsError) console.error("[admissao] falha ao carregar domínios ANS", { code: dominiosAnsError.code });
 
   const initialPatient = (pacienteInicial ?? null) as AdmissionPatient | null;
@@ -149,7 +157,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
       unitCnes={unidade?.cnes ?? null}
       serverNow={new Date().toISOString()}
       initialPatient={initialPatient}
-      profissionais={profissionais ?? []}
+      profissionais={profissionalInicial ? [profissionalInicial] : []}
       convenios={convenios ?? []}
       planos={planos ?? []}
       tipos={tipos ?? []}
