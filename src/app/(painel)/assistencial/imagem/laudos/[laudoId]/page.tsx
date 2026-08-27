@@ -22,6 +22,15 @@ export default async function ImagemLaudoPage({
   const [{ laudoId }, sp] = await Promise.all([params, searchParams]);
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
 
+  const [visualizarReq, laudarReq, liberarReq] = await Promise.all(
+    ["imagem.visualizar", "imagem.laudar", "imagem.liberar_laudo"].map((codigo) =>
+      supabase.rpc("tem_permissao", { p_empresa: empresaId, p_unidade: unidadeId, p_codigo: codigo }),
+    ),
+  );
+  const podeVisualizarModulo = !visualizarReq.error && visualizarReq.data === true;
+  const podeLaudar = !laudarReq.error && laudarReq.data === true;
+  const podeLiberar = !liberarReq.error && liberarReq.data === true;
+
   const { data: laudo } = await supabase
     .from("imagem_laudos")
     .select("id,solicitacao_id,execucao_id,atendimento_id,tecnica,achados,conclusao,recomendacoes,status,laudo_por,liberado_em,assinatura_hash,revisao,retificado,motivo_retificacao,publicado_portal,publicado_em,achado_critico,comunicacao_critica_em,comunicada_a,comunicacao_critica_meio,comunicacao_critica_readback,comunicacao_critica_observacao,created_at,updated_at")
@@ -66,7 +75,8 @@ export default async function ImagemLaudoPage({
       {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Falha: {decodeURIComponent(sp.erro)}.</div> : null}
 
       <div className="mb-5 flex flex-wrap gap-2">
-        <Link href="/assistencial/imagem" className="ui-button-secondary">Voltar ao RIS</Link>
+        <Link href={`/prontuario/${laudo.atendimento_id}/historico` as Route} className="ui-button-secondary">Voltar ao histórico</Link>
+        {podeVisualizarModulo ? <Link href="/assistencial/imagem" className="ui-button-secondary">Voltar ao RIS</Link> : null}
         <Link href={`/assistencial/imagem/laudos/${laudo.id}/imprimir` as Route} className="ui-button-secondary">
           <FileText className="size-4" /> Imprimir / PDF
         </Link>
@@ -104,7 +114,7 @@ export default async function ImagemLaudoPage({
             {laudo.achado_critico ? <div className={`mt-3 rounded-xl border p-3 ${criticoPendente ? "border-rose-200 bg-rose-50 text-rose-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}><div className="flex items-center gap-2 text-sm font-black"><AlertTriangle className="size-4"/>Achado crítico</div><p className="mt-1 text-sm">{criticoPendente ? "A comunicação clínica ainda precisa ser registrada antes da liberação." : `Comunicado a ${laudo.comunicada_a ?? "—"} em ${fmt(laudo.comunicacao_critica_em)}${laudo.comunicacao_critica_meio ? ` · ${laudo.comunicacao_critica_meio}` : ""}${laudo.comunicacao_critica_readback ? " · read-back confirmado" : ""}.`}</p></div> : null}
           </div>
 
-          {!liberado ? (
+          {!liberado && podeLaudar ? (
             <form action={salvarLaudoImagem} className="his-card p-6">
               <input type="hidden" name="execucao_id" value={String(laudo.execucao_id ?? "")} />
               <div className="mb-4 flex items-center gap-2"><ScanLine className="size-5 text-brand-700" /><h2 className="font-black">Editor do laudo</h2></div>
@@ -119,7 +129,7 @@ export default async function ImagemLaudoPage({
                 </div>
               </div>
             </form>
-          ) : (
+          ) : liberado ? (
             <div className="his-card p-6">
               <div className="mb-5 flex items-center gap-2"><CheckCircle2 className="size-5 text-emerald-700" /><h2 className="font-black">Laudo assinado</h2></div>
               <ReportSection title="Técnica" value={laudo.tecnica} />
@@ -134,9 +144,9 @@ export default async function ImagemLaudoPage({
                 <p className="mt-1 break-all font-mono text-[11px] text-slate-400">Hash: {laudo.assinatura_hash ?? "—"}</p>
               </div>
             </div>
-          )}
+          ) : null}
 
-          {!liberado ? (
+          {!liberado && podeLaudar ? (
             <form action={registrarCriticidadeLaudoImagem} className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <div className="flex items-center gap-2"><AlertTriangle className="size-5 text-rose-700" /><h2 className="font-black">Criticidade e comunicação clínica</h2></div>
@@ -152,7 +162,7 @@ export default async function ImagemLaudoPage({
             </form>
           ) : null}
 
-          {!liberado ? (
+          {!liberado && podeLiberar ? (
             <form action={liberarLaudoImagem} className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <input type="hidden" name="retorno" value="editor" />
@@ -161,14 +171,14 @@ export default async function ImagemLaudoPage({
                 <button disabled={criticoPendente} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><CheckCircle2 className="size-4" /> Assinar e liberar</button>
               </div>
             </form>
-          ) : (
+          ) : liberado && podeLiberar ? (
             <form action={abrirRetificacaoLaudoImagem} className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <div className="flex items-center gap-2"><RotateCcw className="size-5 text-amber-700" /><h2 className="font-black">Abrir retificação</h2></div>
               <p className="mt-1 text-sm text-slate-500">O conteúdo liberado fica preservado no histórico e uma nova revisão editável é aberta. A criticidade e a comunicação precisam ser reavaliadas na nova revisão.</p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row"><input name="motivo" required className="ui-input flex-1" placeholder="Motivo obrigatório da retificação" /><button className="ui-button-secondary">Retificar laudo</button></div>
             </form>
-          )}
+          ) : null}
         </div>
 
         <aside className="space-y-4">
