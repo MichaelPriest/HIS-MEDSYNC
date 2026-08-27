@@ -5,12 +5,11 @@ import {
   Boxes,
   CheckCircle2,
   ClipboardCheck,
-  Clock3,
   Scissors,
   ShieldCheck,
   Stethoscope,
 } from "lucide-react";
-import { EncounterPicker } from "@/components/atendimentos/encounter-picker";
+import { SurgerySchedulingForm } from "@/components/centro-cirurgico/surgery-scheduling-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 import {
@@ -28,8 +27,14 @@ export const revalidate = 0;
 
 type Rel<T> = T | T[] | null;
 type Paciente = { nome_completo: string | null; cpf: string | null; ra: string | null; numero_registro: string | number | null };
-type Atendimento = { id: string; numero_atendimento: string | number | null; data_abertura: string | null; paciente: Rel<Paciente> };
-type Profissional = { id: string; nome_completo: string };
+type Atendimento = {
+  id: string;
+  numero_atendimento: string | number | null;
+  data_abertura: string | null;
+  cobertura: string | null;
+  paciente: Rel<Paciente>;
+  convenio: Rel<{ nome_fantasia: string | null }>;
+};
 type Sala = { sala_id: string; codigo: string; nome: string; status: string | null; equipamentos_prontos: boolean; equipamentos_obrigatorios_indisponiveis: number };
 type Cirurgia = {
   id: string;
@@ -37,12 +42,17 @@ type Cirurgia = {
   paciente_id: string;
   procedimento: string;
   codigo_tuss: string | null;
+  codigo_contratado: string | null;
+  tabela_referencia: string | null;
+  contrato_id: string | null;
+  tabela_item_id: string | null;
   cirurgia: string | null;
   lateralidade: string | null;
   sala: string | null;
   sala_id: string | null;
   classificacao: string | null;
   porte: string | null;
+  porte_anestesico: string | null;
   status: string;
   inicio_previsto: string | null;
   inicio_em: string | null;
@@ -83,11 +93,10 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
   const params = await searchParams;
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
 
-  const [atendimentosReq, profissionaisReq, salasReq, cirurgiasReq, checklistsReq, anestesiaReq, rpaReq, opmeReq, ciclosReq, vinculosReq] = await Promise.all([
-    supabase.from("atendimentos").select("id,numero_atendimento,data_abertura,paciente:pacientes(nome_completo,cpf,ra,numero_registro)").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).in("status", ["aberto", "em_espera", "em_atendimento"]).order("data_abertura", { ascending: false }).limit(300),
-    supabase.from("profissionais").select("id,nome_completo").eq("empresa_id", empresaId).eq("ativo", true).order("nome_completo").limit(600),
+  const [atendimentosReq, salasReq, cirurgiasReq, checklistsReq, anestesiaReq, rpaReq, opmeReq, ciclosReq, vinculosReq] = await Promise.all([
+    supabase.from("atendimentos").select("id,numero_atendimento,data_abertura,cobertura,paciente:pacientes(nome_completo,cpf,ra,numero_registro),convenio:convenios(nome_fantasia)").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).in("status", ["aberto", "em_espera", "em_atendimento"]).order("data_abertura", { ascending: false }).limit(300),
     supabase.from("vw_salas_cirurgicas_prontidao").select("sala_id,codigo,nome,status,equipamentos_prontos,equipamentos_obrigatorios_indisponiveis").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("nome"),
-    supabase.from("cirurgias").select("id,atendimento_id,paciente_id,procedimento,codigo_tuss,cirurgia,lateralidade,sala,sala_id,classificacao,porte,status,inicio_previsto,inicio_em,fim_em,cirurgiao_id,anestesista_id,diagnostico_pre,intercorrencias,paciente:pacientes(nome_completo,ra)").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("inicio_previsto", { ascending: true, nullsFirst: false }).limit(150),
+    supabase.from("cirurgias").select("id,atendimento_id,paciente_id,procedimento,codigo_tuss,codigo_contratado,tabela_referencia,contrato_id,tabela_item_id,cirurgia,lateralidade,sala,sala_id,classificacao,porte,porte_anestesico,status,inicio_previsto,inicio_em,fim_em,cirurgiao_id,anestesista_id,diagnostico_pre,intercorrencias,paciente:pacientes(nome_completo,ra)").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("inicio_previsto", { ascending: true, nullsFirst: false }).limit(150),
     supabase.from("cirurgia_checklist").select("cirurgia_id,etapa,itens,concluido,concluido_em,observacoes").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(1000),
     supabase.from("anestesia_registros").select("cirurgia_id,tecnica,asa,via_aerea,inicio_em,fim_em,observacoes").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
     supabase.from("rpa_registros").select("cirurgia_id,aldrete_entrada,aldrete_alta,dor,nauseas,destino,status,alta_em").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
@@ -96,8 +105,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
     supabase.from("cirurgia_cme_ciclos").select("cirurgia_id,ciclo_id").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).limit(1000),
   ]);
 
-  const atendimentos = (atendimentosReq.data ?? []) as Atendimento[];
-  const profissionais = (profissionaisReq.data ?? []) as Profissional[];
+  const atendimentos = (atendimentosReq.data ?? []) as unknown as Atendimento[];
   const salas = (salasReq.data ?? []) as Sala[];
   const cirurgias = (cirurgiasReq.data ?? []) as unknown as Cirurgia[];
   const checklists = (checklistsReq.data ?? []) as Checklist[];
@@ -106,14 +114,22 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
   const opmes = (opmeReq.data ?? []) as Opme[];
   const ciclos = (ciclosReq.data ?? []) as CmeCiclo[];
   const vinculos = (vinculosReq.data ?? []) as CmeVinculo[];
-  const profissionalNome = new Map(profissionais.map((item) => [item.id, item.nome_completo]));
+
+  const professionalIds = [...new Set(cirurgias.flatMap((item) => [item.cirurgiao_id, item.anestesista_id]).filter((id): id is string => Boolean(id)))];
+  const profissionaisReq = professionalIds.length
+    ? await supabase.from("profissionais").select("id,nome_completo").eq("empresa_id", empresaId).in("id", professionalIds)
+    : { data: [] as { id: string; nome_completo: string }[] };
+  const profissionalNome = new Map((profissionaisReq.data ?? []).map((item) => [item.id, item.nome_completo]));
 
   const encounters = atendimentos.map((item) => {
     const paciente = one(item.paciente);
+    const convenio = one(item.convenio);
     return {
       id: item.id,
       numero_atendimento: item.numero_atendimento,
       data_abertura: item.data_abertura,
+      cobertura: item.cobertura,
+      convenio_nome: convenio?.nome_fantasia ?? null,
       paciente: {
         nome_completo: paciente?.nome_completo ?? "Paciente",
         cpf: paciente?.cpf ?? null,
@@ -164,23 +180,9 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
       <section className="mt-5 his-card p-5">
         <div className="mb-4 border-b border-slate-100 pb-4">
           <h2 className="font-black text-slate-950">Agendar cirurgia</h2>
-          <p className="mt-1 text-sm text-slate-500">A gravação usa o RPC protegido do Centro Cirúrgico; não há escrita direta na tabela de cirurgias.</p>
+          <p className="mt-1 text-sm text-slate-500">Em convênio, procedimento, código e porte são resolvidos pelo contrato vigente. Cirurgião e anestesista podem ser localizados por nome, CPF, conselho, número, especialidade ou CBO.</p>
         </div>
-        <form action={agendarCirurgia} className="grid gap-3 lg:grid-cols-4">
-          <div className="lg:col-span-4"><EncounterPicker encounters={encounters} name="atendimento_id" /></div>
-          <input name="procedimento" required className="ui-input lg:col-span-2" placeholder="Procedimento *" />
-          <input name="codigo_tuss" className="ui-input" placeholder="Código TUSS" />
-          <input name="cirurgia" className="ui-input" placeholder="Descrição cirúrgica" />
-          <select name="lateralidade" defaultValue="" className="ui-input"><option value="">Lateralidade</option><option value="direita">Direita</option><option value="esquerda">Esquerda</option><option value="bilateral">Bilateral</option><option value="nao_aplicavel">Não aplicável</option></select>
-          <select name="sala" defaultValue="" className="ui-input" required><option value="">Sala cirúrgica *</option>{salas.map((sala) => <option key={sala.sala_id} value={sala.codigo}>{sala.codigo} · {sala.nome}{sala.equipamentos_prontos ? " · pronta" : " · pendência"}</option>)}</select>
-          <select name="classificacao" defaultValue="" className="ui-input"><option value="">Classificação</option><option value="eletiva">Eletiva</option><option value="urgencia">Urgência</option><option value="emergencia">Emergência</option></select>
-          <select name="porte" defaultValue="" className="ui-input"><option value="">Porte</option><option value="1">Porte 1</option><option value="2">Porte 2</option><option value="3">Porte 3</option><option value="4">Porte 4</option></select>
-          <input name="inicio_previsto" type="datetime-local" required className="ui-input" />
-          <select name="cirurgiao_id" defaultValue="" className="ui-input"><option value="">Cirurgião responsável</option>{profissionais.map((item) => <option key={item.id} value={item.id}>{item.nome_completo}</option>)}</select>
-          <select name="anestesista_id" defaultValue="" className="ui-input"><option value="">Anestesista</option>{profissionais.map((item) => <option key={item.id} value={item.id}>{item.nome_completo}</option>)}</select>
-          <input name="diagnostico_pre" className="ui-input lg:col-span-2" placeholder="Diagnóstico pré-operatório" />
-          <button className="ui-button-primary"><Clock3 className="size-4" />Registrar agendamento</button>
-        </form>
+        <SurgerySchedulingForm action={agendarCirurgia} empresaId={empresaId} encounters={encounters} salas={salas} />
       </section>
 
       <section className="mt-5 space-y-4">
@@ -202,10 +204,11 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
               <div className="border-b border-slate-100 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={cirurgia.status} />{sala ? <span className={`rounded-full px-2.5 py-1 text-xs font-black ${sala.equipamentos_prontos ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{sala.equipamentos_prontos ? "Sala pronta" : `${sala.equipamentos_obrigatorios_indisponiveis} equipamento(s) pendente(s)`}</span> : null}</div>
+                    <div className="flex flex-wrap items-center gap-2"><StatusBadge status={cirurgia.status} />{sala ? <span className={`rounded-full px-2.5 py-1 text-xs font-black ${sala.equipamentos_prontos ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{sala.equipamentos_prontos ? "Sala pronta" : `${sala.equipamentos_obrigatorios_indisponiveis} equipamento(s) pendente(s)`}</span> : null}{cirurgia.contrato_id ? <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-black text-sky-700">Contrato validado</span> : null}</div>
                     <h3 className="mt-3 text-lg font-black text-slate-950">{paciente?.nome_completo ?? "Paciente"}</h3>
-                    <p className="mt-1 text-sm font-semibold text-slate-700">{cirurgia.procedimento}{cirurgia.codigo_tuss ? ` · TUSS ${cirurgia.codigo_tuss}` : ""}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">{cirurgia.procedimento}{cirurgia.codigo_tuss ? ` · TUSS ${cirurgia.codigo_tuss}` : cirurgia.codigo_contratado ? ` · Cód. ${cirurgia.codigo_contratado}` : ""}</p>
                     <p className="mt-1 text-xs text-slate-500">RA {paciente?.ra ?? "—"} · Sala {cirurgia.sala ?? "—"} · Previsto {fmt(cirurgia.inicio_previsto)}</p>
+                    <p className="mt-1 text-xs text-slate-500">Porte {cirurgia.porte ?? "—"} · Porte anestésico {cirurgia.porte_anestesico ?? "—"}{cirurgia.tabela_referencia ? ` · ${cirurgia.tabela_referencia}` : ""}</p>
                     <p className="mt-1 text-xs text-slate-500">Cirurgião: {cirurgia.cirurgiao_id ? profissionalNome.get(cirurgia.cirurgiao_id) ?? "—" : "A definir"} · Anestesista: {cirurgia.anestesista_id ? profissionalNome.get(cirurgia.anestesista_id) ?? "—" : "Não informado"}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
