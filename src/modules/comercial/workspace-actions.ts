@@ -59,7 +59,7 @@ export async function atualizarContratoComercial(formData: FormData) {
 }
 
 export async function vincularTabelaContratoWorkspace(formData: FormData) {
-  const { supabase } = await getAssistencialContext();
+  const { supabase, empresaId, unidadeId } = await getAssistencialContext();
   const contratoId = text(formData, "contrato_id");
   const fonteId = text(formData, "fonte_id");
   const categoria = text(formData, "categoria") || "geral";
@@ -67,6 +67,24 @@ export async function vincularTabelaContratoWorkspace(formData: FormData) {
   const edicaoFixaId = nullable(text(formData, "edicao_fixa_id"));
   if (!contratoId || !fonteId) return fail(formData, "Informe contrato e tabela comercial.");
   if (modoEdicao === "edicao_fixa" && !edicaoFixaId) return fail(formData, "Selecione a edição fixa que será usada pelo contrato.");
+
+  const [{ data: contrato }, { data: fonte }] = await Promise.all([
+    supabase.from("credenciamento_contratos").select("id,empresa_id,unidade_id").eq("id", contratoId).maybeSingle(),
+    supabase.from("tabelas_comerciais_fontes").select("id,empresa_id").eq("id", fonteId).maybeSingle(),
+  ]);
+  if (!contrato || contrato.empresa_id !== empresaId || (contrato.unidade_id && contrato.unidade_id !== unidadeId)) {
+    return fail(formData, "Contrato não localizado ou fora da unidade atual.");
+  }
+  if (!fonte || fonte.empresa_id !== empresaId) return fail(formData, "Tabela comercial não localizada nesta empresa.");
+
+  if (edicaoFixaId) {
+    const { data: edicao } = await supabase
+      .from("tabelas_comerciais_edicoes")
+      .select("id,fonte_id")
+      .eq("id", edicaoFixaId)
+      .maybeSingle();
+    if (!edicao || edicao.fonte_id !== fonteId) return fail(formData, "A edição selecionada não pertence à tabela informada.");
+  }
 
   const payload = {
     contrato_id: contratoId,
