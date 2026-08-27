@@ -8,7 +8,6 @@ import { createClient } from "@/lib/supabase/server";
 import { adicionarAlergia, adicionarDiagnostico, adicionarProblema, registrarEscala } from "@/modules/prontuario-clinico/actions";
 
 function one<T>(rel: T | T[] | null): T | null { return Array.isArray(rel) ? rel[0] ?? null : rel; }
-function fmtData(value?: string | null) { return value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "—"; }
 function objeto(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function valorJson(value: unknown) { return typeof value === "string" && value.trim() ? value : null; }
 function textoRevisao(value: unknown) {
