@@ -26,6 +26,7 @@ export function ClinicalAutosaveForm({ tipo, atendimentoId, registroId: registro
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentPromiseRef = useRef<Promise<void> | null>(null);
   const dirtyRef = useRef(false);
+  const errorRef = useRef(false);
   const registroIdRef = useRef<string | null>(registroIdInicial ?? null);
   const [registroId, setRegistroId] = useState<string | null>(registroIdInicial ?? null);
   const [estado, setEstado] = useState<Estado>("idle");
@@ -44,7 +45,7 @@ export function ClinicalAutosaveForm({ tipo, atendimentoId, registroId: registro
   async function executarAutosave() {
     if (currentPromiseRef.current) {
       await currentPromiseRef.current;
-      if (dirtyRef.current) await executarAutosave();
+      if (dirtyRef.current && !errorRef.current) await executarAutosave();
       return;
     }
     if (!dirtyRef.current || !formRef.current) return;
@@ -59,10 +60,12 @@ export function ClinicalAutosaveForm({ tipo, atendimentoId, registroId: registro
     const promessa = (async () => {
       const resultado = tipo === "anamnese" ? await autosalvarAnamnese(dados) : await autosalvarEvolucaoSoap(dados);
       if (resultado.ok) {
+        errorRef.current = false;
         atualizarRegistroId(resultado.id);
         setSalvoEm(resultado.savedAt);
         setEstado("saved");
       } else {
+        errorRef.current = true;
         dirtyRef.current = true;
         setEstado("error");
       }
@@ -75,7 +78,7 @@ export function ClinicalAutosaveForm({ tipo, atendimentoId, registroId: registro
       currentPromiseRef.current = null;
     }
 
-    if (dirtyRef.current && estado !== "error") {
+    if (dirtyRef.current && !errorRef.current) {
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => void executarAutosave(), 400);
     }
@@ -83,6 +86,7 @@ export function ClinicalAutosaveForm({ tipo, atendimentoId, registroId: registro
 
   function agendarAutosave() {
     dirtyRef.current = true;
+    errorRef.current = false;
     setEstado("dirty");
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => void executarAutosave(), 900);
@@ -94,17 +98,21 @@ export function ClinicalAutosaveForm({ tipo, atendimentoId, registroId: registro
       timerRef.current = null;
     }
     if (currentPromiseRef.current) await currentPromiseRef.current;
-    if (dirtyRef.current) await executarAutosave();
+    if (dirtyRef.current) {
+      errorRef.current = false;
+      await executarAutosave();
+    }
     if (currentPromiseRef.current) await currentPromiseRef.current;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const acao = submitter?.value === "assinar" ? "assinar" : "salvar";
 
     await flushAutosave();
-    const dados = new FormData(event.currentTarget);
+    const dados = new FormData(form);
     dados.set("atendimento_id", atendimentoId);
     dados.set("acao", acao);
     if (registroIdRef.current) dados.set("registro_id", registroIdRef.current);
