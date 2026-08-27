@@ -28,6 +28,16 @@ export default async function LaboratorioLaudoPage({
   const [{ laudoId }, sp] = await Promise.all([params, searchParams]);
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
 
+  const [visualizarReq, resultarReq, laudarReq, liberarReq] = await Promise.all(
+    ["laboratorio.visualizar", "laboratorio.resultar", "laboratorio.laudar", "laboratorio.liberar"].map((codigo) =>
+      supabase.rpc("tem_permissao", { p_empresa: empresaId, p_unidade: unidadeId, p_codigo: codigo }),
+    ),
+  );
+  const podeVisualizarModulo = !visualizarReq.error && visualizarReq.data === true;
+  const podeResultar = !resultarReq.error && resultarReq.data === true;
+  const podeLaudar = !laudarReq.error && laudarReq.data === true;
+  const podeLiberar = !liberarReq.error && liberarReq.data === true;
+
   const { data: laudo } = await supabase
     .from("laboratorio_laudos")
     .select("id,solicitacao_id,amostra_id,atendimento_id,paciente_id,titulo,material,metodo,corpo,conclusao,observacoes,status,versao,responsavel_tecnico_id,validado_por,validado_em,liberado_por,liberado_em,assinatura_hash,motivo_retificacao,publicado_portal,publicado_em,created_at,updated_at")
@@ -47,7 +57,7 @@ export default async function LaboratorioLaudoPage({
     laudo.amostra_id
       ? supabase
           .from("laboratorio_amostras")
-          .select("id,codigo_amostra,accession_number,material,recipiente,status,coleta_prevista_em,coletada_em,recebida_em,temperatura_recebimento,rejeitada_motivo")
+          .select("id,codigo_amostra,accession_number,material,recipiente,status,coleta_prevista_em,coletada_em,recebida_em,temperatura_recebimento,rejeitada_motivo,setor_processamento,bancada_processamento")
           .eq("id", laudo.amostra_id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -97,8 +107,9 @@ export default async function LaboratorioLaudoPage({
       {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Falha: {decodeURIComponent(sp.erro)}.</div> : null}
 
       <div className="mb-5 flex flex-wrap gap-2">
-        <Link href="/assistencial/laboratorio/laudos" className="ui-button-secondary">Voltar à bancada</Link>
-        <Link href="/assistencial/laboratorio" className="ui-button-secondary">Laboratório</Link>
+        <Link href={`/prontuario/${laudo.atendimento_id}/historico` as Route} className="ui-button-secondary">Voltar ao histórico</Link>
+        {podeVisualizarModulo ? <Link href="/assistencial/laboratorio/laudos" className="ui-button-secondary">Voltar à bancada</Link> : null}
+        {podeVisualizarModulo ? <Link href="/assistencial/laboratorio" className="ui-button-secondary">Laboratório</Link> : null}
         <Link href={`/assistencial/laboratorio/laudos/${laudo.id}/imprimir` as Route} className="ui-button-secondary">
           <FileText className="size-4" /> Imprimir / PDF
         </Link>
@@ -133,6 +144,8 @@ export default async function LaboratorioLaudoPage({
               <Info label="Accession" value={amostra?.accession_number ?? "—"} />
               <Info label="Material" value={amostra?.material ?? laudo.material ?? "—"} />
               <Info label="Recipiente" value={amostra?.recipiente ?? "—"} />
+              <Info label="Setor" value={amostra?.setor_processamento ?? "—"} />
+              <Info label="Bancada" value={amostra?.bancada_processamento ?? "—"} />
               <Info label="Coleta" value={fmt(amostra?.coletada_em)} />
               <Info label="Recebimento" value={fmt(amostra?.recebida_em)} />
               <Info label="Temperatura" value={amostra?.temperatura_recebimento !== null && amostra?.temperatura_recebimento !== undefined ? `${amostra.temperatura_recebimento} °C` : "—"} />
@@ -160,16 +173,16 @@ export default async function LaboratorioLaudoPage({
                       <td className="px-4 py-4"><Flag value={resultado.flag} critical={resultado.valor_critico} /></td>
                       <td className="px-4 py-4">
                         <div className="space-y-2">
-                          {resultado.liberado ? <p className="text-xs font-bold text-emerald-700">Validado {fmt(resultado.liberado_em)}</p> : (
+                          {resultado.liberado ? <p className="text-xs font-bold text-emerald-700">Validado {fmt(resultado.liberado_em)}</p> : podeResultar ? (
                             <form action={validarResultadoNoLaudo}>
                               <input type="hidden" name="laudo_id" value={laudo.id} />
                               <input type="hidden" name="resultado_id" value={resultado.id} />
                               <button className="ui-button-secondary">Validar analito</button>
                             </form>
-                          )}
+                          ) : <p className="text-xs text-slate-500">Aguardando validação técnica.</p>}
                           {resultado.valor_critico ? resultado.notificado_em ? (
                             <p className="text-xs font-bold text-rose-700">Crítico comunicado a {resultado.notificado_a ?? "destinatário registrado"} · {fmt(resultado.notificado_em)}</p>
-                          ) : (
+                          ) : podeResultar ? (
                             <form action={notificarCriticoNoLaudo} className="grid gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
                               <input type="hidden" name="laudo_id" value={laudo.id} />
                               <input type="hidden" name="resultado_id" value={resultado.id} />
@@ -181,7 +194,7 @@ export default async function LaboratorioLaudoPage({
                               <input name="observacoes" className="ui-input" placeholder="Observações da comunicação" />
                               <button className="ui-button-primary justify-self-end">Registrar comunicação</button>
                             </form>
-                          ) : null}
+                          ) : <p className="text-xs font-bold text-rose-700">Comunicação crítica pendente pela equipe do laboratório.</p> : null}
                         </div>
                       </td>
                     </tr>
@@ -191,7 +204,7 @@ export default async function LaboratorioLaudoPage({
             </div>
           </div>
 
-          {!liberado ? (
+          {!liberado && podeLaudar ? (
             <form action={salvarLaudoLaboratorio} className="his-card p-6">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <input type="hidden" name="solicitacao_id" value={laudo.solicitacao_id} />
@@ -209,7 +222,7 @@ export default async function LaboratorioLaudoPage({
                 <div className="flex justify-end"><button className="ui-button-secondary">Salvar rascunho</button></div>
               </div>
             </form>
-          ) : (
+          ) : liberado ? (
             <div className="his-card p-6">
               <div className="mb-5 flex items-center gap-2"><CheckCircle2 className="size-5 text-emerald-700" /><h2 className="font-black">Laudo assinado</h2></div>
               <ReportSection title="Descrição / interpretação" value={laudo.corpo} />
@@ -222,9 +235,9 @@ export default async function LaboratorioLaudoPage({
                 <p className="mt-1 break-all font-mono text-[11px] text-slate-400">Hash: {laudo.assinatura_hash ?? "—"}</p>
               </div>
             </div>
-          )}
+          ) : null}
 
-          {!liberado ? (
+          {!liberado && podeLiberar ? (
             <form action={liberarLaudoLaboratorio} className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -232,14 +245,14 @@ export default async function LaboratorioLaudoPage({
                 <button className="ui-button-primary" disabled={resultados.length === 0 || criticosPendentes.length > 0}><CheckCircle2 className="size-4" /> Assinar e liberar</button>
               </div>
             </form>
-          ) : (
+          ) : liberado && podeLiberar ? (
             <form action={abrirRetificacaoLaudoLaboratorio} className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <div className="flex items-center gap-2"><RotateCcw className="size-5 text-amber-700" /><h2 className="font-black">Abrir retificação</h2></div>
               <p className="mt-1 text-sm text-slate-500">A versão liberada permanece preservada no histórico e uma nova versão editável é criada.</p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row"><input name="motivo" required className="ui-input flex-1" placeholder="Motivo obrigatório da retificação" /><button className="ui-button-secondary">Retificar laudo</button></div>
             </form>
-          )}
+          ) : null}
         </div>
 
         <aside className="space-y-4">

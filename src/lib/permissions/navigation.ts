@@ -11,7 +11,9 @@ export const navigationRequirements: Record<string, readonly string[]> = {
 
   "/assistencial/sae": ["sae.visualizar", "enfermagem.visualizar"],
   "/assistencial/medicamentos": ["farmacia.visualizar", "prescricao.visualizar", "medicamentos.administrar"],
+  "/assistencial/laboratorio/laudos": ["laboratorio.visualizar", "exames.visualizar", "prontuario.visualizar"],
   "/assistencial/laboratorio": ["laboratorio.visualizar", "exames.visualizar"],
+  "/assistencial/imagem/laudos": ["imagem.visualizar", "exames.visualizar", "prontuario.visualizar"],
   "/assistencial/imagem": ["imagem.visualizar", "exames.visualizar"],
   "/assistencial/internacao": ["internacao.visualizar"],
   "/assistencial/urgencia": ["emergencia.visualizar", "emergencia.gerenciar", "emergencia.reavaliar"],

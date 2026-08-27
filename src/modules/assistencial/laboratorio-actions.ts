@@ -6,67 +6,72 @@ import { getAssistencialContext } from "@/modules/assistencial/context";
 const base = "/assistencial/laboratorio";
 const txt = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
 const go = (query: string): never => redirect(`${base}?${query}` as never);
-
-async function profissionalLogado(supabase: Awaited<ReturnType<typeof getAssistencialContext>>["supabase"], userId: string, empresaId: string) {
-  const { data } = await supabase.from("profissionais").select("id").eq("usuario_id", userId).eq("empresa_id", empresaId).eq("ativo", true).limit(1).maybeSingle();
-  return data?.id ?? null;
-}
+const numero = (value: string) => {
+  if (!value) return null;
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 export async function prepararAmostraLaboratorio(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
+  const { supabase } = await getAssistencialContext();
   const solicitacaoId = txt(formData, "solicitacao_id");
   if (!solicitacaoId) return go("erro=solicitacao");
-  const { data: sol } = await supabase.from("solicitacoes_exames").select("id,atendimento_id,empresa_id,unidade_id,prioridade").eq("id", solicitacaoId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle();
-  if (!sol) return go("erro=solicitacao");
-  const { data: at } = await supabase.from("atendimentos").select("paciente_id").eq("id", sol.atendimento_id).maybeSingle();
-  if (!at?.paciente_id) return go("erro=atendimento");
-  const stamp = Date.now().toString(36).toUpperCase();
-  const codigo = txt(formData, "codigo_amostra") || `LAB-${stamp}`;
-  const accession = txt(formData, "accession_number") || `ACC-${stamp}`;
-  const { error } = await supabase.from("laboratorio_amostras").insert({ empresa_id: empresaId, unidade_id: unidadeId, solicitacao_id: sol.id, atendimento_id: sol.atendimento_id, paciente_id: at.paciente_id, codigo_amostra: codigo, accession_number: accession, etiqueta_codigo: codigo, material: txt(formData, "material") || null, recipiente: txt(formData, "recipiente") || null, prioridade: txt(formData, "prioridade") || sol.prioridade || "rotina", coleta_prevista_em: txt(formData, "coleta_prevista_em") || null, status: "aguardando_coleta", created_by: user.id, updated_by: user.id });
+
+  const { error } = await supabase.rpc("preparar_amostra_laboratorio_operacional", {
+    p_solicitacao_id: solicitacaoId,
+    p_material: txt(formData, "material") || null,
+    p_recipiente: txt(formData, "recipiente") || null,
+    p_prioridade: txt(formData, "prioridade") || null,
+    p_coleta_prevista_em: txt(formData, "coleta_prevista_em") || null,
+  });
   if (error) return go(`erro=${encodeURIComponent(error.message)}`);
   return go("sucesso=amostra");
 }
 
 export async function atualizarStatusAmostraLaboratorio(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
-  const id = txt(formData, "amostra_id"), acao = txt(formData, "acao");
-  const profissionalId = await profissionalLogado(supabase, user.id, empresaId);
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), updated_by: user.id };
-  if (acao === "coletar") Object.assign(patch, { status: "coletada", coletada_em: new Date().toISOString(), coletada_por: profissionalId });
-  else if (acao === "receber") Object.assign(patch, { status: "recebida", recebida_em: new Date().toISOString(), recebida_por: profissionalId, temperatura_recebimento: txt(formData, "temperatura_recebimento") || null });
-  else if (acao === "rejeitar") Object.assign(patch, { status: "rejeitada", rejeitada_em: new Date().toISOString(), rejeitada_por: profissionalId, rejeitada_motivo: txt(formData, "motivo") || "Amostra rejeitada" });
-  else return go("erro=acao");
-  const { error } = await supabase.from("laboratorio_amostras").update(patch).eq("id", id).eq("empresa_id", empresaId).eq("unidade_id", unidadeId);
+  const { supabase } = await getAssistencialContext();
+  const id = txt(formData, "amostra_id");
+  const acao = txt(formData, "acao");
+  if (!id || !acao) return go("erro=acao");
+
+  const { error } = await supabase.rpc("atualizar_status_amostra_laboratorio_operacional", {
+    p_amostra_id: id,
+    p_acao: acao,
+    p_temperatura_recebimento: numero(txt(formData, "temperatura_recebimento")),
+    p_motivo: txt(formData, "motivo") || null,
+  });
   if (error) return go(`erro=${encodeURIComponent(error.message)}`);
   return go("sucesso=amostra-status");
 }
 
+export async function encaminharAmostraLaboratorio(formData: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const id = txt(formData, "amostra_id");
+  const setor = txt(formData, "setor");
+  if (!id || !setor) return go("erro=setor-obrigatorio");
+
+  const { error } = await supabase.rpc("encaminhar_amostra_laboratorio_operacional", {
+    p_amostra_id: id,
+    p_setor: setor,
+    p_bancada: txt(formData, "bancada") || null,
+  });
+  if (error) return go(`erro=${encodeURIComponent(error.message)}`);
+  return go("sucesso=amostra-encaminhada");
+}
+
 export async function registrarResultadoLaboratorio(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
-  const amostraId = txt(formData, "amostra_id"), analitoId = txt(formData, "catalogo_analito_id"), equipamentoLabId = txt(formData, "laboratorio_equipamento_id");
-  const resultadoTexto = txt(formData, "resultado"), valorRaw = txt(formData, "valor_numerico").replace(",", "."), valor = valorRaw ? Number(valorRaw) : null;
-  const { data: amostra } = await supabase.from("laboratorio_amostras").select("id,solicitacao_id,atendimento_id").eq("id", amostraId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle();
-  const { data: analito } = await supabase.from("laboratorio_catalogo_analitos").select("id,analito,unidade_medida,referencia_min,referencia_max,referencia_texto,critico_min,critico_max,metodo").eq("id", analitoId).eq("empresa_id", empresaId).maybeSingle();
-  if (!amostra || !analito) return go("erro=dados-resultado");
+  const { supabase } = await getAssistencialContext();
+  const amostraId = txt(formData, "amostra_id");
+  const analitoId = txt(formData, "catalogo_analito_id");
+  if (!amostraId || !analitoId) return go("erro=dados-resultado");
 
-  let engenhariaEquipamentoId: string | null = null;
-  if (equipamentoLabId) {
-    const { data: equipamentoLab } = await supabase.from("laboratorio_equipamentos").select("id,ativo,engenharia_equipamento_id,engenharia:engenharia_equipamentos(status,patrimonio,nome)").eq("id", equipamentoLabId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle();
-    if (!equipamentoLab?.ativo) return go("erro=analisador-inativo");
-    engenhariaEquipamentoId = equipamentoLab.engenharia_equipamento_id ?? null;
-    const engenharia = Array.isArray(equipamentoLab.engenharia) ? equipamentoLab.engenharia[0] : equipamentoLab.engenharia;
-    if (engenharia && !["operacional", "reserva"].includes(engenharia.status)) return go(`erro=${encodeURIComponent(`Equipamento ${engenharia.patrimonio ?? ""} ${engenharia.nome ?? ""} indisponível (${engenharia.status})`)}`);
-  }
-
-  let flag: string | null = null, criticidade: string | null = null, critico = false;
-  if (valor !== null && Number.isFinite(valor)) {
-    if (analito.critico_min !== null && valor <= Number(analito.critico_min)) { flag = "LL"; criticidade = "critico_baixo"; critico = true; }
-    else if (analito.critico_max !== null && valor >= Number(analito.critico_max)) { flag = "HH"; criticidade = "critico_alto"; critico = true; }
-    else if (analito.referencia_min !== null && valor < Number(analito.referencia_min)) flag = "L";
-    else if (analito.referencia_max !== null && valor > Number(analito.referencia_max)) flag = "H";
-  }
-  const { error } = await supabase.from("laboratorio_resultados").insert({ empresa_id: empresaId, unidade_id: unidadeId, solicitacao_id: amostra.solicitacao_id, amostra_id: amostra.id, atendimento_id: amostra.atendimento_id, catalogo_analito_id: analito.id, analito: analito.analito, resultado: resultadoTexto || (valor !== null ? String(valor) : null), valor_numerico: Number.isFinite(valor as number) ? valor : null, unidade_medida: analito.unidade_medida, referencia_min: analito.referencia_min, referencia_max: analito.referencia_max, referencia_texto: analito.referencia_texto, flag, criticidade, valor_critico: critico, metodo: analito.metodo, engenharia_equipamento_id: engenhariaEquipamentoId, created_by: user.id, updated_by: user.id });
+  const { error } = await supabase.rpc("registrar_resultado_laboratorio_operacional", {
+    p_amostra_id: amostraId,
+    p_catalogo_analito_id: analitoId,
+    p_laboratorio_equipamento_id: txt(formData, "laboratorio_equipamento_id") || null,
+    p_resultado: txt(formData, "resultado") || null,
+    p_valor_numerico: numero(txt(formData, "valor_numerico")),
+  });
   if (error) return go(`erro=${encodeURIComponent(error.message)}`);
   return go("sucesso=resultado");
 }
@@ -80,7 +85,13 @@ export async function liberarResultadoLaboratorio(formData: FormData) {
 
 export async function notificarResultadoCriticoLaboratorio(formData: FormData) {
   const { supabase } = await getAssistencialContext();
-  const { error } = await supabase.rpc("registrar_notificacao_resultado_critico", { p_resultado_id: txt(formData, "resultado_id"), p_notificado_a: txt(formData, "notificado_a"), p_meio: txt(formData, "meio") || null, p_readback: formData.get("readback") === "on", p_observacoes: txt(formData, "observacoes") || null });
+  const { error } = await supabase.rpc("registrar_notificacao_resultado_critico", {
+    p_resultado_id: txt(formData, "resultado_id"),
+    p_notificado_a: txt(formData, "notificado_a"),
+    p_meio: txt(formData, "meio") || null,
+    p_readback: formData.get("readback") === "on",
+    p_observacoes: txt(formData, "observacoes") || null,
+  });
   if (error) return go(`erro=${encodeURIComponent(error.message)}`);
   return go("sucesso=notificado");
 }

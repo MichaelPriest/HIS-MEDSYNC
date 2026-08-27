@@ -16,7 +16,7 @@ export default async function ImprimirLaudoImagemPage({ params }: { params: Prom
 
   const { data: laudo } = await supabase
     .from("imagem_laudos")
-    .select("id,solicitacao_id,execucao_id,atendimento_id,tecnica,achados,conclusao,recomendacoes,status,laudo_por,liberado_em,assinatura_hash,revisao,retificado,motivo_retificacao")
+    .select("id,solicitacao_id,execucao_id,atendimento_id,tecnica,achados,conclusao,recomendacoes,status,laudo_por,liberado_em,assinatura_hash,revisao,retificado,motivo_retificacao,achado_critico,comunicacao_critica_em,comunicada_a,comunicacao_critica_meio,comunicacao_critica_readback,comunicacao_critica_observacao")
     .eq("id", laudoId)
     .eq("empresa_id", empresaId)
     .eq("unidade_id", unidadeId)
@@ -46,7 +46,7 @@ export default async function ImprimirLaudoImagemPage({ params }: { params: Prom
   return (
     <main className="mx-auto max-w-5xl bg-white px-5 py-6 text-slate-950 print:max-w-none print:px-0 print:py-0">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href={`/assistencial/imagem/laudos/${laudo.id}` as Route} className="ui-button-secondary">Voltar ao editor</Link>
+        <Link href={`/assistencial/imagem/laudos/${laudo.id}` as Route} className="ui-button-secondary">Voltar ao laudo</Link>
         <PrintButton label="Imprimir / salvar PDF" />
       </div>
 
@@ -79,6 +79,14 @@ export default async function ImprimirLaudoImagemPage({ params }: { params: Prom
         <Field label="Execução" value={`${fmt(execucao?.iniciado_em)} → ${fmt(execucao?.finalizado_em)}`} />
         <Field label="Prioridade" value={solicitacao?.prioridade ?? "—"} />
       </section>
+
+      {laudo.achado_critico ? (
+        <section className="mt-5 border-2 border-rose-300 bg-rose-50 p-4 text-sm print:bg-white">
+          <p className="font-black uppercase tracking-wide text-rose-800 print:text-slate-900">Achado crítico / comunicação clínica</p>
+          <p className="mt-1">Comunicado a <strong>{laudo.comunicada_a ?? "—"}</strong> em {fmt(laudo.comunicacao_critica_em)}{laudo.comunicacao_critica_meio ? ` · ${laudo.comunicacao_critica_meio}` : ""}{laudo.comunicacao_critica_readback ? " · read-back confirmado" : ""}.</p>
+          {laudo.comunicacao_critica_observacao ? <p className="mt-1 whitespace-pre-wrap">{laudo.comunicacao_critica_observacao}</p> : null}
+        </section>
+      ) : null}
 
       {solicitacao?.indicacao_clinica ? <ReportSection title="Indicação clínica" value={solicitacao.indicacao_clinica} /> : null}
       <ReportSection title="Técnica" value={laudo.tecnica} />
