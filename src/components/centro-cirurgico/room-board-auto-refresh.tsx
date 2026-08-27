@@ -2,24 +2,24 @@
 
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 
 export function RoomBoardAutoRefresh({ intervalMs = 15000 }: { intervalMs?: number }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [lastRefresh, setLastRefresh] = useState(() => new Date());
 
-  function refresh() {
+  const refresh = useCallback(() => {
     startTransition(() => {
       router.refresh();
       setLastRefresh(new Date());
     });
-  }
+  }, [router]);
 
   useEffect(() => {
     const timer = window.setInterval(refresh, intervalMs);
     return () => window.clearInterval(timer);
-  }, [intervalMs]);
+  }, [intervalMs, refresh]);
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
