@@ -15,8 +15,7 @@ function mensagemErro(erro?: string) {
 export default async function NovoAgendamentoPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
   const { erro } = await searchParams;
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
-  const [{ data: profissionais }, { data: convenios }, { data: planos }, { data: tipos }, { data: especialidades }, { data: locais }] = await Promise.all([
-    supabase.from("profissionais").select("id,nome_completo,especialidade").eq("empresa_id", empresaId).eq("ativo", true).order("nome_completo").limit(500),
+  const [{ data: convenios }, { data: planos }, { data: tipos }, { data: especialidades }, { data: locais }] = await Promise.all([
     supabase.from("convenios").select("id,nome_fantasia").eq("empresa_id", empresaId).eq("ativo", true).order("nome_fantasia").limit(300),
     supabase.from("convenio_planos").select("id,convenio_id,nome,codigo").eq("empresa_id", empresaId).eq("ativo", true).order("nome").limit(800),
     supabase.from("catalogos").select("codigo,descricao").eq("ativo", true).eq("tipo", "tipo_atendimento").order("descricao"),
@@ -30,7 +29,6 @@ export default async function NovoAgendamentoPage({ searchParams }: { searchPara
     <AgendaForm
       action={criarAgendamento}
       empresaId={empresaId}
-      profissionais={profissionais ?? []}
       convenios={convenios ?? []}
       planos={planos ?? []}
       tipos={tipos ?? []}
