@@ -1,5 +1,6 @@
 "use server";
 
+import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
@@ -29,10 +30,10 @@ function setorClinico(setorAtual: string | null | undefined, origem: string | nu
   return setor && setor !== "triagem" ? setor : "consultorio";
 }
 
-function filaComErro(filaSetor: string, erro: string) {
+function filaComErro(filaSetor: string, erro: string): Route {
   const query = new URLSearchParams({ erro });
   if (["ps", "ambulatorio", "internacao", "outros"].includes(filaSetor)) query.set("setor", filaSetor);
-  return `/fila-medica?${query.toString()}`;
+  return `/fila-medica?${query.toString()}` as Route;
 }
 
 export async function assumirPaciente(formData: FormData) {
