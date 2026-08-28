@@ -36,26 +36,17 @@ export default async function RecebivelPage({params,searchParams}:{params:Promis
   const {supabase}=await requireAnyPermission(["financeiro.visualizar","financeiro.receber","financeiro.conciliar","financeiro.gerenciar"]);
 
   const {data:recebivel}=await supabase.from("financeiro_recebiveis")
-    .select("id,lote_id,competencia,previsao_pagamento,data_pagamento,valor_bruto,valor_glosa,valor_liquido_previsto,valor_recebido,status,created_at,updated_at,lote:tiss_lotes(id,numero_lote,status,protocolo_operadora,protocolo_envio_operadora),convenio:convenios(nome_fantasia,registro_ans)")
+    .select("id,empresa_id,unidade_id,lote_id,competencia,previsao_pagamento,data_pagamento,valor_bruto,valor_glosa,valor_liquido_previsto,valor_recebido,status,created_at,updated_at,lote:tiss_lotes(id,numero_lote,status,protocolo_operadora,protocolo_envio_operadora),convenio:convenios(nome_fantasia,registro_ans)")
     .eq("id",recebivelId).maybeSingle();
   if(!recebivel)notFound();
 
-  const [pagamentosRes,notaRes,receberGrant,conciliarGrant,gerenciarGrant]=await Promise.all([
+  const [pagamentosRes,notaRes,receiveScoped,conciliateScoped,manageScoped]=await Promise.all([
     supabase.from("financeiro_recebimentos").select("id,data_recebimento,valor_baixado,valor_retencoes,valor_tarifas,valor_creditado,forma_recebimento,referencia_bancaria,documento_operadora,observacoes,status,conciliado_em,estornado_em,motivo_estorno,created_at").eq("recebivel_id",recebivelId).order("created_at",{ascending:false}),
     recebivel.lote_id?supabase.from("notas_fiscais_servico").select("id,numero_nfse,numero_rps,status,valor_servicos,valor_liquido,data_emissao").eq("lote_id",recebivel.lote_id).neq("status","cancelada").order("created_at",{ascending:false}).limit(1).maybeSingle():Promise.resolve({data:null}),
-    supabase.rpc("tem_permissao",{p_empresa:null,p_unidade:null,p_codigo:"financeiro.receber"}),
-    supabase.rpc("tem_permissao",{p_empresa:null,p_unidade:null,p_codigo:"financeiro.conciliar"}),
-    supabase.rpc("tem_permissao",{p_empresa:null,p_unidade:null,p_codigo:"financeiro.gerenciar"}),
+    supabase.rpc("tem_permissao",{p_empresa:recebivel.empresa_id,p_unidade:recebivel.unidade_id,p_codigo:"financeiro.receber"}),
+    supabase.rpc("tem_permissao",{p_empresa:recebivel.empresa_id,p_unidade:recebivel.unidade_id,p_codigo:"financeiro.conciliar"}),
+    supabase.rpc("tem_permissao",{p_empresa:recebivel.empresa_id,p_unidade:recebivel.unidade_id,p_codigo:"financeiro.gerenciar"}),
   ]);
-
-  // tem_permissao com contexto nulo pode não resolver o escopo em todas as instalações; confirme no escopo do título quando necessário.
-  const {data:scope}=await supabase.from("financeiro_recebiveis").select("empresa_id,unidade_id").eq("id",recebivelId).maybeSingle();
-  const [receiveScoped,conciliateScoped,manageScoped]=scope?await Promise.all([
-    supabase.rpc("tem_permissao",{p_empresa:scope.empresa_id,p_unidade:scope.unidade_id,p_codigo:"financeiro.receber"}),
-    supabase.rpc("tem_permissao",{p_empresa:scope.empresa_id,p_unidade:scope.unidade_id,p_codigo:"financeiro.conciliar"}),
-    supabase.rpc("tem_permissao",{p_empresa:scope.empresa_id,p_unidade:scope.unidade_id,p_codigo:"financeiro.gerenciar"}),
-  ]):[{data:false},{data:false},{data:false}];
-  void receberGrant;void conciliarGrant;void gerenciarGrant;
 
   const canManage=manageScoped.data===true;
   const canReceive=receiveScoped.data===true||canManage;
