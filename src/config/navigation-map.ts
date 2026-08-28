@@ -234,8 +234,8 @@ export const allNavigationItems = navigationAreas.flatMap((area) => area.items);
 const personalPathsBySector: Record<string, readonly string[]> = {
   recepcao: ["/senhas", "/atendimentos", "/agenda", "/pacientes", "/central-guias", "/autorizacoes"],
   medico: ["/fila-medica", "/prontuario", "/prescricao", "/assistencial/urgencia", "/assistencial"],
-  enfermagem: ["/setores/enfermagem", "/assistencial/sae", "/assistencial/medicamentos", "/internacao", "/prontuario"],
-  farmacia: ["/setores/farmacia", "/assistencial/medicamentos", "/almoxarifado", "/ged"],
+  enfermagem: ["/setores/enfermagem", "/assistencial/sae", "/assistencial/medicamentos", "/integracoes", "/internacao", "/prontuario"],
+  farmacia: ["/setores/farmacia", "/assistencial/medicamentos", "/integracoes", "/almoxarifado", "/ged"],
   laboratorio: ["/setores/laboratorio", "/assistencial/laboratorio", "/assistencial/laboratorio/laudos", "/ged"],
   imagem: ["/setores/imagem", "/assistencial/imagem", "/assistencial/imagem/laudos", "/ged"],
   faturamento: ["/faturamento", "/faturamento/producao", "/integracoes", "/faturamento/lotes", "/faturamento/glosas", "/contas-medicas", "/central-guias"],
