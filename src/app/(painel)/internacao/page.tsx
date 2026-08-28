@@ -29,6 +29,7 @@ type Internacao = {
 };
 type Leito = { id: string; setor: string; quarto: string | null; codigo: string; acomodacao: string | null; status: string; ativo: boolean };
 type PendenciaAlta = { internacao_id: string; bloqueia_alta: boolean; status: string };
+type AnsDomain = { codigo: string; display: string; versao: string; canonical: string };
 type Params = { sucesso?: string; erro?: string };
 
 const one = <T,>(value: Rel<T>): T | null => Array.isArray(value) ? value[0] ?? null : value;
@@ -40,7 +41,7 @@ export default async function InternacaoPage({ searchParams }: { searchParams: P
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
   if (!unidadeId) return null;
 
-  const [atendimentosReq, internacoesReq, leitosReq, pendenciasReq] = await Promise.all([
+  const [atendimentosReq, internacoesReq, leitosReq, pendenciasReq, acomodacoesReq] = await Promise.all([
     supabase
       .from("atendimentos")
       .select("id,numero_atendimento,data_abertura,paciente:pacientes(nome_completo,cpf,ra,numero_registro)")
@@ -74,12 +75,18 @@ export default async function InternacaoPage({ searchParams }: { searchParams: P
       .eq("bloqueia_alta", true)
       .neq("status", "resolvida")
       .limit(1000),
+    supabase
+      .from("ans_fhir_dominios_ativos")
+      .select("codigo,display,versao,canonical,ordem")
+      .eq("tabela", 49)
+      .order("ordem"),
   ]);
 
   const atendimentos = (atendimentosReq.data ?? []) as Atendimento[];
   const internacoes = (internacoesReq.data ?? []) as Internacao[];
   const leitos = (leitosReq.data ?? []) as Leito[];
   const pendencias = (pendenciasReq.data ?? []) as PendenciaAlta[];
+  const acomodacoes = (acomodacoesReq.data ?? []) as AnsDomain[];
   const pendenciasPorInternacao = new Map<string, number>();
   for (const item of pendencias) pendenciasPorInternacao.set(item.internacao_id, (pendenciasPorInternacao.get(item.internacao_id) ?? 0) + 1);
 
@@ -131,7 +138,7 @@ export default async function InternacaoPage({ searchParams }: { searchParams: P
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
             <h2 className="font-black text-slate-950">Nova internação</h2>
-            <p className="mt-1 text-sm text-slate-500">Admite o atendimento em leito livre ou envia sem leito para regulação posterior na NIR.</p>
+            <p className="mt-1 text-sm text-slate-500">Admite o atendimento em leito livre ou envia sem leito para regulação posterior na NIR. A gravação de internação, RA e ocupação física do leito ocorre em uma única transação.</p>
           </div>
           <Link href="/internacao/nir" className="text-xs font-black text-brand-700 hover:underline">Abrir fila regulatória →</Link>
         </div>
@@ -145,7 +152,15 @@ export default async function InternacaoPage({ searchParams }: { searchParams: P
           />
           <input name="setor" required className="ui-input" placeholder="Setor de internação" />
           <select name="leito_id" defaultValue="" className="ui-input"><option value="">Sem leito — enviar para NIR</option>{leitos.filter((item) => item.status === "livre").map((item) => <option key={item.id} value={item.id}>{item.setor} · {item.quarto ?? ""} · {item.codigo}</option>)}</select>
-          <select name="acomodacao" defaultValue="" className="ui-input"><option value="">Acomodação</option><option value="enfermaria">Enfermaria</option><option value="apartamento">Apartamento</option><option value="uti">UTI</option><option value="observacao">Observação</option></select>
+          <select name="acomodacao" defaultValue="" className="ui-input"><option value="">Acomodação contratual</option><option value="enfermaria">Enfermaria</option><option value="apartamento">Apartamento</option><option value="uti">UTI</option><option value="observacao">Observação</option></select>
+          <label className="text-sm font-semibold text-slate-700 lg:col-span-2">
+            Acomodação ANS · Tabela 49
+            <select name="acomodacao_tuss49_codigo" defaultValue="" className="ui-input mt-1.5">
+              <option value="">Selecione quando aplicável</option>
+              {acomodacoes.map((item) => <option key={item.codigo} value={item.codigo}>{item.codigo} — {item.display}</option>)}
+            </select>
+            <span className="mt-1 block text-xs font-normal text-slate-400">Obrigatória para atendimento por convênio; o RPC valida a regra e preserva o snapshot oficial.</span>
+          </label>
           <input name="previsao_alta" type="date" className="ui-input" />
           <input name="motivo" className="ui-input lg:col-span-2" placeholder="Motivo da internação" />
           <input name="observacoes" className="ui-input" placeholder="Observações" />
