@@ -30,7 +30,7 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | RH | Banco, RLS e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/rh` com indicadores de colaboradores, escalas, treinamentos e documentos. | CRUD/fluxos completos, escalas, documentos no GED, saúde ocupacional e integrações de acesso |
 | Segurança / Portaria / Visitantes | Banco e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/seguranca` com acessos, credenciais, visitantes e ocorrências. | operação de check-in/out, credenciais, dispositivos/portaria e relatórios de segurança |
 | Estrutura hospitalar | Hierarquia física e leitos já existem com separação entre cadastro e operação assistencial. | edição/inativação controlada, cadastro real das unidades e capacidade |
-| Compras / Almoxarifado | Bases funcionais; estoque e catálogo assistencial já se relacionam. PR #74 reconcilia baixa de dispensação e retorno de devolução contra `estoque_movimentos`, sem fabricar movimentos retroativos para dados legados. | alçadas, recebimento divergente/parcial, inventário, reposição, saneamento das divergências históricas e rastreabilidade completa |
+| Compras / Almoxarifado | Base operacional avançada. O PR #77 fecha o recebimento parcial/total de pedidos com divergência, lote/validade, movimento, saldo e conta a pagar na mesma transação. O PR #78 acrescenta inventário físico por local/lote, conciliação com ajuste rastreável, parâmetros mínimo/ponto de reposição/máximo por produto e local, cálculo pelo saldo disponível mais requisições em trânsito e geração da reposição no fluxo setorial existente. O movimento manual do Almoxarifado passa a atuar sobre lote real e deixa de ser mero registro de histórico. | alçadas/approval thresholds, saneamento das divergências históricas de dispensação/devolução, curva ABC/planejamento de consumo, inventários cíclicos programados e homologação operacional com Almoxarifado/Farmácia |
 | Comercial / Credenciamento / Tabelas | Reestruturado no PR #72 como workspace operacional único em `/comercial`: seleção de contrato, dados/vigência, negociação por tabela, versões/edições, visualização paginada dos itens, busca por código/descrição/TUSS, edição de contrato, vínculo e coeficientes, inclusão/alteração/inativação de itens em edição rascunho, publicação imutável e histórico auditável. A central prioriza automaticamente uma tabela com itens em vez de abrir um vínculo vazio. | homologar contratos reais por operadora, revisar vínculos vazios/duplicados, importar bases licenciadas que ainda estejam sem itens e ampliar testes automatizados de precificação contratual |
 | Auditoria / Contas Médicas | Bases funcionais com hardening de operações sensíveis. | regras automáticas, segregação de funções, checklist por convênio e testes de autorização |
 | Faturamento / Livro de produção | Base funcional e integrada aos eventos assistenciais/conta. PR #72 registra automaticamente o procedimento cirúrgico e OPME utilizada no livro de produção durante a conclusão e cria/atualiza o grupo do ato cirúrgico quando existe conta aberta compatível. PR #74 passa a sinalizar produção de medicamento incompatível com o desfecho de administração, sem alterar automaticamente o fato faturável. | completar automações de consumo, fechamento e homologação financeira/TISS |
@@ -137,59 +137,3 @@ Regras e capacidades consolidadas:
 - clonagem e edição manual preservam CH, quantidade de auxiliares, CH do anestesista e quantidade de filme radiológico, evitando perda das colunas estruturadas após a importação.
 
 Estado real observado no contrato CORE (`CORE-001`) durante esta implementação: existem cinco vínculos comerciais. As edições AMB92/AMB96/AMB99 vinculadas estão atualmente sem itens. A edição duplicada AMB90 sem vínculo foi excluída e a edição vigente, cujo identificador é preservado pelos contratos e procedimentos cirúrgicos, foi reimportada a partir do XML completo. **AMB90 / AMB 1990** contém agora **3.333 códigos únicos ativos**, todos com CH, quantidade de auxiliares, porte cirúrgico, CH do anestesista e quantidade de filme em colunas estruturadas; a descrição alternativa do único código duplicado no arquivo permanece em `metadata`. A tabela não pertence a um convênio específico e pode ser vinculada a todos os convênios que adotarem AMB90. A central seleciona automaticamente AMB90 como tabela útil principal, mantendo os vínculos vazios visíveis como pendências de parametrização. O vínculo AMB92 configurado como `vigente_na_data` permanece sinalizado quando não há edição vigente resolvível. Nenhum dado comercial foi inventado para preencher essas lacunas.
-
-A função contratual usada pelos fluxos assistenciais/faturamento percorre os vínculos por prioridade e continua para a próxima tabela quando a edição anterior não produz itens. Portanto os procedimentos AMB90 permanecem resolvíveis mesmo com vínculos AMB92 vazios, desde que os demais critérios de contrato/permissão sejam atendidos.
-
-## Segurança e autorização
-
-A matriz operacional em `public.permissoes` permanece a fonte de verdade. O catálogo TypeScript referencia códigos usados estaticamente pela aplicação e possui teste automatizado que garante que toda permissão exigida pela navegação esteja presente no catálogo tipado.
-
-O PR #71 preserva o isolamento por empresa/unidade e não cria bypass de RLS. O hardening do GED usa RLS forçado e policies específicas para leitura, inserção, atualização e Storage. RPCs sensíveis de GED são executáveis apenas por `authenticated` e revalidam permissões funcionais dentro do fluxo.
-
-No PR #72, as tabelas clínicas críticas do Centro Cirúrgico/CME deixam de aceitar mutação direta do papel `authenticated`; as escritas operacionais passam pelos RPCs `centro_cirurgico_*_operacional` e `cme_salvar_ciclo_operacional`. Esses RPCs exigem usuário autenticado, revalidam `tem_unidade`/`tem_permissao`, utilizam locks nas transições e não são executáveis por `anon`.
-
-No Comercial, edições publicadas e seus itens são protegidos contra sobrescrita. A edição ocorre em versão rascunho e a publicação é auditada; policies e helpers de `comercial.*`, `credenciamento.*` e `tabelas_comerciais.*` continuam definindo leitura/escrita por empresa/unidade.
-
-Nos PRs #73/#74, a reconciliação transversal não recebe permissão para corrigir fatos clínicos ou físicos. `reconciliar_pendencias_integracao` exige sessão autenticada, unidade no escopo e `integracao.reconciliar`; os helpers internos de captura/reconciliação têm execução revogada para `public`, `anon` e `authenticated`. A central somente aponta a inconsistência e direciona o usuário ao setor responsável.
-
-O Security/Performance Advisor deve ser analisado por objeto. Avisos históricos de `SECURITY DEFINER`, endpoints públicos do Totem/Painel e outras rotinas legadas não devem ser corrigidos de forma indiscriminada dentro de um pacote funcional sem validar o fluxo que depende deles.
-
-## Travas de negócio já consolidadas
-
-Cadeia de faturamento de convênio:
-
-`Alta → Auditoria → Contas Médicas → Validação da conta → Guia TISS → Lote → XML validado → envio/manual → retorno → financeiro`.
-
-A conta não deve pular Auditoria ou Contas Médicas. XML preliminar não deve ser tratado como TISS homologado sem validação pelos schemas oficiais aplicáveis. Guia com crítica impeditiva permanece em `rascunho`; alteração faturável posterior exige nova validação.
-
-Jornada de demanda espontânea/urgência:
-
-`Totem/Senha → Recepção/abertura do atendimento → Triagem → chamada → fila médica setorial → Prontuário/Assistência`.
-
-Paciente agendado comum:
-
-`Agenda → confirmação → check-in direto → admissão/atendimento → fila médica ambulatorial → prontuário`.
-
-Cirurgia eletiva segue programação especializada e mantém o mesmo atendimento/RA, integrando Centro Cirúrgico, sala/equipe, cirurgia segura, anestesia, RPA, CME/OPME, prontuário longitudinal, produção e conta hospitalar.
-
-Na Internação, `Painel da Internação`, `Mapa de Leitos`, `NIR` e `Central de Altas` mantêm responsabilidades distintas. Seleção visual de leito nunca substitui revalidação transacional.
-
-No atendimento médico, o mesmo episódio deve ser preservado em toda a jornada:
-
-`Fila médica setorial → Resumo → Histórico longitudinal → Anamnese/Evolução → Prescrição/Documentos → Laboratório/Imagem/Farmácia/Enfermagem/Centro Cirúrgico/demais setores`.
-
-O ciclo medicamentoso mantém fontes separadas e correlacionadas:
-
-`Prescrição assinada → validação farmacêutica quando exigida → dispensação FEFO/estoque → aprazamento → administração/checagem → devolução quando aplicável → produção/conta`.
-
-A Central de Pendências não substitui nenhuma dessas etapas e não gera movimento de estoque, administração ou cobrança para “fechar” automaticamente uma divergência.
-
-Pedidos, resultados, laudos, documentos e registros assistenciais pertencem ao mesmo paciente/atendimento quando clinicamente aplicável. Dados produzidos pelos setores devem reaparecer no prontuário e nos fluxos subsequentes sem criar episódios paralelos.
-
-## Validação do pacote atual
-
-PR ativo: **#74 — `feat: integrar medicamentos ponta a ponta`**.
-
-O Supabase conectado já contém as migrations `20260828130627`, `20260828131453` e `20260828131946`. A reconciliação foi executada sobre os dados atuais sem criação de fatos retroativos e deixou abertas somente as divergências históricas descritas acima.
-
-O pacote inclui a trava prospectiva de dispensação em aprazamento único, ledger de eventos do ciclo de medicamentos, reconciliação Prescrição/Farmácia/Enfermagem/Estoque/Produção, navegação da Central por setor e teste unitário para Farmácia/Enfermagem. **CI e Vercel ainda devem ser considerados gates obrigatórios no head final do PR #74; este documento não os declara verdes antecipadamente.**
