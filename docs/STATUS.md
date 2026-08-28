@@ -30,7 +30,7 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | RH | Banco, RLS e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/rh` com indicadores de colaboradores, escalas, treinamentos e documentos. | CRUD/fluxos completos, escalas, documentos no GED, saúde ocupacional e integrações de acesso |
 | Segurança / Portaria / Visitantes | Banco e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/seguranca` com acessos, credenciais, visitantes e ocorrências. | operação de check-in/out, credenciais, dispositivos/portaria e relatórios de segurança |
 | Estrutura hospitalar | Hierarquia física e leitos já existem com separação entre cadastro e operação assistencial. | edição/inativação controlada, cadastro real das unidades e capacidade |
-| Compras / Almoxarifado | Base operacional avançada. O PR #77 fecha o recebimento parcial/total de pedidos com divergência, lote/validade, movimento, saldo e conta a pagar na mesma transação. O PR #78 acrescenta inventário físico por local/lote, conciliação com ajuste rastreável, parâmetros mínimo/ponto de reposição/máximo por produto e local, cálculo pelo saldo disponível mais requisições em trânsito e geração da reposição no fluxo setorial existente. O movimento manual do Almoxarifado passa a atuar sobre lote real e deixa de ser mero registro de histórico. | alçadas/approval thresholds, saneamento das divergências históricas de dispensação/devolução, curva ABC/planejamento de consumo, inventários cíclicos programados e homologação operacional com Almoxarifado/Farmácia |
+| Compras / Almoxarifado | Base operacional avançada. O PR #77 fecha o recebimento parcial/total de pedidos com divergência, lote/validade, movimento, saldo e conta a pagar na mesma transação. O PR #78 acrescenta inventário físico por local/lote, conciliação com ajuste rastreável, parâmetros mínimo/ponto de reposição/máximo por produto e local, cálculo pelo saldo disponível mais requisições em trânsito e geração da reposição no fluxo setorial existente. O PR #79 adiciona alçadas configuráveis por valor e perfis, aprovações distintas, segregação solicitante/aprovador, congelamento de fornecedor/valor por ciclo e emissão do pedido somente após aprovação formal. | configurar os valores reais das alçadas da instituição, saneamento das divergências históricas de dispensação/devolução, curva ABC/planejamento de consumo, inventários cíclicos programados e homologação operacional com Compras/Almoxarifado/Farmácia/Financeiro |
 | Comercial / Credenciamento / Tabelas | Reestruturado no PR #72 como workspace operacional único em `/comercial`: seleção de contrato, dados/vigência, negociação por tabela, versões/edições, visualização paginada dos itens, busca por código/descrição/TUSS, edição de contrato, vínculo e coeficientes, inclusão/alteração/inativação de itens em edição rascunho, publicação imutável e histórico auditável. A central prioriza automaticamente uma tabela com itens em vez de abrir um vínculo vazio. | homologar contratos reais por operadora, revisar vínculos vazios/duplicados, importar bases licenciadas que ainda estejam sem itens e ampliar testes automatizados de precificação contratual |
 | Auditoria / Contas Médicas | Bases funcionais com hardening de operações sensíveis. | regras automáticas, segregação de funções, checklist por convênio e testes de autorização |
 | Faturamento / Livro de produção | Base funcional e integrada aos eventos assistenciais/conta. PR #72 registra automaticamente o procedimento cirúrgico e OPME utilizada no livro de produção durante a conclusão e cria/atualiza o grupo do ato cirúrgico quando existe conta aberta compatível. PR #74 passa a sinalizar produção de medicamento incompatível com o desfecho de administração, sem alterar automaticamente o fato faturável. | completar automações de consumo, fechamento e homologação financeira/TISS |
@@ -62,6 +62,28 @@ A trava prospectiva de dispensação atua somente quando existe um único apraza
 A reconciliação atual detecta validação farmacêutica pendente, dispensação excedente, dispensação sem movimento de estoque, medicamento administrado sem produção ativa, produção incompatível com a administração concluída e devolução sem retorno rastreável ao estoque. Uma devolução histórica registrada em `devolucoes_medicamentos` é considerada evidência mesmo quando o legado não atualizou `quantidade_devolvida`, evitando alerta redundante.
 
 Estado real dos dados históricos de teste após a reconciliação do PR #74: permanecem **1 dispensação excedente de uma prescrição de dose única, 2 dispensações sem movimento de baixa de estoque e 1 devolução sem movimento de retorno**. Esses registros são anteriores ao hardening atual. O pacote deliberadamente **não cria movimentos retroativos de estoque, não reescreve prontuário e não altera produção para esconder a divergência**; a regularização deve ocorrer no setor responsável com rastreabilidade.
+
+## Compras / alçadas de aprovação — PR #79
+
+A migration `20260828173414_compras_alcadas_aprovacao_operacional.sql` foi aplicada no Supabase conectado e versionada no branch do PR #79. O fluxo passa a seguir:
+
+`Solicitação MATMED → cotação item a item → alçada por valor/perfis → aprovações distintas → pedido → recebimento por lote → estoque/financeiro`.
+
+Regras consolidadas neste pacote:
+
+- a rota `/compras/alcadas` configura faixas por valor, quantidade de aprovações e perfis autorizadores;
+- **nenhum valor de alçada foi inventado ou seedado**: enquanto não houver regra ativa que cubra o valor da proposta, o banco bloqueia a aprovação;
+- faixas ativas não podem se sobrepor e os perfis vinculados precisam possuir `compras.aprovar`;
+- `compras.gerenciar` configura ou reinicia o processo, mas não substitui `compras.aprovar` para comprometer valores;
+- o solicitante não pode aprovar nem emitir o próprio pedido;
+- cada usuário conta uma única vez por ciclo de aprovação;
+- ao iniciar o ciclo são congelados fornecedor, valor total, quantidade mínima de aprovações e conjunto de perfis autorizadores;
+- rejeição exige motivo e fica registrada; reinício cancela o ciclo anterior com justificativa, preservando o histórico;
+- a emissão do pedido revalida ciclo formal aprovado, quantidade de aprovadores, fornecedor e valor congelado; alteração de valor após a aprovação bloqueia a emissão;
+- escrita direta das tabelas críticas de cotação/propostas/pedido foi removida de `authenticated`; as mutações passam pelos RPCs autenticados com unidade e RBAC internos;
+- os novos registros de alçada, fluxo e decisão usam RLS + FORCE RLS e não são graváveis diretamente pelo cliente autenticado.
+
+Estado real do banco após a migration: **0 alçadas configuradas, 0 ciclos/decisões artificiais, 1 cotação histórica preservada e 0 pedidos existentes**. A instituição ainda precisa definir sua política monetária real antes de homologar aprovações. O PR #79 permanece sujeito aos gates de CI/Vercel do seu SHA final; este documento não presume aprovação dos checks antes da execução efetiva.
 
 ## Navegação por setor e perfil — PR #71
 
