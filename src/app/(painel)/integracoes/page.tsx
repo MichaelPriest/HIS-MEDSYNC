@@ -1,3 +1,4 @@
+import type { Route as NextRoute } from "next";
 import Link from "next/link";
 import { Activity, AlertTriangle, CheckCircle2, RefreshCcw, Route, ShieldAlert } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
@@ -172,7 +173,7 @@ export default async function IntegracoesPage({
                     <td className="px-4 py-3 text-xs font-semibold text-slate-600">{label(item.setor_origem)} → {label(item.setor_destino)}</td>
                     <td className="px-4 py-3"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-black uppercase ${severityClass(item.severidade)}`}>{item.severidade}</span></td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{dateTime(item.detectada_em)}</td>
-                    <td className="px-4 py-3"><Link href={destinationHref(item.setor_destino)} className="ui-button-secondary whitespace-nowrap">Abrir setor</Link></td>
+                    <td className="px-4 py-3"><Link href={destinationHref(item.setor_destino) as NextRoute} className="ui-button-secondary whitespace-nowrap">Abrir setor</Link></td>
                   </tr>
                 );
               }) : (
