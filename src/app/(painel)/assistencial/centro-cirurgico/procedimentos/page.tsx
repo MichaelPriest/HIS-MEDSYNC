@@ -69,8 +69,14 @@ const papelLabel = (value: string) => ({
   cirurgiao_auxiliar: "Cirurgião auxiliar",
   instrumentador: "Instrumentador",
   anestesista: "Anestesista",
+  auxiliar_anestesia: "Auxiliar do anestesista",
   pediatra: "Pediatra em sala",
   neonatologista: "Neonatologista",
+  perfusionista: "Perfusionista",
+  enfermeiro: "Enfermeiro",
+  tecnico_enfermagem: "Técnico de enfermagem",
+  circulante_sala: "Circulante de sala",
+  tecnico_radiologia: "Técnico de radiologia",
   outro: "Outro participante",
 }[value] ?? value.replaceAll("_", " "));
 

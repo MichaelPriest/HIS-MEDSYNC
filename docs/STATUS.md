@@ -85,6 +85,9 @@ Regras consolidadas no banco:
 - o registro anestésico permite selecionar múltiplas técnicas no mesmo ato, mantém compatibilidade com o campo legado e bloqueia finalização sem início registrado;
 - início e fim da anestesia são gravados em ações distintas e apresentados com precisão de segundos na tela operacional.
 - o agendamento aceita múltiplos procedimentos no mesmo ato cirúrgico, preservando um único atendimento/RA; cada procedimento mantém sequência, equipe, contrato, porte e tempos próprios.
+- o Centro Cirúrgico lista e agenda somente pacientes com internação ativa; a internação recebe classificação estruturada pelo domínio TISS/ANS: 1 Clínica, 2 Cirúrgica, 3 Obstétrica (inclui parto), 4 Pediátrica e 5 Psiquiátrica;
+- após a alta da RPA, o paciente pode ser movimentado para ala/quarto/leito disponível pelo fluxo transacional da Internação;
+- a equipe do ato contempla cirurgião, 1º ao 4º auxiliar, anestesista, auxiliar de anestesia, instrumentador, pediatra, neonatologista, perfusionista, enfermagem, circulante, técnico de radiologia e outros participantes.
 
 A validação funcional no Supabase foi executada com dados de teste explicitamente identificados dentro de uma transação com `ROLLBACK`: o caso percorreu agendamento, três checklists, anestesia, OPME, ciclo CME, RPA e conclusão, sem persistir registros de teste.
 
@@ -108,6 +111,7 @@ Regras e capacidades consolidadas:
 - alterações de contrato, vínculo, edição e itens são registradas em `comercial_eventos` para auditoria.
 - a importação AMB persiste como colunas estruturadas código, descrição, CH, quantidade de auxiliares, porte cirúrgico, CH do anestesista e quantidade de filme, preservando também o metadata original;
 - reimportar uma edição já publicada cria automaticamente uma nova versão rascunho, sem violar a imutabilidade histórica.
+- clonagem e edição manual preservam CH, quantidade de auxiliares, CH do anestesista e quantidade de filme radiológico, evitando perda das colunas estruturadas após a importação.
 
 Estado real observado no contrato CORE (`CORE-001`) durante esta implementação: existem cinco vínculos comerciais. As edições AMB92/AMB96/AMB99 vinculadas estão atualmente sem itens. A edição duplicada AMB90 sem vínculo foi excluída e a edição vigente, cujo identificador é preservado pelos contratos e procedimentos cirúrgicos, foi reimportada a partir do XML completo. **AMB90 / AMB 1990** contém agora **3.333 códigos únicos ativos**, todos com CH, quantidade de auxiliares, porte cirúrgico, CH do anestesista e quantidade de filme em colunas estruturadas; a descrição alternativa do único código duplicado no arquivo permanece em `metadata`. A tabela não pertence a um convênio específico e pode ser vinculada a todos os convênios que adotarem AMB90. A central seleciona automaticamente AMB90 como tabela útil principal, mantendo os vínculos vazios visíveis como pendências de parametrização. O vínculo AMB92 configurado como `vigente_na_data` permanece sinalizado quando não há edição vigente resolvível. Nenhum dado comercial foi inventado para preencher essas lacunas.
 

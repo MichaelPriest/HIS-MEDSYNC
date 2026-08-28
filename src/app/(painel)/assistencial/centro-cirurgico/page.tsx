@@ -16,6 +16,7 @@ import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 import {
   agendarCirurgia,
+  movimentarPosOperatorioParaAla,
   registrarOpme,
   salvarChecklistCirurgico,
   transicionarCirurgia,
@@ -119,7 +120,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
   const params = await searchParams;
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
 
-  const [atendimentosReq, salasReq, cirurgiasReq, checklistsReq, anestesiaReq, rpaReq, opmeReq, ciclosReq, vinculosReq] = await Promise.all([
+  const [atendimentosReq, salasReq, cirurgiasReq, checklistsReq, anestesiaReq, rpaReq, opmeReq, ciclosReq, vinculosReq, internacoesReq, leitosReq] = await Promise.all([
     supabase.from("atendimentos").select("id,numero_atendimento,data_abertura,cobertura,paciente:pacientes(nome_completo,cpf,ra,numero_registro),convenio:convenios(nome_fantasia)").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).in("status", ["aberto", "em_espera", "em_atendimento"]).order("data_abertura", { ascending: false }).limit(300),
     supabase.from("vw_salas_cirurgicas_prontidao").select("sala_id,codigo,nome,status,equipamentos_prontos,equipamentos_obrigatorios_indisponiveis").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("nome"),
     supabase.from("cirurgias").select("id,atendimento_id,paciente_id,procedimento,codigo_tuss,codigo_contratado,tabela_referencia,contrato_id,tabela_item_id,cirurgia,lateralidade,sala,sala_id,classificacao,porte,porte_anestesico,status,inicio_previsto,inicio_em,fim_em,cirurgiao_id,anestesista_id,diagnostico_pre,intercorrencias,paciente:pacientes(nome_completo,ra)").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("inicio_previsto", { ascending: true, nullsFirst: false }).limit(150),
@@ -129,9 +130,11 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
     supabase.from("cirurgia_opme").select("id,cirurgia_id,item,codigo,lote,serie,quantidade,status").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(1000),
     supabase.from("cme_ciclos").select("id,codigo_ciclo,equipamento,metodo,resultado,status,liberado_em").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).eq("status", "liberado").order("liberado_em", { ascending: false }).limit(300),
     supabase.from("cirurgia_cme_ciclos").select("cirurgia_id,ciclo_id").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).limit(1000),
+    supabase.from("internacoes").select("id,atendimento_id,leito_id,status,tipo_internacao,tipo_internacao_ans_codigo").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).in("status",["aguardando_leito","internado","transferido"]),
+    supabase.from("leitos").select("id,codigo,setor,quarto,acomodacao,status").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).eq("ativo",true).in("status",["livre","reservado"]).order("setor").order("quarto").order("codigo"),
   ]);
 
-  const atendimentos = (atendimentosReq.data ?? []) as unknown as Atendimento[];
+  const atendimentosCarregados = (atendimentosReq.data ?? []) as unknown as Atendimento[];
   const salas = (salasReq.data ?? []) as Sala[];
   const cirurgias = (cirurgiasReq.data ?? []) as unknown as Cirurgia[];
   const checklists = (checklistsReq.data ?? []) as Checklist[];
@@ -140,6 +143,10 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
   const opmes = (opmeReq.data ?? []) as Opme[];
   const ciclos = (ciclosReq.data ?? []) as CmeCiclo[];
   const vinculos = (vinculosReq.data ?? []) as CmeVinculo[];
+  const internacoes = (internacoesReq.data ?? []) as {id:string;atendimento_id:string;leito_id:string|null;status:string;tipo_internacao:string|null;tipo_internacao_ans_codigo:string|null}[];
+  const leitos = (leitosReq.data ?? []) as {id:string;codigo:string;setor:string|null;quarto:string|null;acomodacao:string|null;status:string}[];
+  const internacaoByAtendimento = new Map(internacoes.map((item) => [item.atendimento_id,item]));
+  const atendimentos = atendimentosCarregados.filter((item) => internacaoByAtendimento.has(item.id));
 
   const professionalIds = [...new Set(cirurgias.flatMap((item) => [item.cirurgiao_id, item.anestesista_id]).filter((id): id is string => Boolean(id)))];
   const profissionaisReq = professionalIds.length
@@ -156,6 +163,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
       data_abertura: item.data_abertura,
       cobertura: item.cobertura,
       convenio_nome: convenio?.nome_fantasia ?? null,
+      tipo_internacao_ans_codigo: internacaoByAtendimento.get(item.id)?.tipo_internacao_ans_codigo ?? null,
       paciente: {
         nome_completo: paciente?.nome_completo ?? "Paciente",
         cpf: paciente?.cpf ?? null,
@@ -264,6 +272,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
                 <details className="rounded-xl border border-slate-200 p-4" open={cirurgia.status === "recuperacao"}>
                   <summary className="cursor-pointer font-black text-slate-900"><Activity className="mr-2 inline size-4" />RPA / Recuperação pós-anestésica</summary>
                   <RpaAutosaveForm cirurgiaId={cirurgia.id} initial={rpa ?? null} />
+                  {rpa?.status === "alta" && internacaoByAtendimento.has(cirurgia.atendimento_id) ? <form action={movimentarPosOperatorioParaAla} className="mt-4 grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 sm:grid-cols-[1fr_1fr_auto]"><input type="hidden" name="cirurgia_id" value={cirurgia.id}/><select name="leito_id" required defaultValue="" className="ui-input"><option value="">Ala / leito de destino *</option>{leitos.map((leito)=><option key={leito.id} value={leito.id}>{leito.setor??"Ala"} · quarto {leito.quarto??"—"} · leito {leito.codigo} · {leito.status}</option>)}</select><input name="motivo" className="ui-input" defaultValue="Transferência pós-operatória para a ala" placeholder="Motivo da movimentação"/><button className="ui-button-primary">Movimentar para ala</button></form> : null}
                 </details>
               </div>
 

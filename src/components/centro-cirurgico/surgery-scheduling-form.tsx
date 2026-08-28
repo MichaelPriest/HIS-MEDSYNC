@@ -12,6 +12,7 @@ type Encounter = {
   data_abertura?: string | null;
   cobertura?: string | null;
   convenio_nome?: string | null;
+  tipo_internacao_ans_codigo?: string | null;
   paciente: {
     nome_completo: string;
     cpf?: string | null;
@@ -64,6 +65,7 @@ export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: 
   const atendimento = encounters.find((item) => item.id === atendimentoId) ?? null;
   const conveniado = atendimento?.cobertura === "convenio";
   const procedimento = selecionados[0] ?? null;
+  const tipoInternacaoAns = atendimento?.tipo_internacao_ans_codigo ?? "";
 
   useEffect(() => {
     setSelecionados([]);
@@ -159,6 +161,7 @@ export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: 
     <label className="space-y-2 text-sm font-medium text-slate-700"><span>Lateralidade</span><select name="lateralidade" defaultValue="" className="ui-input"><option value="">Selecione</option><option value="direita">Direita</option><option value="esquerda">Esquerda</option><option value="bilateral">Bilateral</option><option value="nao_aplicavel">Não aplicável</option></select></label>
     <label className="space-y-2 text-sm font-medium text-slate-700"><span>Sala *</span><select name="sala" defaultValue="" className="ui-input" required><option value="">Selecione</option>{salas.map((sala) => <option key={sala.sala_id} value={sala.codigo}>{sala.codigo} · {sala.nome}{sala.equipamentos_prontos ? " · pronta" : " · pendência"}</option>)}</select></label>
     <label className="space-y-2 text-sm font-medium text-slate-700"><span>Classificação</span><select name="classificacao" defaultValue="" className="ui-input"><option value="">Selecione</option><option value="eletiva">Eletiva</option><option value="urgencia">Urgência</option><option value="emergencia">Emergência</option></select></label>
+    <label className="space-y-2 text-sm font-medium text-slate-700 lg:col-span-2"><span>Tipo de internação (ANS) *</span><select key={`${atendimentoId}-${tipoInternacaoAns}`} name="tipo_internacao_ans_codigo" defaultValue={tipoInternacaoAns} className="ui-input" required><option value="">Selecione</option><option value="1">1 · Clínica</option><option value="2">2 · Cirúrgica</option><option value="3">3 · Obstétrica / parto</option><option value="4">4 · Pediátrica</option><option value="5">5 · Psiquiátrica</option></select><small className="block text-xs font-normal text-slate-500">Domínio TISS/ANS. A seleção atualiza a internação ativa do paciente.</small></label>
     <label className="space-y-2 text-sm font-medium text-slate-700"><span>Início previsto *</span><input name="inicio_previsto" type="datetime-local" required className="ui-input" /></label>
     <div className="lg:col-span-2"><ProfessionalRemotePicker empresaId={empresaId} name="cirurgiao_id" label="Cirurgião responsável" /></div>
     <div className="lg:col-span-2"><ProfessionalRemotePicker empresaId={empresaId} name="anestesista_id" label="Anestesista" /></div>

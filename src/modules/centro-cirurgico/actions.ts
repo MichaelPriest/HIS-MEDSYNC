@@ -28,7 +28,14 @@ export async function agendarCirurgia(formData: FormData) {
   const atendimentoId = txt(formData, "atendimento_id");
   const procedimento = txt(formData, "procedimento");
   const inicioPrevisto = txt(formData, "inicio_previsto");
-  if (!atendimentoId || !procedimento || !inicioPrevisto) return go("erro=campos-obrigatorios");
+  const tipoInternacaoAnsCodigo = txt(formData, "tipo_internacao_ans_codigo");
+  if (!atendimentoId || !procedimento || !inicioPrevisto || !tipoInternacaoAnsCodigo) return go("erro=campos-obrigatorios");
+
+  const { error: classificacaoError } = await supabase.rpc("centro_cirurgico_classificar_internacao_ans", {
+    p_atendimento_id: atendimentoId,
+    p_codigo: tipoInternacaoAnsCodigo,
+  });
+  if (classificacaoError) return rpcError(classificacaoError.message);
 
   const { data: cirurgiaId, error } = await supabase.rpc("centro_cirurgico_agendar_operacional", {
     p_atendimento_id: atendimentoId,
@@ -168,6 +175,20 @@ export async function salvarRpa(formData: FormData) {
   });
   if (error) return rpcError(error.message);
   return go(`sucesso=rpa&cirurgia=${encodeURIComponent(cirurgiaId)}`);
+}
+
+export async function movimentarPosOperatorioParaAla(formData: FormData) {
+  const { supabase } = await getAssistencialContext();
+  const cirurgiaId = txt(formData, "cirurgia_id");
+  const leitoId = txt(formData, "leito_id");
+  if (!cirurgiaId || !leitoId) return go("erro=movimentacao-ala-campos");
+  const { error } = await supabase.rpc("centro_cirurgico_movimentar_para_ala_operacional", {
+    p_cirurgia_id: cirurgiaId,
+    p_leito_destino_id: leitoId,
+    p_motivo: nullable(txt(formData, "motivo")),
+  });
+  if (error) return rpcError(error.message);
+  return go(`sucesso=movimentacao-ala&cirurgia=${encodeURIComponent(cirurgiaId)}`);
 }
 
 export async function registrarOpme(formData: FormData) {
