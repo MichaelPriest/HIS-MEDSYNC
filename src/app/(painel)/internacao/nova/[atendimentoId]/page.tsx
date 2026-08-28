@@ -3,6 +3,7 @@ import type { Route } from "next";
 import { BedDouble, CalendarClock, ShieldCheck, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import { SectionPage } from "@/components/painel/section-page";
+import { ProfessionalRemotePicker } from "@/components/profissionais/professional-remote-picker";
 import { requireAnyPermission } from "@/lib/permissions/server";
 import { admitirPacienteInternacao } from "@/modules/internacao/contextual-actions";
 
@@ -40,7 +41,7 @@ export default async function NovaInternacaoContextualPage({
 
   if (!unidadeId) notFound();
 
-  const [{ data: atendimento }, { data: profissionais }, { data: leitos }, { data: internacaoAtiva }, { data: acomodacoesAns }] = await Promise.all([
+  const [{ data: atendimento }, { data: leitos }, { data: internacaoAtiva }, { data: acomodacoesAns }] = await Promise.all([
     supabase
       .from("atendimentos")
       .select("id,numero_atendimento,status,tipo_atendimento,origem,cobertura,paciente:pacientes(nome_completo,cpf,cns,ra,numero_registro),convenio:convenios(nome_fantasia,razao_social),plano:convenio_planos(nome)")
@@ -48,13 +49,6 @@ export default async function NovaInternacaoContextualPage({
       .eq("empresa_id", empresaId)
       .eq("unidade_id", unidadeId)
       .maybeSingle(),
-    supabase
-      .from("profissionais")
-      .select("id,nome_completo,especialidade")
-      .eq("empresa_id", empresaId)
-      .eq("ativo", true)
-      .order("nome_completo")
-      .limit(500),
     supabase
       .from("leitos")
       .select("id,setor,quarto,codigo,acomodacao,isolamento_capaz")
@@ -160,17 +154,12 @@ export default async function NovaInternacaoContextualPage({
               Setor de internação *
               <input name="setor" required className="ui-input mt-1.5" placeholder="Ex.: Clínica Médica" />
             </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Responsável clínico
-              <select name="profissional_responsavel_id" defaultValue="" className="ui-input mt-1.5">
-                <option value="">A definir</option>
-                {(profissionais ?? []).map((profissional) => (
-                  <option key={profissional.id} value={profissional.id}>
-                    {profissional.nome_completo}{profissional.especialidade ? ` · ${profissional.especialidade}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <ProfessionalRemotePicker
+              empresaId={empresaId}
+              name="profissional_responsavel_id"
+              label="Responsável clínico"
+              placeholder="Buscar responsável por nome, conselho, especialidade ou CBO"
+            />
             <label className="text-sm font-semibold text-slate-700">
               Leito
               <select name="leito_id" defaultValue="" className="ui-input mt-1.5">

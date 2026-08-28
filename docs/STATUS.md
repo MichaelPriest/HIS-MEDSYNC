@@ -12,10 +12,10 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | Interface / navegação | Reestruturada no PR #71. A antiga concentração em `Central Assistencial` e `Setores especializados` foi substituída por macroáreas hospitalares e um grupo prioritário **Meu setor**. O perfil ativo determina setor, nível e página inicial; as permissões continuam determinando o que pode ser aberto. | validar usabilidade autenticada por perfis reais, busca global ampliada, acessibilidade e persistência opcional de preferências de navegação |
 | Central Assistencial | Deixa de ser um menu-depósito. No PR #71 vira um mapa assistencial filtrado pelo perfil e pelas permissões, direcionando para workspaces setoriais em vez de duplicar operações. | homologar agrupamentos com equipes assistenciais e ajustar atalhos conforme uso real |
 | Recepção / Totem / Senhas | Base funcional. Demanda espontânea segue `Totem/Senha → Recepção → atendimento → Triagem`. Paciente agendado pode fazer check-in direto, sem obrigação do Totem. | impressão, SLA, prioridades, abuso/rate limit de endpoints públicos e homologação do painel de chamadas |
-| Agenda | Base em evolução: visão diária/semanal, confirmação, check-in, faltas/cancelamentos, encaixe, retorno, especialidade, local, convênio/plano e identificação de cirurgia eletiva. | disponibilidade/bloqueios, recorrência, lembretes, reagendamento e integração cirúrgica completa |
-| Atendimento / ADT | Base funcional, mantendo um único episódio/RA para o atendimento. Identificação já suporta etiqueta e pulseira com QR para o ciclo assistencial. | regras ADT completas, transferências, documentos e configuração de formatos/impressoras por unidade |
+| Agenda | Base em evolução: visão diária/semanal, confirmação, check-in, faltas/cancelamentos, encaixe, retorno, especialidade, local, convênio/plano e identificação de cirurgia eletiva. O PR #72 substitui listas extensas de profissionais pela busca remota global por nome, CPF, conselho, número do conselho, UF, especialidade e CBO. | disponibilidade/bloqueios, recorrência, lembretes, reagendamento e homologação do agendamento cirúrgico |
+| Atendimento / ADT | Base funcional, mantendo um único episódio/RA para o atendimento. Identificação já suporta etiqueta e pulseira com QR para o ciclo assistencial. O PR #72 aplica a mesma busca global de profissional na admissão, preservando retorno em 30 dias e validações TISS de conselho/CBO. | regras ADT completas, transferências, documentos e configuração de formatos/impressoras por unidade |
 | Triagem / Fila médica | Base funcional ampliada. Fila médica setorial por PS, Ambulatório, Internação e outros setores; `Chamar e assumir` preserva o setor do episódio. | protocolos configuráveis, SLA, reclassificação e lotação por consultório/setor |
-| Prontuário / histórico longitudinal | Workspace central do episódio. Resumo, histórico, anamnese/evolução, prescrição e documentos usam o mesmo atendimento. PR #70 integra laudos LIS/RIS liberados e alertas críticos; PR #71 amplia a leitura clínica para anexos GED vinculados a laudos liberados, sem dar gestão do GED ao médico. | assinatura/adendos adicionais, protocolos, interações/alergias e homologação clínica/regulatória |
+| Prontuário / histórico longitudinal | Workspace central do episódio. Resumo, histórico, anamnese/evolução, prescrição e documentos usam o mesmo atendimento. PR #70 integra laudos LIS/RIS liberados e alertas críticos; PR #71 amplia a leitura clínica para anexos GED vinculados a laudos liberados; PR #72 acrescenta a aba **Cirurgia**, reunindo histórico cirúrgico acessível do paciente, checklists, anestesia, RPA, OPME, CME e timeline auditável sem transformar o médico em operador do Centro Cirúrgico. | assinatura/adendos adicionais, protocolos, interações/alergias e homologação clínica/regulatória |
 | Prescrição | Base funcional com documentos/receituários e ciclo medicamentoso conectado à Farmácia/Enfermagem. | regras clínicas adicionais, interações, função renal, protocolos e homologação |
 | Enfermagem | Base funcional em evolução. Checagem à beira-leito, aprazamento, pulseira/QR, lote, dispensação, dupla checagem, contingência e eventos auditáveis. | SAE completo, balanço, evolução, escalas, alto risco e indicadores |
 | Farmácia | Base funcional avançada. FEFO transacional, divisão entre lotes, bloqueio/quarentena/vencimento, devolução por lote, estoque e conciliação medicamentosa integrados. | análise clínica ampliada, reposição setorial, indicadores e homologação farmacêutica |
@@ -24,15 +24,15 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | GED | Evoluído no PR #71 de listagem para fluxo funcional: Storage privado, upload direto por URL assinada, limite/MIME no bucket, SHA-256, detalhe, download/visualização temporária, status, assinatura de integridade, imutabilidade após assinatura e versionamento sem sobrescrever arquivo. Pode vincular atendimento, paciente, profissional, convênio, lote TISS, conta e laudos LIS/RIS. | homologar categorias/documentos por setor, retenção/temporalidade, política de descarte e integrações adicionais |
 | Internação / NIR | Base funcional em evolução. Painel, mapa de leitos, NIR e Central de Altas têm responsabilidades separadas; alocação revalida disponibilidade e compatibilidade no banco. | regras regulatórias, SLA/prioridade, transferências interunidades, giro/censo e homologação |
 | Urgência / Emergência | Base funcional com ABCDE, risco, reavaliações e destino no mesmo atendimento. | protocolos configuráveis, observação, SLA, indicadores e homologação operacional |
-| Centro Cirúrgico / CME | Estrutura parcial; existem base assistencial e estrutura física, mas fluxo hospitalar cirúrgico completo ainda não está homologado. | pré-admissão, agenda de sala/equipe, anestesia, intraoperatório, RPA, CME, OPME e integração de conta |
+| Centro Cirúrgico / CME | Base operacional avançada no PR #72: agendamento transacional, telas separadas de cirurgias agendadas e em andamento, painel de salas, prontidão, cirurgia segura em três etapas, transições assistenciais controladas, anestesia com múltiplas técnicas combinadas e tempos distintos, RPA, OPME, ciclos CME liberados e imutáveis, vínculo cirurgia↔CME, timeline append-only e integração ao prontuário, livro de produção e conta hospitalar. Procedimento, código contratado, porte e porte anestésico são resolvidos pelo contrato vigente do convênio quando aplicável. Escritas clínicas críticas deixam de ocorrer diretamente nas tabelas e passam por RPCs com RBAC/locks. | homologação presencial com equipe cirúrgica/CME, protocolos anestésicos ampliados, integração de estoque/consumo e impressos/termos especializados |
 | Nutrição / Hemoterapia / CCIH / UTI / Multiprofissional / especialidades | Há fundações e workspaces em vários módulos, mas o nível de completude varia. No PR #71 deixam de ficar em uma lista única e passam a ser organizados pela macroárea/setor correspondente. | evoluir cada fluxo para operação hospitalar completa e homologar por equipe |
 | RH | Banco, RLS e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/rh` com indicadores de colaboradores, escalas, treinamentos e documentos. | CRUD/fluxos completos, escalas, documentos no GED, saúde ocupacional e integrações de acesso |
 | Segurança / Portaria / Visitantes | Banco e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/seguranca` com acessos, credenciais, visitantes e ocorrências. | operação de check-in/out, credenciais, dispositivos/portaria e relatórios de segurança |
 | Estrutura hospitalar | Hierarquia física e leitos já existem com separação entre cadastro e operação assistencial. | edição/inativação controlada, cadastro real das unidades e capacidade |
 | Compras / Almoxarifado | Bases funcionais; estoque e catálogo assistencial já se relacionam. | alçadas, recebimento divergente/parcial, inventário, reposição e rastreabilidade completa |
-| Comercial / Credenciamento / Tabelas | Base avançada com tabelas comerciais, referências e regras contratuais. | importar dados licenciados reais, códigos próprios por operadora e homologar contratos |
+| Comercial / Credenciamento / Tabelas | Reestruturado no PR #72 como workspace operacional único em `/comercial`: seleção de contrato, dados/vigência, negociação por tabela, versões/edições, visualização paginada dos itens, busca por código/descrição/TUSS, edição de contrato, vínculo e coeficientes, inclusão/alteração/inativação de itens em edição rascunho, publicação imutável e histórico auditável. A central prioriza automaticamente uma tabela com itens em vez de abrir um vínculo vazio. | homologar contratos reais por operadora, revisar vínculos vazios/duplicados, importar bases licenciadas que ainda estejam sem itens e ampliar testes automatizados de precificação contratual |
 | Auditoria / Contas Médicas | Bases funcionais com hardening de operações sensíveis. | regras automáticas, segregação de funções, checklist por convênio e testes de autorização |
-| Faturamento / Livro de produção | Base funcional e integrada aos eventos assistenciais/conta. | completar automações de consumo, fechamento e homologação financeira/TISS |
+| Faturamento / Livro de produção | Base funcional e integrada aos eventos assistenciais/conta. PR #72 registra automaticamente o procedimento cirúrgico e OPME utilizada no livro de produção durante a conclusão e cria/atualiza o grupo do ato cirúrgico quando existe conta aberta compatível. | completar automações de consumo, fechamento e homologação financeira/TISS |
 | TISS | Estrutura funcional, ainda não homologada integralmente. Validador anti-glosa, status de guia, requisitos para lote e proteção de itens já existem. | XSD oficial por versão/tipo, XML definitivo, adapters das operadoras e homologação |
 | Glosas / Recursos | Base funcional. | importação automática de demonstrativos, XML definitivo e ciclo de recurso/retorno completo |
 | Financeiro | Parcialmente integrado ao ciclo da receita. | baixas, retenções, conciliação, contas a pagar e caixa |
@@ -61,11 +61,71 @@ O bucket `ged-documentos` é privado e os caminhos são segmentados por empresa/
 
 Para LIS/RIS, a escrita do anexo exige permissão do respectivo setor (`laboratorio.*`/`imagem.*`) ou administração explícita do GED. Para o prontuário, documentos vinculados a laudos podem ser lidos com `prontuario.visualizar` **somente quando o laudo correspondente já estiver liberado**. Isso preserva a visão longitudinal sem transformar o médico em operador do GED/LIS/RIS.
 
+## Centro Cirúrgico + CME — PR #72
+
+As migrations `20260827163718_centro_cirurgico_cme_operacional_transacional.sql` e `20260827164619_centro_cirurgico_cme_indices_fk.sql` correspondem ao estado efetivamente aplicado no Supabase.
+
+O fluxo operacional passa a seguir:
+
+`Atendimento/RA → Agendamento cirúrgico → Em preparo → Sign in → Time out → Cirurgia → Sign out → Recuperação/RPA → Alta da RPA → Conclusão → Livro de produção/conta hospitalar`.
+
+Regras consolidadas no banco:
+
+- agendamento e transições críticas são feitos por RPCs autenticados e com verificação de permissão;
+- a cirurgia não inicia sem sala definida, prontidão de equipamentos quando houver cadastro físico correspondente e checklists de entrada/pausa concluídos;
+- a recuperação exige checklist de saída; se houver anestesista, a anestesia deve estar finalizada;
+- a conclusão exige alta da RPA quando houver anestesista vinculado;
+- cancelamento exige permissão gerencial e motivo;
+- OPME registra código, fabricante, lote, série, registro ANVISA, quantidade e situação de uso;
+- somente ciclo CME liberado pode ser vinculado à cirurgia e ciclo liberado torna-se imutável;
+- `cirurgia_eventos` mantém timeline append-only das ações operacionais;
+- ao concluir, procedimento e OPME utilizada são registrados no livro de produção e a conta hospitalar aberta recebe o grupo do ato cirúrgico quando aplicável;
+- leitura clínica das cirurgias, checklists, anestesia, RPA, OPME, CME e eventos é disponibilizada ao prontuário com `prontuario.visualizar`, sem conceder permissão operacional ao usuário médico.
+- a navegação operacional possui telas específicas para **Cirurgias agendadas** e **Em andamento**, mantendo o painel de salas como visão consolidada;
+- o registro anestésico permite selecionar múltiplas técnicas no mesmo ato, mantém compatibilidade com o campo legado e bloqueia finalização sem início registrado;
+- início e fim da anestesia são gravados em ações distintas e apresentados com precisão de segundos na tela operacional.
+- o agendamento aceita múltiplos procedimentos no mesmo ato cirúrgico, preservando um único atendimento/RA; cada procedimento mantém sequência, equipe, contrato, porte e tempos próprios.
+- o Centro Cirúrgico lista e agenda somente pacientes com internação ativa; a internação recebe classificação estruturada pelo domínio TISS/ANS: 1 Clínica, 2 Cirúrgica, 3 Obstétrica (inclui parto), 4 Pediátrica e 5 Psiquiátrica;
+- após a alta da RPA, o paciente pode ser movimentado para ala/quarto/leito disponível pelo fluxo transacional da Internação;
+- a equipe do ato contempla cirurgião, 1º ao 4º auxiliar, anestesista, auxiliar de anestesia, instrumentador, pediatra, neonatologista, perfusionista, enfermagem, circulante, técnico de radiologia e outros participantes.
+
+A validação funcional no Supabase foi executada com dados de teste explicitamente identificados dentro de uma transação com `ROLLBACK`: o caso percorreu agendamento, três checklists, anestesia, OPME, ciclo CME, RPA e conclusão, sem persistir registros de teste.
+
+## Comercial / Credenciamento / Contratos e Tabelas — PR #72
+
+O workspace `/comercial` foi reorganizado para eliminar o fluxo fragmentado entre contrato, negociação e itens. O contrato selecionado permanece no contexto e a operação é dividida em quatro abas: **Contrato**, **Negociação**, **Itens da tabela** e **Histórico**.
+
+Regras e capacidades consolidadas:
+
+- busca de contrato por operadora, Registro ANS ou número do contrato;
+- edição de número, status, vigência, prazo de pagamento, índice/data-base de reajuste, contato e observações;
+- visualização simultânea de todas as tabelas vinculadas ao contrato, com fonte, edição resolvida, quantidade de itens, prioridade e coeficientes;
+- vínculos sem edição válida ou com edição vazia são destacados como pendência em vez de parecer que todo o contrato está sem itens;
+- quando nenhum vínculo é solicitado explicitamente, a central seleciona primeiro uma tabela ativa cuja edição possua itens;
+- negociação permite alterar modo de edição, edição fixa, percentual de ajuste, CH, HM, SADT, UCO contratual, prioridade, adicionais de urgência/apartamento, regra de horário especial, arredondamento e situação do vínculo;
+- nova tabela pode ser vinculada ao contrato no próprio contexto; a action valida empresa/unidade e impede associar edição de fonte diferente;
+- itens são exibidos em páginas de 100, com busca separada por código, descrição ou TUSS e filtro ativo/inativo;
+- edição publicada é histórica e não pode ser sobrescrita: para renegociar, cria-se uma nova versão rascunho, que copia os itens e pode ser alterada antes da publicação;
+- em rascunho, o usuário autorizado pode incluir e editar código, descrição, TUSS, valor de referência, categoria, tabela TISS, código próprio da operadora, CH/HM/SADT, porte, porte anestésico, UCO, autorização e situação ativa/inativa;
+- publicação fecha a edição rascunho como versão vigente de forma auditável;
+- alterações de contrato, vínculo, edição e itens são registradas em `comercial_eventos` para auditoria.
+- a importação AMB persiste como colunas estruturadas código, descrição, CH, quantidade de auxiliares, porte cirúrgico, CH do anestesista e quantidade de filme, preservando também o metadata original;
+- reimportar uma edição já publicada cria automaticamente uma nova versão rascunho, sem violar a imutabilidade histórica.
+- clonagem e edição manual preservam CH, quantidade de auxiliares, CH do anestesista e quantidade de filme radiológico, evitando perda das colunas estruturadas após a importação.
+
+Estado real observado no contrato CORE (`CORE-001`) durante esta implementação: existem cinco vínculos comerciais. As edições AMB92/AMB96/AMB99 vinculadas estão atualmente sem itens. A edição duplicada AMB90 sem vínculo foi excluída e a edição vigente, cujo identificador é preservado pelos contratos e procedimentos cirúrgicos, foi reimportada a partir do XML completo. **AMB90 / AMB 1990** contém agora **3.333 códigos únicos ativos**, todos com CH, quantidade de auxiliares, porte cirúrgico, CH do anestesista e quantidade de filme em colunas estruturadas; a descrição alternativa do único código duplicado no arquivo permanece em `metadata`. A tabela não pertence a um convênio específico e pode ser vinculada a todos os convênios que adotarem AMB90. A central seleciona automaticamente AMB90 como tabela útil principal, mantendo os vínculos vazios visíveis como pendências de parametrização. O vínculo AMB92 configurado como `vigente_na_data` permanece sinalizado quando não há edição vigente resolvível. Nenhum dado comercial foi inventado para preencher essas lacunas.
+
+A função contratual usada pelos fluxos assistenciais/faturamento percorre os vínculos por prioridade e continua para a próxima tabela quando a edição anterior não produz itens. Portanto os procedimentos AMB90 permanecem resolvíveis mesmo com vínculos AMB92 vazios, desde que os demais critérios de contrato/permissão sejam atendidos.
+
 ## Segurança e autorização
 
 A matriz operacional em `public.permissoes` permanece a fonte de verdade. O catálogo TypeScript referencia códigos usados estaticamente pela aplicação e possui teste automatizado que garante que toda permissão exigida pela navegação esteja presente no catálogo tipado.
 
 O PR #71 preserva o isolamento por empresa/unidade e não cria bypass de RLS. O hardening do GED usa RLS forçado e policies específicas para leitura, inserção, atualização e Storage. RPCs sensíveis de GED são executáveis apenas por `authenticated` e revalidam permissões funcionais dentro do fluxo.
+
+No PR #72, as tabelas clínicas críticas do Centro Cirúrgico/CME deixam de aceitar mutação direta do papel `authenticated`; as escritas operacionais passam pelos RPCs `centro_cirurgico_*_operacional` e `cme_salvar_ciclo_operacional`. Esses RPCs exigem usuário autenticado, revalidam `tem_unidade`/`tem_permissao`, utilizam locks nas transições e não são executáveis por `anon`.
+
+No Comercial, edições publicadas e seus itens são protegidos contra sobrescrita. A edição ocorre em versão rascunho e a publicação é auditada; policies e helpers de `comercial.*`, `credenciamento.*` e `tabelas_comerciais.*` continuam definindo leitura/escrita por empresa/unidade.
 
 O Security/Performance Advisor deve ser analisado por objeto. Avisos históricos de `SECURITY DEFINER`, endpoints públicos do Totem/Painel e outras rotinas legadas não devem ser corrigidos de forma indiscriminada dentro de um pacote funcional sem validar o fluxo que depende deles.
 
@@ -85,18 +145,20 @@ Paciente agendado comum:
 
 `Agenda → confirmação → check-in direto → admissão/atendimento → fila médica ambulatorial → prontuário`.
 
-Cirurgia eletiva deve seguir programação especializada e integrar pré-admissão, Centro Cirúrgico, equipe/anestesia, RPA, CME/OPME e conta hospitalar.
+Cirurgia eletiva segue programação especializada e mantém o mesmo atendimento/RA, integrando Centro Cirúrgico, sala/equipe, cirurgia segura, anestesia, RPA, CME/OPME, prontuário longitudinal, produção e conta hospitalar.
 
 Na Internação, `Painel da Internação`, `Mapa de Leitos`, `NIR` e `Central de Altas` mantêm responsabilidades distintas. Seleção visual de leito nunca substitui revalidação transacional.
 
 No atendimento médico, o mesmo episódio deve ser preservado em toda a jornada:
 
-`Fila médica setorial → Resumo → Histórico longitudinal → Anamnese/Evolução → Prescrição/Documentos → Laboratório/Imagem/Farmácia/Enfermagem/demais setores`.
+`Fila médica setorial → Resumo → Histórico longitudinal → Anamnese/Evolução → Prescrição/Documentos → Laboratório/Imagem/Farmácia/Enfermagem/Centro Cirúrgico/demais setores`.
 
-Pedidos, resultados, laudos e documentos assistenciais pertencem ao mesmo paciente/atendimento quando clinicamente aplicável. Dados produzidos pelos setores devem reaparecer no prontuário e nos fluxos subsequentes sem criar episódios paralelos.
+Pedidos, resultados, laudos, documentos e registros assistenciais pertencem ao mesmo paciente/atendimento quando clinicamente aplicável. Dados produzidos pelos setores devem reaparecer no prontuário e nos fluxos subsequentes sem criar episódios paralelos.
 
 ## Validação do pacote atual
 
-PR ativo: **#71 — `feat(navegacao): reorganizar HIS por setor e perfil + GED integrado`**.
+PR ativo: **#72 — `feat(centro-cirurgico): fluxo transacional Centro Cirúrgico + CME integrado`**.
 
-O primeiro CI do PR passou em `lint` e `typecheck`, mas falhou no teste unitário que exige sincronismo entre requisitos de navegação e catálogo tipado de permissões. A correção foi aplicada no commit posterior do PR, sincronizando RH, Segurança/Visitantes e permissões LIS/RIS. O PR deve permanecer em draft até o novo head passar por `lint`, `typecheck`, testes, `build`, Chromium/Playwright, smoke E2E, Vercel e revisão dos Supabase Advisors.
+O PR permanece em **draft**. O pacote já inclui Centro Cirúrgico/CME, integração cirúrgica ao prontuário, busca global de profissionais, seleção cirúrgica por contrato e a central Comercial/Credenciamento/Tabelas reorganizada. O banco foi validado em fluxo transacional completo com `ROLLBACK` e as migrations aplicadas foram versionadas de forma imutável no repositório.
+
+No head anterior à atualização deste documento, `lint`, `typecheck`, testes, `build`, Chromium/Playwright e smoke E2E concluíram com sucesso no GitHub Actions, e o preview Vercel do mesmo SHA ficou `READY`. Como qualquer commit altera o head do PR, este documento gera uma nova rodada obrigatória de validação; o PR só deve sair de draft ou ser considerado para merge após GitHub Actions e Vercel ficarem verdes no **mesmo head final**, com revisão dos Supabase Advisors.

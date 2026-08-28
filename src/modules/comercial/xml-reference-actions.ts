@@ -70,9 +70,14 @@ export async function importarXmlReferencia(formData:FormData){
   }
 
   const hash=createHash("sha256").update(raw).digest("hex");
-  const {data:edicaoExistente}=await supabase.from("tabelas_comerciais_edicoes").select("id").eq("fonte_id",fonteId).eq("nome_edicao",config.edicao).maybeSingle();
+  const {data:edicaoExistente}=await supabase.from("tabelas_comerciais_edicoes").select("id,status").eq("fonte_id",fonteId).eq("nome_edicao",config.edicao).maybeSingle();
   let edicaoId=edicaoExistente?.id as string|undefined;
-  if(!edicaoId){
+  if(edicaoId&&edicaoExistente?.status!=="rascunho"){
+    const stamp=new Intl.DateTimeFormat("sv-SE",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date()).replace(" "," · ");
+    const {data,error}=await supabase.rpc("comercial_clonar_edicao",{p_edicao_id:edicaoId,p_nome_edicao:`${config.edicao} · reimportação ${stamp}`,p_vigencia_inicio:vigenciaInicio,p_observacoes:`Reimportação corretiva de ${arquivo.name}; edição anterior preservada como imutável.`});
+    if(error||!data)redirect("/comercial/tabelas/xml?erro=edicao-imutavel");
+    edicaoId=data as string;
+  }else if(!edicaoId){
     const {data,error}=await supabase.from("tabelas_comerciais_edicoes").insert({fonte_id:fonteId,nome_edicao:config.edicao,referencia:config.edicao,vigencia_inicio:vigenciaInicio,status:"rascunho",metodo_calculo:config.metodo,origem_arquivo:arquivo.name,hash_arquivo:hash,observacoes:"Importação XML histórica; validar vigência e regras contratuais antes de marcar como vigente.",created_by:user.id}).select("id").single();
     if(error||!data)redirect("/comercial/tabelas/xml?erro=edicao");
     edicaoId=data.id;
@@ -89,12 +94,12 @@ export async function importarXmlReferencia(formData:FormData){
 
   const rows=parsed.itens.map(item=>{
     const codigoTuss=tussMap.get(item.codigo)??null;
-    return {edicao_id:edicaoId,codigo:item.codigo,descricao:item.descricao,categoria_item:"procedimento",tabela_tiss_codigo:codigoTuss?"22":"00",familia_tuss:codigoTuss?22:null,codigo_tuss:codigoTuss,valor_referencia:item.valor_referencia,pontos_ch:item.pontos_ch,porte:item.porte,quantidade_uco:item.quantidade_uco,porte_anestesico:item.porte_anestesico,exige_autorizacao:false,ativo:true,metadata:{...item.metadata,arquivo_origem:arquivo.name,hash_arquivo:hash}};
+    return {edicao_id:edicaoId,codigo:item.codigo,descricao:item.descricao,categoria_item:"procedimento",tabela_tiss_codigo:codigoTuss?"22":"00",familia_tuss:codigoTuss?22:null,codigo_tuss:codigoTuss,valor_referencia:item.valor_referencia,pontos_ch:item.pontos_ch,quantidade_auxiliares:item.quantidade_auxiliares,porte:item.porte,ch_anestesista:item.ch_anestesista,quantidade_filme:item.quantidade_filme,quantidade_uco:item.quantidade_uco,porte_anestesico:item.porte_anestesico,exige_autorizacao:false,ativo:true,metadata:{...item.metadata,arquivo_origem:arquivo.name,hash_arquivo:hash}};
   });
   for(let start=0;start<rows.length;start+=BATCH){
     const {error}=await supabase.from("tabelas_comerciais_itens").upsert(rows.slice(start,start+BATCH),{onConflict:"edicao_id,codigo"});
     if(error){console.error("[xml-ref] itens",{code:error.code,start});redirect("/comercial/tabelas/xml?erro=itens");}
   }
   revalidatePath("/comercial/tabelas");revalidatePath("/comercial/tabelas/itens");revalidatePath("/comercial/tabelas/xml");
-  redirect(`/comercial/tabelas/xml?importado=${rows.length}&tipo=${layout}&rejeitados=${parsed.rejeitados}`);
+  redirect(`/comercial/tabelas/xml?importado=${rows.length}&tipo=${layout}&rejeitados=${parsed.rejeitados}&consolidados=${parsed.consolidados}`);
 }

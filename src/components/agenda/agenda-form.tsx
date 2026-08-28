@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { CalendarClock, Hospital, Stethoscope } from "lucide-react";
 import { PatientRemotePicker, type AdmissionPatient } from "@/components/atendimentos/patient-remote-picker";
+import { ProfessionalRemotePicker, type ProfessionalSearchResult } from "@/components/profissionais/professional-remote-picker";
 
-type Profissional = { id: string; nome_completo: string; especialidade: string | null };
 type Convenio = { id: string; nome_fantasia: string };
 type Plano = { id: string; convenio_id: string; nome: string; codigo: string | null };
 type Tipo = { codigo: string; descricao: string };
@@ -14,7 +14,6 @@ type Local = { id: string; nome: string; tipo: string };
 export function AgendaForm({
   action,
   empresaId,
-  profissionais,
   convenios,
   planos,
   tipos,
@@ -23,7 +22,6 @@ export function AgendaForm({
 }: {
   action: (formData: FormData) => void | Promise<void>;
   empresaId: string;
-  profissionais: Profissional[];
   convenios: Convenio[];
   planos: Plano[];
   tipos: Tipo[];
@@ -32,17 +30,15 @@ export function AgendaForm({
 }) {
   const [patient, setPatient] = useState<AdmissionPatient | null>(null);
   const [convenioId, setConvenioId] = useState("");
-  const [profissionalId, setProfissionalId] = useState("");
+  const [profissional, setProfissional] = useState<ProfessionalSearchResult | null>(null);
   const [especialidade, setEspecialidade] = useState("");
   const [cirurgiaEletiva, setCirurgiaEletiva] = useState(false);
 
   const planosFiltrados = useMemo(() => planos.filter((item) => item.convenio_id === convenioId), [planos, convenioId]);
-  const profissionalSelecionado = profissionais.find((item) => item.id === profissionalId);
 
-  function selecionarProfissional(id: string) {
-    setProfissionalId(id);
-    const profissional = profissionais.find((item) => item.id === id);
-    if (profissional?.especialidade) setEspecialidade(profissional.especialidade);
+  function selecionarProfissional(value: ProfessionalSearchResult | null) {
+    setProfissional(value);
+    if (value?.especialidade) setEspecialidade(value.especialidade);
   }
 
   return <form action={action} className="space-y-6">
@@ -64,10 +60,10 @@ export function AgendaForm({
     </section>
 
     <section className="ui-card p-6">
-      <div className="mb-5 flex items-start gap-3 border-b border-slate-100 pb-5"><span className="grid size-10 place-items-center rounded-xl bg-sky-50 text-sky-700"><Stethoscope className="size-5" /></span><div><h2 className="font-semibold text-slate-900">Profissional e local</h2><p className="mt-1 text-sm text-slate-500">O sistema bloqueia sobreposição do mesmo profissional ou do mesmo local físico.</p></div></div>
+      <div className="mb-5 flex items-start gap-3 border-b border-slate-100 pb-5"><span className="grid size-10 place-items-center rounded-xl bg-sky-50 text-sky-700"><Stethoscope className="size-5" /></span><div><h2 className="font-semibold text-slate-900">Profissional e local</h2><p className="mt-1 text-sm text-slate-500">Localize por nome, CPF, conselho, número, especialidade ou CBO. O sistema continua bloqueando sobreposição de profissional ou local físico.</p></div></div>
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Profissional</span><select name="profissional_id" value={profissionalId} onChange={(event) => selecionarProfissional(event.target.value)} className="ui-input"><option value="">A definir</option>{profissionais.map((item) => <option key={item.id} value={item.id}>{item.nome_completo}{item.especialidade ? ` · ${item.especialidade}` : ""}</option>)}</select></label>
-        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Especialidade</span><select name="especialidade" value={especialidade} onChange={(event) => setEspecialidade(event.target.value)} className="ui-input"><option value="">{profissionalSelecionado?.especialidade ? "Especialidade do profissional" : "Selecione"}</option>{especialidades.map((item) => <option key={item.codigo} value={item.descricao}>{item.descricao}</option>)}</select></label>
+        <ProfessionalRemotePicker empresaId={empresaId} name="profissional_id" label="Profissional" value={profissional} onChange={selecionarProfissional} />
+        <label className="space-y-2 text-sm font-medium text-slate-700"><span>Especialidade</span><select name="especialidade" value={especialidade} onChange={(event) => setEspecialidade(event.target.value)} className="ui-input"><option value="">{profissional?.especialidade ? "Especialidade do profissional" : "Selecione"}</option>{especialidades.map((item) => <option key={item.codigo} value={item.descricao}>{item.descricao}</option>)}</select></label>
         <label className="space-y-2 text-sm font-medium text-slate-700"><span>Consultório / sala / setor</span><select name="estrutura_fisica_id" defaultValue="" className="ui-input"><option value="">A definir</option>{locais.map((item) => <option key={item.id} value={item.id}>{item.nome} · {item.tipo.replaceAll("_", " ")}</option>)}</select></label>
       </div>
     </section>
