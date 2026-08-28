@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://teste.supabase.co";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_e2e_ficticia";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://teste.supabase.co";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_e2e_ficticia";
 
 export default defineConfig({
   testDir: "./tests/e2e",
