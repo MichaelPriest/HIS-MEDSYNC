@@ -13,6 +13,34 @@ type AutoPrintTicketProps = {
   cpfFinal?: string | null;
 };
 
+const totemPrintCss = `
+  @media print {
+    @page { size: 80mm auto; margin: 2mm; }
+    html, body {
+      width: 80mm !important;
+      min-width: 80mm !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+    }
+    body * { visibility: hidden !important; }
+    .totem-print-ticket,
+    .totem-print-ticket * { visibility: visible !important; }
+    .totem-print-ticket {
+      display: block !important;
+      position: absolute !important;
+      inset: 0 auto auto 0 !important;
+      width: 76mm !important;
+      margin: 0 !important;
+      padding: 3mm 2mm 5mm !important;
+      background: #fff !important;
+      transform: none !important;
+    }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
+`;
+
 export function AutoPrintTicket({
   senha,
   unidadeId,
@@ -74,6 +102,8 @@ export function AutoPrintTicket({
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{ __html: totemPrintCss }} />
+
       {qrDataUrl ? (
         <div className="totem-no-print mx-auto mt-5 flex w-fit items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left">
           {/* eslint-disable-next-line @next/next/no-img-element */}

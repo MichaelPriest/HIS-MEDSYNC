@@ -16,6 +16,52 @@ function itens(value: unknown): ItemDocumento[] {
 }
 function fmtData(value?: string | null) { return value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "—"; }
 
+const printCss = `
+  @media print {
+    @page { size: A4 portrait; margin: 14mm 14mm 16mm; }
+    html, body {
+      width: auto !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+    }
+    body * { visibility: hidden !important; }
+    .clinical-document-print-area,
+    .clinical-document-print-area * { visibility: visible !important; }
+    .clinical-document-print-area {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+      background: #fff !important;
+      color: #000 !important;
+      transform: none !important;
+    }
+    .clinical-document-print-area article {
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      overflow: visible !important;
+      transform: none !important;
+    }
+    .clinical-document-print-area header,
+    .clinical-document-print-area section,
+    .clinical-document-print-area footer { break-inside: avoid; }
+    .clinical-document-print-area ol,
+    .clinical-document-print-area li { break-inside: avoid; }
+    .clinical-document-print-area .print\\:hidden { display: none !important; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
+`;
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -35,7 +81,9 @@ export default async function DocumentoMedicoPage({ params }: { params: Promise<
   const linhas = itens(documento.itens);
   const controlado = ["controle_especial", "b1_azul"].includes(documento.tipo_documento);
 
-  return <main className="mx-auto max-w-4xl pb-12 print:max-w-none print:pb-0">
+  return <main className="clinical-document-print-area mx-auto max-w-4xl pb-12 print:max-w-none print:pb-0">
+    <style dangerouslySetInnerHTML={{ __html: printCss }} />
+
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
       <Link href={`/prontuario/${atendimentoId}/documentos` as Route} className="ui-button-secondary"><ArrowLeft className="size-4"/>Voltar aos documentos</Link>
       <PrintDocumentButton />
