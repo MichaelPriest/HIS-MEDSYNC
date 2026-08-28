@@ -7,7 +7,11 @@ import { requireAnyPermission } from "@/lib/permissions/server";
 
 const text = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
 const decimal = (value: string) => {
-  const normalized = value.replace(/\./g, "").replace(",", ".");
+  const raw = value.trim();
+  if (!raw) return 0;
+  const normalized = raw.includes(",")
+    ? raw.replace(/\./g, "").replace(",", ".")
+    : raw;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 };
