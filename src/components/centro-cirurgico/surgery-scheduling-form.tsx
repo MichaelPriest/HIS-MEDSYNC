@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Search, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Plus, Search, ShieldCheck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { EncounterPicker } from "@/components/atendimentos/encounter-picker";
 import { ProfessionalRemotePicker } from "@/components/profissionais/professional-remote-picker";
@@ -57,22 +57,23 @@ export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: 
   const [atendimentoId, setAtendimentoId] = useState("");
   const [query, setQuery] = useState("");
   const [procedimentos, setProcedimentos] = useState<ProcedimentoContrato[]>([]);
-  const [procedimento, setProcedimento] = useState<ProcedimentoContrato | null>(null);
+  const [selecionados, setSelecionados] = useState<ProcedimentoContrato[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
   const atendimento = encounters.find((item) => item.id === atendimentoId) ?? null;
   const conveniado = atendimento?.cobertura === "convenio";
+  const procedimento = selecionados[0] ?? null;
 
   useEffect(() => {
-    setProcedimento(null);
+    setSelecionados([]);
     setQuery("");
     setProcedimentos([]);
     setSearchError(null);
   }, [atendimentoId]);
 
   useEffect(() => {
-    if (!atendimentoId || !conveniado || procedimento) return;
+    if (!atendimentoId || !conveniado) return;
     const term = query.trim();
     if (term.length === 1) {
       setProcedimentos([]);
@@ -102,11 +103,12 @@ export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: 
       active = false;
       window.clearTimeout(timer);
     };
-  }, [atendimentoId, conveniado, procedimento, query, supabase]);
+  }, [atendimentoId, conveniado, query, supabase]);
 
-  function clearProcedure() {
-    setProcedimento(null);
+  function selectProcedure(item: ProcedimentoContrato) {
+    setSelecionados((current) => current.some((selected) => selected.tabela_item_id === item.tabela_item_id) ? current : [...current, item]);
     setQuery("");
+    setProcedimentos([]);
   }
 
   return <form action={action} className="grid gap-4 lg:grid-cols-4">
@@ -121,41 +123,34 @@ export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: 
           <p className="font-black text-brand-950">Procedimento conforme contrato do convênio</p>
           <p className="mt-1 text-sm text-brand-800">{atendimento?.convenio_nome ?? "Convênio do atendimento"}. Código, TUSS e porte serão validados novamente pelo banco ao salvar.</p>
 
-          {procedimento ? <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <strong className="text-sm text-slate-950">{procedimento.descricao}</strong>
-                <p className="mt-1 text-xs text-slate-600">Código contratado {procedimento.codigo}{procedimento.codigo_tuss ? ` · TUSS ${procedimento.codigo_tuss}` : ""}</p>
-                <p className="mt-1 text-xs text-slate-500">Porte {procedimento.porte ?? "—"} · Porte anestésico {procedimento.porte_anestesico ?? "—"} · {procedimento.fonte_codigo ?? procedimento.fonte_nome ?? "Tabela"} {procedimento.edicao_nome ? `· ${procedimento.edicao_nome}` : ""}</p>
-                <p className="mt-1 text-xs text-slate-500">Contrato {procedimento.numero_contrato ?? procedimento.contrato_id}</p>
-              </div>
-              <button type="button" onClick={clearProcedure} className="btn-secondary h-9 text-xs">Trocar procedimento</button>
-            </div>
-          </div> : <div className="relative mt-4">
+          {selecionados.length ? <div className="mt-4 space-y-2">{selecionados.map((item, index) => <div key={item.tabela_item_id} className="rounded-xl border border-emerald-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div><span className="text-[10px] font-black uppercase text-brand-600">{index === 0 ? "Procedimento principal" : `Procedimento adicional ${index}`}</span><strong className="mt-1 block text-sm text-slate-950">{item.descricao}</strong><p className="mt-1 text-xs text-slate-600">Código {item.codigo}{item.codigo_tuss ? ` · TUSS ${item.codigo_tuss}` : ""} · porte {item.porte ?? "—"} · anest. {item.porte_anestesico ?? "—"}</p></div><button type="button" aria-label={`Remover ${item.descricao}`} onClick={() => setSelecionados((current) => current.filter((selected) => selected.tabela_item_id !== item.tabela_item_id))} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-700"><X className="size-4" /></button></div></div>)}</div> : null}
+          <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-3 top-3.5 size-4 text-slate-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por descrição, código contratado ou TUSS" className="ui-input pl-9" autoComplete="off" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={selecionados.length ? "Buscar e adicionar outra cirurgia/procedimento" : "Buscar por descrição, código contratado ou TUSS"} className="ui-input pl-9" autoComplete="off" />
             {loading ? <p className="mt-2 text-xs font-medium text-brand-700">Consultando contrato…</p> : null}
             {searchError ? <p className="mt-2 text-xs font-medium text-rose-700">{searchError}</p> : null}
             {!loading && !searchError ? <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-brand-100 bg-white">
-              {procedimentos.map((item) => <button key={item.tabela_item_id} type="button" onClick={() => { setProcedimento(item); setQuery(""); setProcedimentos([]); }} className="block w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50">
+              {procedimentos.filter((item) => !selecionados.some((selected) => selected.tabela_item_id === item.tabela_item_id)).map((item) => <button key={item.tabela_item_id} type="button" onClick={() => selectProcedure(item)} className="block w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-slate-50">
                 <strong className="block text-sm text-slate-900">{item.descricao}</strong>
                 <span className="mt-1 block text-xs text-slate-600">Cód. {item.codigo}{item.codigo_tuss ? ` · TUSS ${item.codigo_tuss}` : ""} · Porte {item.porte ?? "—"} · anest. {item.porte_anestesico ?? "—"}</span>
-                <span className="mt-1 block text-xs text-slate-500">{item.fonte_codigo ?? item.fonte_nome ?? "Tabela"}{item.edicao_nome ? ` · ${item.edicao_nome}` : ""} · contrato {item.numero_contrato ?? "ativo"}</span>
+                <span className="mt-1 block text-xs text-slate-500"><Plus className="mr-1 inline size-3" />Adicionar ao mesmo ato · {item.fonte_codigo ?? item.fonte_nome ?? "Tabela"}{item.edicao_nome ? ` · ${item.edicao_nome}` : ""}</span>
               </button>)}
               {!procedimentos.length ? <div className="p-4 text-sm text-amber-800"><AlertTriangle className="mr-2 inline size-4" />Nenhum procedimento contratual disponível. Verifique se os itens da tabela vinculada ao contrato foram importados e estão vigentes.</div> : null}
             </div> : null}
-          </div>}
+          </div>
         </div>
       </div>
       <input type="hidden" name="procedimento" value={procedimento?.descricao ?? ""} />
       <input type="hidden" name="codigo_tuss" value={procedimento?.codigo_tuss ?? procedimento?.codigo ?? ""} />
       <input type="hidden" name="porte" value={procedimento?.porte ?? ""} />
+      <input type="hidden" name="procedimentos_adicionais" value={JSON.stringify(selecionados.slice(1).map((item) => item.tabela_item_id))} />
     </div> : null}
 
     {atendimentoId && !conveniado ? <>
       <label className="space-y-2 text-sm font-medium text-slate-700 lg:col-span-2"><span>Procedimento *</span><input name="procedimento" required className="ui-input" placeholder="Procedimento" /></label>
       <label className="space-y-2 text-sm font-medium text-slate-700"><span>Código / TUSS</span><input name="codigo_tuss" className="ui-input" placeholder="Código" /></label>
       <label className="space-y-2 text-sm font-medium text-slate-700"><span>Porte</span><input name="porte" className="ui-input" placeholder="Porte" /></label>
+      <label className="space-y-2 text-sm font-medium text-slate-700 lg:col-span-4"><span>Cirurgias/procedimentos adicionais</span><textarea name="procedimentos_adicionais_livres" className="ui-input min-h-24" placeholder="Informe um procedimento adicional por linha. Todos permanecerão no mesmo ato cirúrgico e atendimento." /></label>
     </> : null}
 
     {!atendimentoId ? <div className="lg:col-span-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">Selecione o atendimento para definir a cobertura e carregar os procedimentos permitidos.</div> : null}

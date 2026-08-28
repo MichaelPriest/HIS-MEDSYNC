@@ -67,6 +67,7 @@ type Checklist = { cirurgia_id: string; etapa: string; itens: Record<string, unk
 type Anestesia = {
   cirurgia_id: string;
   tecnica: string | null;
+  tecnicas: string[] | null;
   asa: string | null;
   via_aerea: string | null;
   monitorizacao: Record<string, unknown> | null;
@@ -123,7 +124,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
     supabase.from("vw_salas_cirurgicas_prontidao").select("sala_id,codigo,nome,status,equipamentos_prontos,equipamentos_obrigatorios_indisponiveis").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("nome"),
     supabase.from("cirurgias").select("id,atendimento_id,paciente_id,procedimento,codigo_tuss,codigo_contratado,tabela_referencia,contrato_id,tabela_item_id,cirurgia,lateralidade,sala,sala_id,classificacao,porte,porte_anestesico,status,inicio_previsto,inicio_em,fim_em,cirurgiao_id,anestesista_id,diagnostico_pre,intercorrencias,paciente:pacientes(nome_completo,ra)").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("inicio_previsto", { ascending: true, nullsFirst: false }).limit(150),
     supabase.from("cirurgia_checklist").select("cirurgia_id,etapa,itens,concluido,concluido_em,observacoes").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(1000),
-    supabase.from("anestesia_registros").select("cirurgia_id,tecnica,asa,via_aerea,monitorizacao,medicamentos,fluidos,eventos,inicio_em,fim_em,observacoes").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
+    supabase.from("anestesia_registros").select("cirurgia_id,tecnica,tecnicas,asa,via_aerea,monitorizacao,medicamentos,fluidos,eventos,inicio_em,fim_em,observacoes").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
     supabase.from("rpa_registros").select("cirurgia_id,aldrete_entrada,aldrete_alta,dor,nauseas,sinais_vitais,intercorrencias,destino,status,alta_em").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(300),
     supabase.from("cirurgia_opme").select("id,cirurgia_id,item,codigo,lote,serie,quantidade,status").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(1000),
     supabase.from("cme_ciclos").select("id,codigo_ciclo,equipamento,metodo,resultado,status,liberado_em").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).eq("status", "liberado").order("liberado_em", { ascending: false }).limit(300),

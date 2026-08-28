@@ -30,7 +30,7 @@ export async function agendarCirurgia(formData: FormData) {
   const inicioPrevisto = txt(formData, "inicio_previsto");
   if (!atendimentoId || !procedimento || !inicioPrevisto) return go("erro=campos-obrigatorios");
 
-  const { error } = await supabase.rpc("centro_cirurgico_agendar_operacional", {
+  const { data: cirurgiaId, error } = await supabase.rpc("centro_cirurgico_agendar_operacional", {
     p_atendimento_id: atendimentoId,
     p_cirurgia_id: nullable(txt(formData, "cirurgia_id")),
     p_procedimento: procedimento,
@@ -46,6 +46,28 @@ export async function agendarCirurgia(formData: FormData) {
     p_diagnostico_pre: nullable(txt(formData, "diagnostico_pre")),
   });
   if (error) return rpcError(error.message);
+  const adicionaisContratuais = (() => {
+    try {
+      const parsed: unknown = JSON.parse(txt(formData, "procedimentos_adicionais") || "[]");
+      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string" && Boolean(id)) : [];
+    } catch { return []; }
+  })();
+  const adicionaisLivres = lines(txt(formData, "procedimentos_adicionais_livres"));
+  for (const tabelaItemId of adicionaisContratuais) {
+    const { error: additionalError } = await supabase.rpc("centro_cirurgico_adicionar_procedimento_operacional", {
+      p_cirurgia_id: cirurgiaId,
+      p_tabela_item_id: tabelaItemId,
+      p_codigo: null,p_descricao: null,p_porte: null,p_porte_anestesico: null,p_observacoes: null,
+    });
+    if (additionalError) return rpcError(additionalError.message);
+  }
+  for (const descricao of adicionaisLivres) {
+    const { error: additionalError } = await supabase.rpc("centro_cirurgico_adicionar_procedimento_operacional", {
+      p_cirurgia_id: cirurgiaId,
+      p_tabela_item_id: null,p_codigo: null,p_descricao: descricao,p_porte: null,p_porte_anestesico: null,p_observacoes: null,
+    });
+    if (additionalError) return rpcError(additionalError.message);
+  }
   return go("sucesso=agendamento");
 }
 
@@ -107,7 +129,7 @@ export async function salvarAnestesia(formData: FormData) {
 
   const { error } = await supabase.rpc("centro_cirurgico_salvar_anestesia_operacional", {
     p_cirurgia_id: cirurgiaId,
-    p_tecnica: nullable(txt(formData, "tecnica")),
+    p_tecnicas: formData.getAll("tecnicas").map(String).filter(Boolean),
     p_asa: nullable(txt(formData, "asa")),
     p_via_aerea: nullable(txt(formData, "via_aerea")),
     p_monitorizacao: monitorizacao,

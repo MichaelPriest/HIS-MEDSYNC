@@ -1,11 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { Boxes, ListChecks, Monitor, Scissors, ShieldCheck } from "lucide-react";
+import type { Route } from "next";
+import { Activity, Boxes, CalendarClock, ListChecks, Monitor, Scissors, ShieldCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-const items = [
+type NavigationItem = {
+  href: Route;
+  label: string;
+  icon: typeof Scissors;
+  exact?: boolean;
+};
+
+const items: NavigationItem[] = [
   { href: "/assistencial/centro-cirurgico", label: "Central Cirúrgica", icon: Scissors, exact: true },
+  { href: "/assistencial/centro-cirurgico/agendadas", label: "Cirurgias agendadas", icon: CalendarClock },
+  { href: "/assistencial/centro-cirurgico/em-andamento", label: "Em andamento", icon: Activity },
   { href: "/assistencial/centro-cirurgico/painel-salas", label: "Painel de Salas", icon: Monitor },
   { href: "/assistencial/centro-cirurgico/procedimentos", label: "Procedimentos e Equipe", icon: ListChecks },
   { href: "/assistencial/centro-cirurgico/equipamentos", label: "Prontidão", icon: ShieldCheck },

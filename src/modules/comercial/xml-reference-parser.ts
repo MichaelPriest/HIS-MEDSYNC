@@ -1,5 +1,5 @@
 export type XmlLayout="amb"|"cbhpm"|"equivalencias"|"glosas"|"desconhecido";
-export type CommercialXmlItem={codigo:string;descricao:string;valor_referencia:number;pontos_ch:number|null;porte:string|null;quantidade_uco:number|null;porte_anestesico:string|null;metadata:Record<string,unknown>};
+export type CommercialXmlItem={codigo:string;descricao:string;valor_referencia:number;pontos_ch:number|null;quantidade_auxiliares:number|null;porte:string|null;ch_anestesista:number|null;quantidade_filme:number|null;quantidade_uco:number|null;porte_anestesico:string|null;metadata:Record<string,unknown>};
 export type EquivalenciaXml={sistema_origem:"AMB";codigo_origem:string;descricao_origem:string|null;sistema_destino:"TUSS";codigo_destino:string;descricao_destino:string|null;fonte:string;status:"ativa"|"revisar";observacao:string|null};
 export type GlosaXml={codigo:string;motivo:string;fonte:string;ativo:true;metadados:Record<string,unknown>};
 
@@ -24,13 +24,23 @@ export function parseCommercialXml(raw:string,layout:Extract<XmlLayout,"amb"|"cb
     if(!codigo||!descricao){rejeitados++;continue;}
     if(layout==="amb"){
       const ch=n(tag(b,"quantidadeCH"));
-      out.push({codigo,descricao,valor_referencia:0,pontos_ch:ch,porte:null,quantidade_uco:null,porte_anestesico:null,metadata:{quantidade_aux:n(tag(b,"quantidadeAux")),porte_cirurgico:tag(b,"porteCirurgico")||null,ch_anestesista:n(tag(b,"CHAnestesista")),quantidade_filme:n(tag(b,"quantidadeFilme"))}});
+      const quantidadeAuxiliares=n(tag(b,"quantidadeAux")),porteCirurgico=tag(b,"porteCirurgico")||null,chAnestesista=n(tag(b,"CHAnestesista")),quantidadeFilme=n(tag(b,"quantidadeFilme"));
+      out.push({codigo,descricao,valor_referencia:0,pontos_ch:ch,quantidade_auxiliares:quantidadeAuxiliares,porte:porteCirurgico,ch_anestesista:chAnestesista,quantidade_filme:quantidadeFilme,quantidade_uco:null,porte_anestesico:null,metadata:{quantidade_aux:quantidadeAuxiliares,porte_cirurgico:porteCirurgico,ch_anestesista:chAnestesista,quantidade_filme:quantidadeFilme}});
     }else{
       const valorPorte=n(tag(b,"valorPorte"));
-      out.push({codigo,descricao,valor_referencia:0,pontos_ch:null,porte:tag(b,"porte")||null,quantidade_uco:n(tag(b,"custoOperacional")),porte_anestesico:tag(b,"porteAnestesista")||null,metadata:{fracao_porte:n(tag(b,"fracaoPorte")),valor_porte_origem:valorPorte,quantidade_aux:n(tag(b,"quantidadeAux")),porte_cirurgico:tag(b,"porteCirurgico")||null,valor_porte_anestesista_origem:n(tag(b,"valorPorteAnestesista")),quantidade_filme:n(tag(b,"quantidadeFilme"))}});
+      const quantidadeAuxiliares=n(tag(b,"quantidadeAux")),quantidadeFilme=n(tag(b,"quantidadeFilme"));
+      out.push({codigo,descricao,valor_referencia:0,pontos_ch:null,quantidade_auxiliares:quantidadeAuxiliares,porte:tag(b,"porte")||null,ch_anestesista:n(tag(b,"valorPorteAnestesista")),quantidade_filme:quantidadeFilme,quantidade_uco:n(tag(b,"custoOperacional")),porte_anestesico:tag(b,"porteAnestesista")||null,metadata:{fracao_porte:n(tag(b,"fracaoPorte")),valor_porte_origem:valorPorte,quantidade_aux:quantidadeAuxiliares,porte_cirurgico:tag(b,"porteCirurgico")||null,valor_porte_anestesista_origem:n(tag(b,"valorPorteAnestesista")),quantidade_filme:quantidadeFilme}});
     }
   }
-  return {itens:out,rejeitados};
+  const byCode=new Map<string,CommercialXmlItem>();let consolidados=0;
+  for(const item of out){
+    const current=byCode.get(item.codigo);
+    if(!current){byCode.set(item.codigo,item);continue;}
+    consolidados++;
+    const alternativas=new Set<string>([...(Array.isArray(current.metadata.descricoes_alternativas)?current.metadata.descricoes_alternativas.map(String):[]),item.descricao]);
+    current.metadata={...current.metadata,descricoes_alternativas:[...alternativas]};
+  }
+  return {itens:[...byCode.values()],rejeitados,consolidados};
 }
 
 export function parseEquivalenciasXml(raw:string,fonte:string){
