@@ -1,29 +1,70 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getAssistencialContext } from "@/modules/assistencial/context";
+import { redirect } from "next/navigation";
+import { asRoute } from "@/lib/route-cast";
+import { requireAnyPermission } from "@/lib/permissions/server";
 
-function text(fd:FormData,key:string){return String(fd.get(key)??"").trim();}
-function num(fd:FormData,key:string){const n=Number(text(fd,key).replace(/\./g,"").replace(",","."));return Number.isFinite(n)?n:0;}
+const text = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
+const decimal = (value: string) => {
+  const raw = value.trim();
+  if (!raw) return 0;
+  const normalized = raw.includes(",")
+    ? raw.replace(/\./g, "").replace(",", ".")
+    : raw;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const pedidoRoute = (id: string, suffix = "") => asRoute(`/compras/pedidos/${id}${suffix}`);
 
-export async function receberPedidoCompra(formData:FormData){
-  const {supabase,user,empresaId,unidadeId}=await getAssistencialContext();
-  const pedidoId=text(formData,"pedido_id");
-  const fornecedorId=text(formData,"fornecedor_id")||null;
-  const produtoId=text(formData,"produto_id");
-  const localId=text(formData,"local_estoque_id");
-  const quantidade=num(formData,"quantidade");
-  const valorUnitario=num(formData,"valor_unitario");
-  if(!pedidoId||!produtoId||!localId||quantidade<=0) redirect("/compras?erro=recebimento");
-  const valor=Number((quantidade*valorUnitario).toFixed(2));
-  const {data:recebimento,error}=await supabase.from("compras_recebimentos").insert({empresa_id:empresaId,unidade_id:unidadeId,pedido_id:pedidoId,fornecedor_id:fornecedorId,numero_documento:text(formData,"numero_documento")||null,serie_documento:text(formData,"serie_documento")||null,data_emissao:text(formData,"data_emissao")||null,valor_documento:valor,vencimento:text(formData,"vencimento")||null,status:"conferido",observacoes:text(formData,"observacoes")||null,created_by:user.id}).select("id").single();
-  if(error||!recebimento) redirect("/compras?erro=recebimento");
-  const farmacia=formData.get("farmacia")==="on";
-  await supabase.from("compras_recebimento_itens").insert({recebimento_id:recebimento.id,produto_id:produtoId,quantidade,valor_unitario:valorUnitario,lote:text(formData,"lote")||null,validade:text(formData,"validade")||null,local_estoque_id:localId,farmacia});
-  await supabase.from("estoque_movimentacoes").insert({empresa_id:empresaId,unidade_id:unidadeId,produto_id:produtoId,local_destino_id:localId,tipo:"entrada_compra",quantidade,lote:text(formData,"lote")||null,validade:text(formData,"validade")||null,valor_unitario:valorUnitario,referencia_tipo:"compra_recebimento",referencia_id:recebimento.id,observacao:farmacia?"Entrada de compra destinada à Farmácia":"Entrada de compra",created_by:user.id});
-  if(valor>0){await supabase.from("financeiro_contas_pagar").insert({empresa_id:empresaId,unidade_id:unidadeId,fornecedor_id:fornecedorId,compra_recebimento_id:recebimento.id,documento:text(formData,"numero_documento")||null,competencia:new Date().toISOString().slice(0,7),vencimento:text(formData,"vencimento")||null,valor_bruto:valor,status:"aberto",created_by:user.id});}
-  await supabase.from("compras_pedidos").update({status:"recebido",updated_at:new Date().toISOString()}).eq("id",pedidoId);
-  revalidatePath("/compras"); revalidatePath("/almoxarifado"); revalidatePath("/financeiro"); revalidatePath("/setores/farmacia");
-  redirect(`/compras?recebido=${recebimento.id}`);
+export async function receberPedidoCompra(formData: FormData) {
+  const { supabase } = await requireAnyPermission(["compras.receber", "compras.gerenciar"]);
+  const pedidoId = text(formData, "pedido_id");
+  if (!pedidoId) redirect(asRoute("/compras?erro=pedido"));
+
+  const ids = formData.getAll("pedido_item_id").map((value) => String(value));
+  const quantidades = formData.getAll("quantidade").map((value) => String(value));
+  const locais = formData.getAll("local_estoque_id").map((value) => String(value));
+  const lotes = formData.getAll("numero_lote").map((value) => String(value));
+  const validades = formData.getAll("validade").map((value) => String(value));
+  const valores = formData.getAll("valor_unitario").map((value) => String(value));
+  const divergencias = formData.getAll("divergencia_observacao").map((value) => String(value));
+
+  const itens = ids
+    .map((pedidoItemId, index) => ({
+      pedido_item_id: pedidoItemId,
+      quantidade: decimal(quantidades[index] ?? "0"),
+      local_estoque_id: (locais[index] ?? "").trim() || null,
+      numero_lote: (lotes[index] ?? "").trim() || null,
+      validade: (validades[index] ?? "").trim() || null,
+      valor_unitario: decimal(valores[index] ?? "0"),
+      divergencia_observacao: (divergencias[index] ?? "").trim() || null,
+    }))
+    .filter((item) => item.pedido_item_id && item.quantidade > 0);
+
+  if (!itens.length) redirect(pedidoRoute(pedidoId, "?erro=itens"));
+  if (itens.some((item) => !item.local_estoque_id)) redirect(pedidoRoute(pedidoId, "?erro=local"));
+
+  const valorDocumentoRaw = text(formData, "valor_documento");
+  const { data, error } = await supabase.rpc("receber_pedido_compra_operacional", {
+    p_pedido_id: pedidoId,
+    p_itens: itens,
+    p_numero_documento: text(formData, "numero_documento") || null,
+    p_serie_documento: text(formData, "serie_documento") || null,
+    p_data_emissao: text(formData, "data_emissao") || null,
+    p_vencimento: text(formData, "vencimento") || null,
+    p_valor_documento: valorDocumentoRaw ? decimal(valorDocumentoRaw) : null,
+    p_observacoes: text(formData, "observacoes") || null,
+  });
+
+  if (error || !data) {
+    console.error("[compras] receber pedido", { code: error?.code, message: error?.message });
+    redirect(pedidoRoute(pedidoId, `?erro=${encodeURIComponent(error?.message || "recebimento")}`));
+  }
+
+  revalidatePath("/compras");
+  revalidatePath(`/compras/pedidos/${pedidoId}`);
+  revalidatePath("/almoxarifado");
+  revalidatePath("/financeiro");
+  redirect(pedidoRoute(pedidoId, `?recebimento=${encodeURIComponent(String(data))}`));
 }
