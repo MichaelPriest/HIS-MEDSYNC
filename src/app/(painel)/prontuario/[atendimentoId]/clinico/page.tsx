@@ -1,12 +1,28 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, ClipboardCheck, FileHeart, HeartPulse, Scale, ShieldCheck, Stethoscope } from "lucide-react";
 import { notFound } from "next/navigation";
+import { ClinicalAutosaveForm } from "@/components/prontuario/clinical-autosave-form";
+import { HistoricoClinicoModal, type HistoricoClinicoModalItem } from "@/components/prontuario/historico-clinico-modal";
 import { SectionPage } from "@/components/painel/section-page";
 import { createClient } from "@/lib/supabase/server";
-import { adicionarAlergia, adicionarDiagnostico, adicionarProblema, registrarEscala, registrarEvolucaoSoap, salvarAnamnese } from "@/modules/prontuario-clinico/actions";
+import { adicionarAlergia, adicionarDiagnostico, adicionarProblema, registrarEscala } from "@/modules/prontuario-clinico/actions";
 
 function one<T>(rel: T | T[] | null): T | null { return Array.isArray(rel) ? rel[0] ?? null : rel; }
-function fmtData(value?: string | null) { return value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "—"; }
+function objeto(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function valorJson(value: unknown) { return typeof value === "string" && value.trim() ? value : null; }
+function textoRevisao(value: unknown) {
+  const revisao = objeto(value);
+  const linhas = [
+    ["Cardiovascular", valorJson(revisao.cardiovascular)],
+    ["Respiratório", valorJson(revisao.respiratorio)],
+    ["Gastrointestinal", valorJson(revisao.gastrointestinal)],
+    ["Geniturinário", valorJson(revisao.geniturinario)],
+    ["Neurológico", valorJson(revisao.neurologico)],
+    ["Musculoesquelético", valorJson(revisao.musculoesqueletico)],
+    ["Pele e anexos", valorJson(revisao.pele)],
+  ].filter((item): item is [string, string] => Boolean(item[1]));
+  return linhas.length ? linhas.map(([label, value]) => `${label}: ${value}`).join("\n") : null;
+}
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,19 +32,28 @@ export default async function ProntuarioClinicoPage({ params, searchParams }: { 
   const sp = await searchParams;
   const supabase = await createClient();
 
-  const { data: atendimento } = await supabase.from("atendimentos")
-    .select("id,numero_atendimento,paciente_id,status,paciente:pacientes(nome_completo,ra,numero_registro,cpf,cns,data_nascimento,sexo)")
-    .eq("id", atendimentoId).maybeSingle();
+  const [{ data: atendimento }, { data: authData }] = await Promise.all([
+    supabase.from("atendimentos")
+      .select("id,numero_atendimento,paciente_id,status,paciente:pacientes(nome_completo,ra,numero_registro,cpf,cns,data_nascimento,sexo)")
+      .eq("id", atendimentoId).maybeSingle(),
+    supabase.auth.getUser(),
+  ]);
   if (!atendimento) notFound();
   const paciente = one(atendimento.paciente);
+  const user = authData.user;
 
-  const [anamnesesRes, alergiasRes, problemasRes, diagnosticosRes, escalasRes, evolucoesRes] = await Promise.all([
-    supabase.from("prontuario_anamneses").select("id,queixa_principal,historia_doenca_atual,antecedentes_pessoais,antecedentes_familiares,habitos_vida,medicacoes_uso,exame_fisico_geral,hipotese_diagnostica,conduta_inicial,assinado_em,bloqueado,created_at,profissional:profissionais(nome_completo)").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(10),
+  const profissionalAtualPromise = user
+    ? supabase.from("profissionais").select("id").eq("usuario_id", user.id).eq("ativo", true).limit(1).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
+  const [anamnesesRes, alergiasRes, problemasRes, diagnosticosRes, escalasRes, evolucoesRes, profissionalAtualRes] = await Promise.all([
+    supabase.from("prontuario_anamneses").select("id,profissional_id,queixa_principal,historia_doenca_atual,antecedentes_pessoais,antecedentes_familiares,habitos_vida,medicacoes_uso,revisao_sistemas,exame_fisico_geral,hipotese_diagnostica,conduta_inicial,assinado_em,bloqueado,created_at,updated_at,profissional:profissionais(nome_completo)").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(20),
     supabase.from("paciente_alergias").select("id,substancia,tipo,reacao,gravidade,status,observacoes,created_at").eq("paciente_id", atendimento.paciente_id).eq("status", "ativa").order("created_at", { ascending: false }),
     supabase.from("paciente_problemas").select("id,descricao,cid10,status,principal,observacoes,created_at").eq("paciente_id", atendimento.paciente_id).eq("status", "ativo").order("principal", { ascending: false }).order("created_at", { ascending: false }),
     supabase.from("prontuario_diagnosticos").select("id,cid10,descricao,tipo,principal,confirmado,created_at,profissional:profissionais(nome_completo)").eq("atendimento_id", atendimentoId).order("principal", { ascending: false }).order("created_at", { ascending: false }),
     supabase.from("prontuario_escalas").select("id,escala,pontuacao,classificacao,observacoes,aplicada_em,profissional:profissionais(nome_completo)").eq("atendimento_id", atendimentoId).order("aplicada_em", { ascending: false }).limit(20),
-    supabase.from("prontuario_evolucoes").select("id,subjetivo,objetivo,avaliacao,plano,exame_fisico,conduta,assinado_em,bloqueado,created_at,profissional:profissionais(nome_completo)").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(20),
+    supabase.from("prontuario_evolucoes").select("id,profissional_id,subjetivo,objetivo,avaliacao,plano,exame_fisico,conduta,conteudo_estruturado,assinado_em,bloqueado,created_at,updated_at,profissional:profissionais(nome_completo)").eq("atendimento_id", atendimentoId).order("created_at", { ascending: false }).limit(30),
+    profissionalAtualPromise,
   ]);
 
   const alergias = alergiasRes.data ?? [];
@@ -37,6 +62,61 @@ export default async function ProntuarioClinicoPage({ params, searchParams }: { 
   const escalas = escalasRes.data ?? [];
   const evolucoes = evolucoesRes.data ?? [];
   const anamneses = anamnesesRes.data ?? [];
+  const profissionalAtualId = profissionalAtualRes.data?.id ?? null;
+
+  const anamneseRascunho = profissionalAtualId
+    ? [...anamneses].filter((item) => item.profissional_id === profissionalAtualId && !item.assinado_em && !item.bloqueado).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))[0] ?? null
+    : null;
+  const soapRascunho = profissionalAtualId
+    ? [...evolucoes].filter((item) => item.profissional_id === profissionalAtualId && !item.assinado_em && !item.bloqueado).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))[0] ?? null
+    : null;
+
+  const revisaoRascunho = objeto(anamneseRascunho?.revisao_sistemas);
+  const soapEstruturado = objeto(soapRascunho?.conteudo_estruturado);
+
+  const historicoItens: HistoricoClinicoModalItem[] = [
+    ...anamneses.map((item) => ({
+      id: item.id,
+      tipo: "Anamnese",
+      data: item.created_at,
+      assinado: Boolean(item.assinado_em),
+      profissional: one(item.profissional)?.nome_completo ?? null,
+      resumo: item.queixa_principal || item.historia_doenca_atual,
+      detalhes: [
+        { label: "Queixa principal", value: item.queixa_principal },
+        { label: "História da doença atual", value: item.historia_doenca_atual },
+        { label: "Antecedentes pessoais", value: item.antecedentes_pessoais },
+        { label: "Antecedentes familiares", value: item.antecedentes_familiares },
+        { label: "Hábitos de vida", value: item.habitos_vida },
+        { label: "Medicações em uso", value: item.medicacoes_uso },
+        { label: "Revisão de sistemas", value: textoRevisao(item.revisao_sistemas) },
+        { label: "Exame físico geral", value: item.exame_fisico_geral },
+        { label: "Hipótese diagnóstica", value: item.hipotese_diagnostica },
+        { label: "Conduta inicial", value: item.conduta_inicial },
+      ],
+    })),
+    ...evolucoes.map((item) => {
+      const estruturado = objeto(item.conteudo_estruturado);
+      return {
+        id: item.id,
+        tipo: "Evolução SOAP",
+        data: item.created_at,
+        assinado: Boolean(item.assinado_em),
+        profissional: one(item.profissional)?.nome_completo ?? null,
+        resumo: item.avaliacao || item.subjetivo,
+        detalhes: [
+          { label: "S · Subjetivo", value: item.subjetivo },
+          { label: "O · Objetivo", value: item.objetivo },
+          { label: "A · Avaliação", value: item.avaliacao },
+          { label: "P · Plano", value: item.plano },
+          { label: "Exame físico", value: item.exame_fisico },
+          { label: "Conduta", value: item.conduta },
+          { label: "CID-10 relacionado", value: valorJson(estruturado.cid10) },
+          { label: "Retorno / reavaliação", value: valorJson(estruturado.retorno) },
+        ],
+      };
+    }),
+  ].sort((a, b) => String(b.data).localeCompare(String(a.data)));
 
   return <SectionPage eyebrow="Assistencial / Prontuário clínico" title={paciente?.nome_completo ?? "Paciente"} description={`Atendimento #${atendimento.numero_atendimento ?? "—"} · Registro #${paciente?.numero_registro ?? "—"} · ${paciente?.ra ?? "—"}`}>
     <div className="mb-4 flex flex-wrap gap-2"><Link href={`/prontuario/${atendimentoId}`} className="btn-secondary"><ArrowLeft className="size-4"/>Resumo do atendimento</Link><Link href="/prescricao" className="btn-secondary">Prescrição</Link><Link href="/setores/enfermagem" className="btn-secondary">Enfermagem</Link></div>
@@ -55,18 +135,17 @@ export default async function ProntuarioClinicoPage({ params, searchParams }: { 
 
     <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_.65fr]">
       <section className="his-card p-5 sm:p-6">
-        <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-brand-50 text-brand-700"><ClipboardCheck className="size-5"/></span><div><h2 className="font-black text-slate-900">Anamnese estruturada</h2><p className="text-sm text-slate-500">História clínica, revisão de sistemas, exame físico e conduta inicial.</p></div></div>
-        <form action={salvarAnamnese} className="mt-5 space-y-4">
-          <input type="hidden" name="atendimento_id" value={atendimentoId}/>
-          <Field label="Queixa principal"><textarea name="queixa_principal" rows={2} className="ui-input" required/></Field>
-          <Field label="História da doença atual"><textarea name="historia_doenca_atual" rows={4} className="ui-input"/></Field>
-          <div className="grid gap-4 md:grid-cols-2"><Field label="Antecedentes pessoais"><textarea name="antecedentes_pessoais" rows={3} className="ui-input"/></Field><Field label="Antecedentes familiares"><textarea name="antecedentes_familiares" rows={3} className="ui-input"/></Field></div>
-          <div className="grid gap-4 md:grid-cols-2"><Field label="Hábitos de vida"><textarea name="habitos_vida" rows={3} className="ui-input"/></Field><Field label="Medicações em uso"><textarea name="medicacoes_uso" rows={3} className="ui-input"/></Field></div>
-          <div><p className="mb-2 text-sm font-bold text-slate-700">Revisão de sistemas</p><div className="grid gap-3 md:grid-cols-2"><input name="rs_cardio" className="ui-input" placeholder="Cardiovascular"/><input name="rs_resp" className="ui-input" placeholder="Respiratório"/><input name="rs_gastro" className="ui-input" placeholder="Gastrointestinal"/><input name="rs_genito" className="ui-input" placeholder="Geniturinário"/><input name="rs_neuro" className="ui-input" placeholder="Neurológico"/><input name="rs_musculo" className="ui-input" placeholder="Musculoesquelético"/><input name="rs_pele" className="ui-input md:col-span-2" placeholder="Pele e anexos"/></div></div>
-          <Field label="Exame físico geral"><textarea name="exame_fisico_geral" rows={4} className="ui-input"/></Field>
-          <div className="grid gap-4 md:grid-cols-2"><Field label="Hipótese diagnóstica"><textarea name="hipotese_diagnostica" rows={3} className="ui-input"/></Field><Field label="Conduta inicial"><textarea name="conduta_inicial" rows={3} className="ui-input"/></Field></div>
+        <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-brand-50 text-brand-700"><ClipboardCheck className="size-5"/></span><div><h2 className="font-black text-slate-900">Anamnese estruturada</h2><p className="text-sm text-slate-500">História clínica, revisão de sistemas, exame físico e conduta inicial. As alterações são salvas automaticamente enquanto você digita.</p></div></div>
+        <ClinicalAutosaveForm tipo="anamnese" atendimentoId={atendimentoId} registroId={anamneseRascunho?.id ?? null} className="mt-5 space-y-4">
+          <Field label="Queixa principal"><textarea name="queixa_principal" rows={2} className="ui-input" required defaultValue={anamneseRascunho?.queixa_principal ?? ""}/></Field>
+          <Field label="História da doença atual"><textarea name="historia_doenca_atual" rows={4} className="ui-input" defaultValue={anamneseRascunho?.historia_doenca_atual ?? ""}/></Field>
+          <div className="grid gap-4 md:grid-cols-2"><Field label="Antecedentes pessoais"><textarea name="antecedentes_pessoais" rows={3} className="ui-input" defaultValue={anamneseRascunho?.antecedentes_pessoais ?? ""}/></Field><Field label="Antecedentes familiares"><textarea name="antecedentes_familiares" rows={3} className="ui-input" defaultValue={anamneseRascunho?.antecedentes_familiares ?? ""}/></Field></div>
+          <div className="grid gap-4 md:grid-cols-2"><Field label="Hábitos de vida"><textarea name="habitos_vida" rows={3} className="ui-input" defaultValue={anamneseRascunho?.habitos_vida ?? ""}/></Field><Field label="Medicações em uso"><textarea name="medicacoes_uso" rows={3} className="ui-input" defaultValue={anamneseRascunho?.medicacoes_uso ?? ""}/></Field></div>
+          <div><p className="mb-2 text-sm font-bold text-slate-700">Revisão de sistemas</p><div className="grid gap-3 md:grid-cols-2"><input name="rs_cardio" className="ui-input" placeholder="Cardiovascular" defaultValue={valorJson(revisaoRascunho.cardiovascular) ?? ""}/><input name="rs_resp" className="ui-input" placeholder="Respiratório" defaultValue={valorJson(revisaoRascunho.respiratorio) ?? ""}/><input name="rs_gastro" className="ui-input" placeholder="Gastrointestinal" defaultValue={valorJson(revisaoRascunho.gastrointestinal) ?? ""}/><input name="rs_genito" className="ui-input" placeholder="Geniturinário" defaultValue={valorJson(revisaoRascunho.geniturinario) ?? ""}/><input name="rs_neuro" className="ui-input" placeholder="Neurológico" defaultValue={valorJson(revisaoRascunho.neurologico) ?? ""}/><input name="rs_musculo" className="ui-input" placeholder="Musculoesquelético" defaultValue={valorJson(revisaoRascunho.musculoesqueletico) ?? ""}/><input name="rs_pele" className="ui-input md:col-span-2" placeholder="Pele e anexos" defaultValue={valorJson(revisaoRascunho.pele) ?? ""}/></div></div>
+          <Field label="Exame físico geral"><textarea name="exame_fisico_geral" rows={4} className="ui-input" defaultValue={anamneseRascunho?.exame_fisico_geral ?? ""}/></Field>
+          <div className="grid gap-4 md:grid-cols-2"><Field label="Hipótese diagnóstica"><textarea name="hipotese_diagnostica" rows={3} className="ui-input" defaultValue={anamneseRascunho?.hipotese_diagnostica ?? ""}/></Field><Field label="Conduta inicial"><textarea name="conduta_inicial" rows={3} className="ui-input" defaultValue={anamneseRascunho?.conduta_inicial ?? ""}/></Field></div>
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4"><button name="acao" value="salvar" className="btn-secondary">Salvar rascunho</button><button name="acao" value="assinar" className="ui-button-primary"><ShieldCheck className="size-4"/>Salvar e assinar</button></div>
-        </form>
+        </ClinicalAutosaveForm>
       </section>
 
       <aside className="space-y-5">
@@ -89,12 +168,21 @@ export default async function ProntuarioClinicoPage({ params, searchParams }: { 
     </section>
 
     <section className="his-card mt-6 p-5 sm:p-6">
-      <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-700"><HeartPulse className="size-5"/></span><div><h2 className="font-black text-slate-900">Evolução SOAP + exame físico + conduta</h2><p className="text-sm text-slate-500">Registro clínico evolutivo com assinatura e bloqueio do conteúdo assinado.</p></div></div>
-      <form action={registrarEvolucaoSoap} className="mt-5 space-y-4"><input type="hidden" name="atendimento_id" value={atendimentoId}/><div className="grid gap-4 md:grid-cols-2"><Field label="S · Subjetivo"><textarea name="subjetivo" rows={4} className="ui-input"/></Field><Field label="O · Objetivo"><textarea name="objetivo" rows={4} className="ui-input"/></Field><Field label="A · Avaliação"><textarea name="avaliacao" rows={4} className="ui-input"/></Field><Field label="P · Plano"><textarea name="plano" rows={4} className="ui-input"/></Field></div><div className="grid gap-4 md:grid-cols-2"><Field label="Exame físico"><textarea name="exame_fisico" rows={4} className="ui-input"/></Field><Field label="Conduta"><textarea name="conduta" rows={4} className="ui-input"/></Field></div><div className="grid gap-4 md:grid-cols-2"><input name="cid10" className="ui-input" placeholder="CID-10 relacionado"/><input name="retorno" className="ui-input" placeholder="Retorno / reavaliação"/></div><div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button name="acao" value="salvar" className="btn-secondary">Salvar rascunho</button><button name="acao" value="assinar" className="ui-button-primary"><ShieldCheck className="size-4"/>Salvar e assinar</button></div></form>
+      <div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-700"><HeartPulse className="size-5"/></span><div><h2 className="font-black text-slate-900">Evolução SOAP + exame físico + conduta</h2><p className="text-sm text-slate-500">Registro evolutivo com autosave, assinatura e bloqueio do conteúdo assinado.</p></div></div>
+      <ClinicalAutosaveForm tipo="soap" atendimentoId={atendimentoId} registroId={soapRascunho?.id ?? null} className="mt-5 space-y-4">
+        <div className="grid gap-4 md:grid-cols-2"><Field label="S · Subjetivo"><textarea name="subjetivo" rows={4} className="ui-input" defaultValue={soapRascunho?.subjetivo ?? ""}/></Field><Field label="O · Objetivo"><textarea name="objetivo" rows={4} className="ui-input" defaultValue={soapRascunho?.objetivo ?? ""}/></Field><Field label="A · Avaliação"><textarea name="avaliacao" rows={4} className="ui-input" defaultValue={soapRascunho?.avaliacao ?? ""}/></Field><Field label="P · Plano"><textarea name="plano" rows={4} className="ui-input" defaultValue={soapRascunho?.plano ?? ""}/></Field></div>
+        <div className="grid gap-4 md:grid-cols-2"><Field label="Exame físico"><textarea name="exame_fisico" rows={4} className="ui-input" defaultValue={soapRascunho?.exame_fisico ?? ""}/></Field><Field label="Conduta"><textarea name="conduta" rows={4} className="ui-input" defaultValue={soapRascunho?.conduta ?? ""}/></Field></div>
+        <div className="grid gap-4 md:grid-cols-2"><input name="cid10" className="ui-input" placeholder="CID-10 relacionado" defaultValue={valorJson(soapEstruturado.cid10) ?? ""}/><input name="retorno" className="ui-input" placeholder="Retorno / reavaliação" defaultValue={valorJson(soapEstruturado.retorno) ?? ""}/></div>
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4"><button name="acao" value="salvar" className="btn-secondary">Salvar rascunho</button><button name="acao" value="assinar" className="ui-button-primary"><ShieldCheck className="size-4"/>Salvar e assinar</button></div>
+      </ClinicalAutosaveForm>
     </section>
 
-    <section className="his-card mt-6 p-5 sm:p-6"><h2 className="font-black text-slate-900">Histórico clínico deste atendimento</h2><div className="mt-4 grid gap-3 lg:grid-cols-2">{[...anamneses.map(a => ({ id:a.id,tipo:"Anamnese",data:a.created_at,assinado:a.assinado_em,prof:one(a.profissional)?.nome_completo,resumo:a.queixa_principal || a.historia_doenca_atual })),...evolucoes.map(e => ({ id:e.id,tipo:"SOAP",data:e.created_at,assinado:e.assinado_em,prof:one(e.profissional)?.nome_completo,resumo:e.avaliacao || e.subjetivo }))].sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(item => <article key={`${item.tipo}-${item.id}`} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><strong className="text-sm text-slate-900">{item.tipo}</strong>{item.assinado ? <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">ASSINADO</span> : <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">RASCUNHO</span>}</div><p className="mt-1 text-xs text-slate-400">{fmtData(item.data)} · {item.prof || "Profissional"}</p>{item.resumo ? <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">{item.resumo}</p> : null}</article>)}</div></section>
+    <section className="his-card mt-6 p-5 sm:p-6">
+      <div><h2 className="font-black text-slate-900">Histórico clínico deste atendimento</h2><p className="mt-1 text-sm text-slate-500">Clique em qualquer registro para visualizar integralmente o que foi lançado, sem sair do atendimento aberto.</p></div>
+      {historicoItens.length ? <HistoricoClinicoModal itens={historicoItens}/> : <Empty text="Nenhuma anamnese ou evolução registrada neste atendimento."/>}
+    </section>
   </SectionPage>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-sm font-bold text-slate-700">{label}</span>{children}</label>; }
+function Empty({ text }: { text: string }) { return <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">{text}</p>; }

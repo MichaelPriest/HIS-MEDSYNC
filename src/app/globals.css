@@ -86,7 +86,7 @@ summary::-webkit-details-marker { display: none; }
   .his-kpi {
     @apply rounded-[20px] border bg-white p-5;
     border-color: var(--his-border);
-    box-shadow: 0 10px 30px rgba(15,31,68,.055);
+    box-shadow: 0 10px 30px rgba(15, 31, 68, .055);
   }
 
   .his-eyebrow { @apply text-[11px] font-bold uppercase tracking-[0.16em] text-brand-600; }
@@ -136,10 +136,6 @@ details[open] > summary svg { transition: transform var(--motion-normal) var(--m
 * { scrollbar-width: thin; scrollbar-color: #c8d3e2 transparent; }
 
 @media print {
-  @page { size: 80mm auto; margin: 2mm; }
-  html, body { width: 80mm; min-height: auto; margin: 0 !important; padding: 0 !important; background: #fff !important; }
-  body * { visibility: hidden !important; }
-  .totem-print-ticket, .totem-print-ticket * { visibility: visible !important; }
   .totem-no-print { display: none !important; }
   .totem-print-ticket { display: block !important; position: absolute; inset: 0 auto auto 0; width: 76mm; padding: 3mm 2mm 5mm; color: #000; background: #fff; text-align: center; font-family: Arial, Helvetica, sans-serif; }
   .totem-print-brand { font-size: 18pt; font-weight: 900; letter-spacing: .08em; }
