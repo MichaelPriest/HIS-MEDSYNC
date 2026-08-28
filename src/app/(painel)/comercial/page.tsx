@@ -109,6 +109,8 @@ type Evento = {
   acao: string;
   antes: Record<string, unknown> | null;
   depois: Record<string, unknown> | null;
+  contexto_contrato_id: string | null;
+  contexto_edicao_id: string | null;
   created_at: string;
 };
 type SearchParams = {
@@ -244,7 +246,18 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
   let events: Evento[] = [];
   if (selectedContract) {
     const ids = [selectedContract.id, ...vinculos.map((item) => item.id), ...(selectedEdition ? [selectedEdition.id] : [])];
-    const evtReq = await supabase.from("comercial_eventos").select("id,entidade_tipo,entidade_id,acao,antes,depois,created_at").eq("empresa_id", empresaId).in("entidade_id", ids).order("created_at", { ascending: false }).limit(100);
+    const contextFilters = [
+      `entidade_id.in.(${ids.join(",")})`,
+      `contexto_contrato_id.eq.${selectedContract.id}`,
+      ...(selectedEdition ? [`contexto_edicao_id.eq.${selectedEdition.id}`] : []),
+    ];
+    const evtReq = await supabase
+      .from("comercial_eventos")
+      .select("id,entidade_tipo,entidade_id,acao,antes,depois,contexto_contrato_id,contexto_edicao_id,created_at")
+      .eq("empresa_id", empresaId)
+      .or(contextFilters.join(","))
+      .order("created_at", { ascending: false })
+      .limit(100);
     events = (evtReq.data ?? []) as Evento[];
   }
 
@@ -355,7 +368,7 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
               </> : <Warning text="Este vínculo não possui uma edição resolvida. Abra a aba Negociação e selecione uma edição fixa ou corrija a vigência."/>}
             </section> : null}
 
-            {aba === "historico" ? <section className="his-card mt-4 p-5"><div className="flex items-center gap-2"><FileClock className="size-5 text-brand-700"/><div><h2 className="font-black text-slate-950">Histórico contratual e de negociação</h2><p className="text-sm text-slate-500">Contrato, vínculos, versões e alterações ficam auditados.</p></div></div><div className="mt-4 space-y-2">{events.map((event) => <article key={event.id} className="rounded-xl border border-slate-100 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><b className="text-sm text-slate-800">{eventLabel(event.entidade_tipo)}</b><p className="text-xs text-slate-500">{new Date(event.created_at).toLocaleString("pt-BR")}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-600">{event.acao}</span></div>{event.antes || event.depois ? <details className="mt-2"><summary className="cursor-pointer text-xs font-black text-brand-700">Ver alteração</summary><div className="mt-2 grid gap-2 lg:grid-cols-2"><JsonBlock title="Antes" value={event.antes}/><JsonBlock title="Depois" value={event.depois}/></div></details> : null}</article>)}{!events.length ? <p className="py-8 text-center text-sm text-slate-500">Ainda não há eventos auditados para este contexto.</p> : null}</div></section> : null}
+            {aba === "historico" ? <section className="his-card mt-4 p-5"><div className="flex items-center gap-2"><FileClock className="size-5 text-brand-700"/><div><h2 className="font-black text-slate-950">Histórico contratual e de negociação</h2><p className="text-sm text-slate-500">Contrato, vínculos, versões e alterações de itens ficam auditados no contexto selecionado.</p></div></div><div className="mt-4 space-y-2">{events.map((event) => <article key={event.id} className="rounded-xl border border-slate-100 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><b className="text-sm text-slate-800">{eventLabel(event.entidade_tipo)}</b><p className="text-xs text-slate-500">{new Date(event.created_at).toLocaleString("pt-BR")}</p></div><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-600">{event.acao}</span></div>{event.antes || event.depois ? <details className="mt-2"><summary className="cursor-pointer text-xs font-black text-brand-700">Ver alteração</summary><div className="mt-2 grid gap-2 lg:grid-cols-2"><JsonBlock title="Antes" value={event.antes}/><JsonBlock title="Depois" value={event.depois}/></div></details> : null}</article>)}{!events.length ? <p className="py-8 text-center text-sm text-slate-500">Ainda não há eventos auditados para este contexto.</p> : null}</div></section> : null}
           </> : <section className="his-card p-10 text-center"><Handshake className="mx-auto size-9 text-slate-300"/><p className="mt-3 font-black text-slate-700">Nenhum contrato disponível.</p><p className="mt-1 text-sm text-slate-500">Cadastre um contrato para iniciar a negociação comercial.</p></section>}
         </main>
       </div>
