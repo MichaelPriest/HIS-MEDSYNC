@@ -16,8 +16,28 @@ const decimal = (value: string) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 const comprasRoute = "/compras";
+const alcadasRoute = "/compras/alcadas";
 const solicitacaoRoute = (id: string, suffix = "") => asRoute(`/compras/solicitacoes/${id}${suffix}`);
 const cotacaoRoute = (id: string, suffix = "") => asRoute(`/compras/cotacoes/${id}${suffix}`);
+
+function comprasErrorKey(error: unknown, fallback: string) {
+  const value = error && typeof error === "object"
+    ? `${String((error as { code?: unknown }).code ?? "")} ${String((error as { message?: unknown }).message ?? "")}`
+    : String(error ?? "");
+  const known: Array<[string, string]> = [
+    ["COMPRAS_ALCADA_NAO_CONFIGURADA", "alcada-nao-configurada"],
+    ["COMPRAS_APROVADOR_FORA_DA_ALCADA", "fora-da-alcada"],
+    ["COMPRAS_SEGREGACAO_SOLICITANTE_APROVADOR", "segregacao"],
+    ["COMPRAS_APROVADOR_JA_DECIDIU", "ja-decidiu"],
+    ["COMPRAS_ALCADA_FAIXA_SOBREPOSTA", "faixa-sobreposta"],
+    ["COMPRAS_ALCADA_PERFIL_SEM_PERMISSAO_APROVAR", "perfil-sem-aprovacao"],
+    ["COMPRAS_ALCADA_SEM_PERFIS", "sem-perfis"],
+    ["COMPRAS_VALOR_ALTERADO_APOS_APROVACAO", "valor-alterado"],
+    ["COMPRAS_APROVACAO_INSUFICIENTE", "aprovacao-insuficiente"],
+    ["COMPRAS_COTACAO_JA_CONVERTIDA_PEDIDO", "pedido-ja-emitido"],
+  ];
+  return known.find(([needle]) => value.includes(needle))?.[1] ?? fallback;
+}
 
 export async function criarSolicitacaoCompra(formData: FormData) {
   const { supabase, user, empresaId, unidadeId } = await requireAnyPermission(["compras.solicitar", "compras.gerenciar"]);
@@ -164,29 +184,88 @@ export async function salvarPropostaItemCotacao(formData: FormData) {
   redirect(cotacaoRoute(cotacaoId, "?sucesso=proposta"));
 }
 
+export async function salvarAlcadaCompra(formData: FormData) {
+  const { supabase, empresaId, unidadeId } = await requireAnyPermission(["compras.gerenciar"]);
+  const id = text(formData, "alcada_id") || null;
+  const valorMaxRaw = text(formData, "valor_max");
+  const perfis = formData.getAll("perfil_id").map((item) => String(item).trim()).filter(Boolean);
+  const { error } = await supabase.rpc("salvar_alcada_compra_operacional", {
+    p_id: id,
+    p_empresa: empresaId,
+    p_unidade: unidadeId,
+    p_nome: text(formData, "nome"),
+    p_valor_min: decimal(text(formData, "valor_min")),
+    p_valor_max: valorMaxRaw ? decimal(valorMaxRaw) : null,
+    p_aprovacoes_necessarias: Number(text(formData, "aprovacoes_necessarias") || 0),
+    p_perfis: perfis,
+    p_ativa: formData.has("ativa"),
+  });
+  if (error) {
+    console.error("[compras] salvar alcada", { code: error.code });
+    redirect(asRoute(`${alcadasRoute}?erro=${comprasErrorKey(error, "salvar")}`));
+  }
+  revalidatePath(alcadasRoute);
+  revalidatePath(comprasRoute);
+  redirect(asRoute(`${alcadasRoute}?sucesso=salva`));
+}
+
 export async function aprovarFornecedorCotacao(formData: FormData) {
-  const { supabase } = await requireAnyPermission(["compras.aprovar", "compras.gerenciar"]);
+  const { supabase } = await requireAnyPermission(["compras.aprovar"]);
   const cotacaoId = text(formData, "cotacao_id");
   const fornecedorId = text(formData, "fornecedor_id");
   if (!cotacaoId || !fornecedorId) redirect(asRoute(comprasRoute));
   const { error } = await supabase.rpc("aprovar_fornecedor_cotacao_operacional", { p_cotacao_id: cotacaoId, p_fornecedor_id: fornecedorId });
   if (error) {
     console.error("[compras] aprovar fornecedor", { code: error.code });
-    redirect(cotacaoRoute(cotacaoId, "?erro=aprovar"));
+    redirect(cotacaoRoute(cotacaoId, `?erro=${comprasErrorKey(error, "aprovar")}`));
   }
   revalidatePath(`/compras/cotacoes/${cotacaoId}`);
   revalidatePath(comprasRoute);
-  redirect(cotacaoRoute(cotacaoId, "?sucesso=aprovada"));
+  redirect(cotacaoRoute(cotacaoId, "?sucesso=aprovacao-registrada"));
+}
+
+export async function rejeitarCotacaoCompra(formData: FormData) {
+  const { supabase } = await requireAnyPermission(["compras.aprovar"]);
+  const cotacaoId = text(formData, "cotacao_id");
+  if (!cotacaoId) redirect(asRoute(comprasRoute));
+  const { error } = await supabase.rpc("rejeitar_cotacao_compra_operacional", {
+    p_cotacao_id: cotacaoId,
+    p_observacoes: text(formData, "observacoes"),
+  });
+  if (error) {
+    console.error("[compras] rejeitar cotacao", { code: error.code });
+    redirect(cotacaoRoute(cotacaoId, `?erro=${comprasErrorKey(error, "rejeitar")}`));
+  }
+  revalidatePath(`/compras/cotacoes/${cotacaoId}`);
+  revalidatePath(comprasRoute);
+  redirect(cotacaoRoute(cotacaoId, "?sucesso=rejeitada"));
+}
+
+export async function reiniciarAprovacaoCotacao(formData: FormData) {
+  const { supabase } = await requireAnyPermission(["compras.gerenciar"]);
+  const cotacaoId = text(formData, "cotacao_id");
+  if (!cotacaoId) redirect(asRoute(comprasRoute));
+  const { error } = await supabase.rpc("reiniciar_aprovacao_cotacao_operacional", {
+    p_cotacao_id: cotacaoId,
+    p_motivo: text(formData, "motivo"),
+  });
+  if (error) {
+    console.error("[compras] reiniciar aprovacao", { code: error.code });
+    redirect(cotacaoRoute(cotacaoId, `?erro=${comprasErrorKey(error, "reiniciar")}`));
+  }
+  revalidatePath(`/compras/cotacoes/${cotacaoId}`);
+  revalidatePath(comprasRoute);
+  redirect(cotacaoRoute(cotacaoId, "?sucesso=aprovacao-reiniciada"));
 }
 
 export async function gerarPedidoDaCotacao(formData: FormData) {
-  const { supabase } = await requireAnyPermission(["compras.aprovar", "compras.gerenciar"]);
+  const { supabase } = await requireAnyPermission(["compras.aprovar"]);
   const cotacaoId = text(formData, "cotacao_id");
   if (!cotacaoId) redirect(asRoute(comprasRoute));
   const { data, error } = await supabase.rpc("gerar_pedido_cotacao_aprovada", { p_cotacao_id: cotacaoId });
   if (error || !data) {
     console.error("[compras] gerar pedido", { code: error?.code });
-    redirect(cotacaoRoute(cotacaoId, "?erro=pedido"));
+    redirect(cotacaoRoute(cotacaoId, `?erro=${comprasErrorKey(error, "pedido")}`));
   }
   revalidatePath(comprasRoute);
   revalidatePath(`/compras/cotacoes/${cotacaoId}`);
