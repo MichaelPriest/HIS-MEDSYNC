@@ -1,6 +1,6 @@
 # Estado real da implementação
 
-Atualizado em 2026-08-27.
+Atualizado em 2026-08-28.
 
 Este documento registra o estado **real** do MedSync HIS. A existência de uma rota, tabela ou migration não significa homologação hospitalar. O sistema permanece em desenvolvimento e os módulos abaixo devem ser tratados como fundação, fluxo operacional em evolução ou pendência, conforme indicado.
 
@@ -9,16 +9,17 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | Área | Estado atual | Próximos pontos críticos |
 |---|---|---|
 | Fundação / Auth / multiempresa | Funcional em evolução. RBAC granular, contexto por empresa/unidade, seleção de perfil, RLS e helpers de autorização já existem. O PR #71 adiciona metadados de perfil (`setor_chave`, `nivel_acesso`, `pagina_inicial`, `ordem_navegacao`) e passa a usar o perfil também para organizar a experiência, sem substituir RLS/permissões como fronteira de segurança. | testes RLS multi-tenant completos, break-glass clínico controlado e hardening progressivo dos RPCs legados ainda sinalizados pelos Advisors |
-| Interface / navegação | Reestruturada no PR #71. A antiga concentração em `Central Assistencial` e `Setores especializados` foi substituída por macroáreas hospitalares e um grupo prioritário **Meu setor**. O perfil ativo determina setor, nível e página inicial; as permissões continuam determinando o que pode ser aberto. | validar usabilidade autenticada por perfis reais, busca global ampliada, acessibilidade e persistência opcional de preferências de navegação |
+| Interface / navegação | Reestruturada no PR #71. A antiga concentração em `Central Assistencial` e `Setores especializados` foi substituída por macroáreas hospitalares e um grupo prioritário **Meu setor**. O perfil ativo determina setor, nível e página inicial; as permissões continuam determinando o que pode ser aberto. PR #73 inclui a Central de Pendências Intersetoriais e o PR #74 a expõe no **Meu setor** de Farmácia e Enfermagem. | validar usabilidade autenticada por perfis reais, busca global ampliada, acessibilidade e persistência opcional de preferências de navegação |
 | Central Assistencial | Deixa de ser um menu-depósito. No PR #71 vira um mapa assistencial filtrado pelo perfil e pelas permissões, direcionando para workspaces setoriais em vez de duplicar operações. | homologar agrupamentos com equipes assistenciais e ajustar atalhos conforme uso real |
+| Integração intersetorial | PR #73 criou `/integracoes`, `integracao_eventos` append-only e `integracao_pendencias`, com reconciliação derivada sem editar fatos clínicos. PR #74 amplia o ledger e as regras para `Prescrição → Farmácia → Enfermagem → Estoque → Produção`. | ampliar cobertura por jornada, SLAs/ownership, E2E autenticado por perfil e rotina operacional de saneamento das pendências históricas |
 | Recepção / Totem / Senhas | Base funcional. Demanda espontânea segue `Totem/Senha → Recepção → atendimento → Triagem`. Paciente agendado pode fazer check-in direto, sem obrigação do Totem. | impressão, SLA, prioridades, abuso/rate limit de endpoints públicos e homologação do painel de chamadas |
 | Agenda | Base em evolução: visão diária/semanal, confirmação, check-in, faltas/cancelamentos, encaixe, retorno, especialidade, local, convênio/plano e identificação de cirurgia eletiva. O PR #72 substitui listas extensas de profissionais pela busca remota global por nome, CPF, conselho, número do conselho, UF, especialidade e CBO. | disponibilidade/bloqueios, recorrência, lembretes, reagendamento e homologação do agendamento cirúrgico |
 | Atendimento / ADT | Base funcional, mantendo um único episódio/RA para o atendimento. Identificação já suporta etiqueta e pulseira com QR para o ciclo assistencial. O PR #72 aplica a mesma busca global de profissional na admissão, preservando retorno em 30 dias e validações TISS de conselho/CBO. | regras ADT completas, transferências, documentos e configuração de formatos/impressoras por unidade |
 | Triagem / Fila médica | Base funcional ampliada. Fila médica setorial por PS, Ambulatório, Internação e outros setores; `Chamar e assumir` preserva o setor do episódio. | protocolos configuráveis, SLA, reclassificação e lotação por consultório/setor |
 | Prontuário / histórico longitudinal | Workspace central do episódio. Resumo, histórico, anamnese/evolução, prescrição e documentos usam o mesmo atendimento. PR #70 integra laudos LIS/RIS liberados e alertas críticos; PR #71 amplia a leitura clínica para anexos GED vinculados a laudos liberados; PR #72 acrescenta a aba **Cirurgia**, reunindo histórico cirúrgico acessível do paciente, checklists, anestesia, RPA, OPME, CME e timeline auditável sem transformar o médico em operador do Centro Cirúrgico. | assinatura/adendos adicionais, protocolos, interações/alergias e homologação clínica/regulatória |
-| Prescrição | Base funcional com documentos/receituários e ciclo medicamentoso conectado à Farmácia/Enfermagem. | regras clínicas adicionais, interações, função renal, protocolos e homologação |
-| Enfermagem | Base funcional em evolução. Checagem à beira-leito, aprazamento, pulseira/QR, lote, dispensação, dupla checagem, contingência e eventos auditáveis. | SAE completo, balanço, evolução, escalas, alto risco e indicadores |
-| Farmácia | Base funcional avançada. FEFO transacional, divisão entre lotes, bloqueio/quarentena/vencimento, devolução por lote, estoque e conciliação medicamentosa integrados. | análise clínica ampliada, reposição setorial, indicadores e homologação farmacêutica |
+| Prescrição | Base funcional com documentos/receituários e ciclo medicamentoso conectado à Farmácia/Enfermagem. PR #74 registra prescrição assinada no ledger transversal e reconcilia validação farmacêutica obrigatória sem alterar o documento clínico. | regras clínicas adicionais, interações, função renal, protocolos e homologação |
+| Enfermagem | Base funcional em evolução. Checagem à beira-leito, aprazamento, pulseira/QR, lote, dispensação, dupla checagem, contingência e eventos auditáveis. PR #74 correlaciona administração concluída com dispensação e produção e encaminha divergências à Central. | SAE completo, balanço, evolução, escalas, alto risco, indicadores e homologação do ciclo de medicamentos |
+| Farmácia | Base funcional avançada. FEFO transacional, divisão entre lotes, bloqueio/quarentena/vencimento, devolução por lote, estoque e conciliação medicamentosa integrados. PR #74 registra validação/dispensação/devolução no ledger e bloqueia prospectivamente nova dispensação em prescrição com único aprazamento já atendido/sem saldo operacional. | análise clínica ampliada, reposição setorial, indicadores, saneamento de legado e homologação farmacêutica |
 | Laboratório / LIS | Base operacional avançada. Pedido vinculado ao atendimento/paciente, accession/etiqueta, coleta, recebimento/rejeição, cadeia de custódia, setor/bancada, analisador, resultados, referência, flags/críticos, comunicação/read-back, validação técnica, laudo assinado e histórico/retificação. PR #71 acrescenta anexos GED vinculados diretamente ao laudo. | homologação com pedidos clínicos reais, interfaces com equipamentos, protocolos e validação das bancadas/setores reais |
 | Diagnóstico por Imagem / RIS | Base operacional avançada. Pedido, agenda/status, execução, accession, sala/equipamento, contraste/dose, Study/Series UID, PACS, achados/conclusão/recomendações, laudo assinado/retificável e crítico com comunicação obrigatória. PR #71 acrescenta anexos GED vinculados diretamente ao laudo. | integração de visualizador/storage DICOM/PACS do provedor escolhido e homologação radiológica |
 | GED | Evoluído no PR #71 de listagem para fluxo funcional: Storage privado, upload direto por URL assinada, limite/MIME no bucket, SHA-256, detalhe, download/visualização temporária, status, assinatura de integridade, imutabilidade após assinatura e versionamento sem sobrescrever arquivo. Pode vincular atendimento, paciente, profissional, convênio, lote TISS, conta e laudos LIS/RIS. | homologar categorias/documentos por setor, retenção/temporalidade, política de descarte e integrações adicionais |
@@ -29,16 +30,38 @@ Este documento registra o estado **real** do MedSync HIS. A existência de uma r
 | RH | Banco, RLS e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/rh` com indicadores de colaboradores, escalas, treinamentos e documentos. | CRUD/fluxos completos, escalas, documentos no GED, saúde ocupacional e integrações de acesso |
 | Segurança / Portaria / Visitantes | Banco e permissões já existiam, mas não havia rota própria. PR #71 cria hub `/seguranca` com acessos, credenciais, visitantes e ocorrências. | operação de check-in/out, credenciais, dispositivos/portaria e relatórios de segurança |
 | Estrutura hospitalar | Hierarquia física e leitos já existem com separação entre cadastro e operação assistencial. | edição/inativação controlada, cadastro real das unidades e capacidade |
-| Compras / Almoxarifado | Bases funcionais; estoque e catálogo assistencial já se relacionam. | alçadas, recebimento divergente/parcial, inventário, reposição e rastreabilidade completa |
+| Compras / Almoxarifado | Bases funcionais; estoque e catálogo assistencial já se relacionam. PR #74 reconcilia baixa de dispensação e retorno de devolução contra `estoque_movimentos`, sem fabricar movimentos retroativos para dados legados. | alçadas, recebimento divergente/parcial, inventário, reposição, saneamento das divergências históricas e rastreabilidade completa |
 | Comercial / Credenciamento / Tabelas | Reestruturado no PR #72 como workspace operacional único em `/comercial`: seleção de contrato, dados/vigência, negociação por tabela, versões/edições, visualização paginada dos itens, busca por código/descrição/TUSS, edição de contrato, vínculo e coeficientes, inclusão/alteração/inativação de itens em edição rascunho, publicação imutável e histórico auditável. A central prioriza automaticamente uma tabela com itens em vez de abrir um vínculo vazio. | homologar contratos reais por operadora, revisar vínculos vazios/duplicados, importar bases licenciadas que ainda estejam sem itens e ampliar testes automatizados de precificação contratual |
 | Auditoria / Contas Médicas | Bases funcionais com hardening de operações sensíveis. | regras automáticas, segregação de funções, checklist por convênio e testes de autorização |
-| Faturamento / Livro de produção | Base funcional e integrada aos eventos assistenciais/conta. PR #72 registra automaticamente o procedimento cirúrgico e OPME utilizada no livro de produção durante a conclusão e cria/atualiza o grupo do ato cirúrgico quando existe conta aberta compatível. | completar automações de consumo, fechamento e homologação financeira/TISS |
+| Faturamento / Livro de produção | Base funcional e integrada aos eventos assistenciais/conta. PR #72 registra automaticamente o procedimento cirúrgico e OPME utilizada no livro de produção durante a conclusão e cria/atualiza o grupo do ato cirúrgico quando existe conta aberta compatível. PR #74 passa a sinalizar produção de medicamento incompatível com o desfecho de administração, sem alterar automaticamente o fato faturável. | completar automações de consumo, fechamento e homologação financeira/TISS |
 | TISS | Estrutura funcional, ainda não homologada integralmente. Validador anti-glosa, status de guia, requisitos para lote e proteção de itens já existem. | XSD oficial por versão/tipo, XML definitivo, adapters das operadoras e homologação |
 | Glosas / Recursos | Base funcional. | importação automática de demonstrativos, XML definitivo e ciclo de recurso/retorno completo |
 | Financeiro | Parcialmente integrado ao ciclo da receita. | baixas, retenções, conciliação, contas a pagar e caixa |
 | NFS-e | Estrutura disponível. | adapters reais dos municípios/provedores utilizados |
 | Diretoria | Base de gestão. | KPIs, metas, filtros, drill-down e governança |
 | TI / Engenharia Clínica | Bases operacionais existentes e agora organizadas na macroárea de apoio/gestão. | ampliar automações, inventário, contratos, manutenção preventiva e indicadores |
+
+## Integração ponta a ponta — PR #73 e PR #74
+
+O PR #73, já mesclado na `main`, introduziu uma camada **derivada** de integração hospitalar. `integracao_eventos` preserva um ledger append-only/idempotente de fatos finalizados entre setores e `integracao_pendencias` registra divergências que exigem ação, sem transformar a central em nova fonte de prontuário, estoque, laudo, cirurgia ou faturamento.
+
+A primeira cobertura correlaciona diagnóstico, cirurgia/OPME, produção, código e autorização. A rota `/integracoes` exige `integracao.visualizar`; a reconciliação exige `integracao.reconciliar`, usuário autenticado e unidade no escopo. Helpers internos permanecem sem `EXECUTE` para `anon`/`authenticated`.
+
+O PR #74 amplia a mesma arquitetura para:
+
+`Prescrição assinada → validação farmacêutica → dispensação FEFO → administração à beira-leito → estoque/devolução → Livro de Produção`.
+
+Migrations efetivamente aplicadas no Supabase conectado e versionadas no branch do PR #74:
+
+- `20260828130627_integracao_medicamentos_ponta_a_ponta.sql`;
+- `20260828131453_integracao_medicamentos_reconciliar_devolucao_historica.sql`;
+- `20260828131946_integracao_medicamentos_indices_reconciliacao.sql`.
+
+A trava prospectiva de dispensação atua somente quando existe um único aprazamento para a prescrição simples: não permite uma nova dispensação quando esse aprazamento já não está pendente ou quando existe outra dispensação operacionalmente ativa. Prescrições compostas e divisões FEFO por múltiplos lotes continuam usando seus fluxos próprios.
+
+A reconciliação atual detecta validação farmacêutica pendente, dispensação excedente, dispensação sem movimento de estoque, medicamento administrado sem produção ativa, produção incompatível com a administração concluída e devolução sem retorno rastreável ao estoque. Uma devolução histórica registrada em `devolucoes_medicamentos` é considerada evidência mesmo quando o legado não atualizou `quantidade_devolvida`, evitando alerta redundante.
+
+Estado real dos dados históricos de teste após a reconciliação do PR #74: permanecem **1 dispensação excedente de uma prescrição de dose única, 2 dispensações sem movimento de baixa de estoque e 1 devolução sem movimento de retorno**. Esses registros são anteriores ao hardening atual. O pacote deliberadamente **não cria movimentos retroativos de estoque, não reescreve prontuário e não altera produção para esconder a divergência**; a regularização deve ocorrer no setor responsável com rastreabilidade.
 
 ## Navegação por setor e perfil — PR #71
 
@@ -127,6 +150,8 @@ No PR #72, as tabelas clínicas críticas do Centro Cirúrgico/CME deixam de ace
 
 No Comercial, edições publicadas e seus itens são protegidos contra sobrescrita. A edição ocorre em versão rascunho e a publicação é auditada; policies e helpers de `comercial.*`, `credenciamento.*` e `tabelas_comerciais.*` continuam definindo leitura/escrita por empresa/unidade.
 
+Nos PRs #73/#74, a reconciliação transversal não recebe permissão para corrigir fatos clínicos ou físicos. `reconciliar_pendencias_integracao` exige sessão autenticada, unidade no escopo e `integracao.reconciliar`; os helpers internos de captura/reconciliação têm execução revogada para `public`, `anon` e `authenticated`. A central somente aponta a inconsistência e direciona o usuário ao setor responsável.
+
 O Security/Performance Advisor deve ser analisado por objeto. Avisos históricos de `SECURITY DEFINER`, endpoints públicos do Totem/Painel e outras rotinas legadas não devem ser corrigidos de forma indiscriminada dentro de um pacote funcional sem validar o fluxo que depende deles.
 
 ## Travas de negócio já consolidadas
@@ -153,12 +178,18 @@ No atendimento médico, o mesmo episódio deve ser preservado em toda a jornada:
 
 `Fila médica setorial → Resumo → Histórico longitudinal → Anamnese/Evolução → Prescrição/Documentos → Laboratório/Imagem/Farmácia/Enfermagem/Centro Cirúrgico/demais setores`.
 
+O ciclo medicamentoso mantém fontes separadas e correlacionadas:
+
+`Prescrição assinada → validação farmacêutica quando exigida → dispensação FEFO/estoque → aprazamento → administração/checagem → devolução quando aplicável → produção/conta`.
+
+A Central de Pendências não substitui nenhuma dessas etapas e não gera movimento de estoque, administração ou cobrança para “fechar” automaticamente uma divergência.
+
 Pedidos, resultados, laudos, documentos e registros assistenciais pertencem ao mesmo paciente/atendimento quando clinicamente aplicável. Dados produzidos pelos setores devem reaparecer no prontuário e nos fluxos subsequentes sem criar episódios paralelos.
 
 ## Validação do pacote atual
 
-PR ativo: **#72 — `feat(centro-cirurgico): fluxo transacional Centro Cirúrgico + CME integrado`**.
+PR ativo: **#74 — `feat: integrar medicamentos ponta a ponta`**.
 
-O PR permanece em **draft**. O pacote já inclui Centro Cirúrgico/CME, integração cirúrgica ao prontuário, busca global de profissionais, seleção cirúrgica por contrato e a central Comercial/Credenciamento/Tabelas reorganizada. O banco foi validado em fluxo transacional completo com `ROLLBACK` e as migrations aplicadas foram versionadas de forma imutável no repositório.
+O Supabase conectado já contém as migrations `20260828130627`, `20260828131453` e `20260828131946`. A reconciliação foi executada sobre os dados atuais sem criação de fatos retroativos e deixou abertas somente as divergências históricas descritas acima.
 
-No head anterior à atualização deste documento, `lint`, `typecheck`, testes, `build`, Chromium/Playwright e smoke E2E concluíram com sucesso no GitHub Actions, e o preview Vercel do mesmo SHA ficou `READY`. Como qualquer commit altera o head do PR, este documento gera uma nova rodada obrigatória de validação; o PR só deve sair de draft ou ser considerado para merge após GitHub Actions e Vercel ficarem verdes no **mesmo head final**, com revisão dos Supabase Advisors.
+O pacote inclui a trava prospectiva de dispensação em aprazamento único, ledger de eventos do ciclo de medicamentos, reconciliação Prescrição/Farmácia/Enfermagem/Estoque/Produção, navegação da Central por setor e teste unitário para Farmácia/Enfermagem. **CI e Vercel ainda devem ser considerados gates obrigatórios no head final do PR #74; este documento não os declara verdes antecipadamente.**
