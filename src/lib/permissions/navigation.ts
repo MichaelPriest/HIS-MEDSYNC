@@ -66,6 +66,7 @@ export const navigationRequirements: Record<string, readonly string[]> = {
   "/comercial": ["comercial.visualizar", "credenciamento.visualizar"],
   "/relatorios": ["diretoria.visualizar", "faturamento.visualizar", "financeiro.visualizar"],
   "/diretoria": ["diretoria.visualizar"],
+  "/integracoes": ["integracao.visualizar"],
   "/ged": ["ged.visualizar", "ged.enviar", "ged.gerenciar", "ged.administrar"],
   "/rh": ["rh.visualizar", "rh.gerenciar", "rh.escalas", "rh.treinamentos", "rh.documentos"],
   "/seguranca": ["seguranca.visualizar", "seguranca.portaria", "seguranca.gerenciar", "visitantes.visualizar", "visitantes.registrar", "visitantes.gerenciar"],

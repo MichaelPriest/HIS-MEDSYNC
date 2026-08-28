@@ -15,6 +15,7 @@ export const permissions = [
   "almoxarifado.requisitar","almoxarifado.atender",
   "rh.visualizar","rh.gerenciar","rh.escalas","rh.treinamentos","rh.documentos",
   "seguranca.visualizar","seguranca.portaria","seguranca.gerenciar","visitantes.visualizar","visitantes.registrar","visitantes.gerenciar",
+  "integracao.visualizar","integracao.reconciliar",
 ] as const;
 
 export type Permission = (typeof permissions)[number];
