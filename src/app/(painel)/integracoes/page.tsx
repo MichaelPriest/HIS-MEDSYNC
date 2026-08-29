@@ -113,7 +113,7 @@ export default async function IntegracoesPage({
     <SectionPage
       eyebrow="Operação transversal / Integração"
       title="Central de Pendências Intersetoriais"
-      description="Reconciliação derivada dos fatos já registrados no HIS. A central aponta quebras entre setores sem alterar prontuário, laudos, cirurgia, estoque, conta, TISS ou Livro de Produção. A correção deve acontecer sempre no módulo de origem responsável."
+      description="Reconciliação derivada dos fatos já registrados no HIS. A central aponta quebras entre setores sem alterar prontuário, laudos, cirurgia, estoque, conta, TISS, Livro de Produção, recebíveis, baixas ou NFS-e. A correção deve acontecer sempre no módulo de origem responsável."
     >
       {qs.sucesso === "reconciliado" ? (
         <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
@@ -134,7 +134,7 @@ export default async function IntegracoesPage({
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="font-black text-slate-900">Reconciliação operacional</h2>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Reprocessa apenas as regras de consistência. Não cria exame, laudo, cirurgia, OPME, internação, ocupação de leito, dispensação, administração, movimento de estoque, produção, conta, guia TISS, lote, glosa, recurso ou recebível.</p>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Reprocessa apenas as regras de consistência. Não cria exame, laudo, cirurgia, OPME, internação, ocupação de leito, dispensação, administração, movimento de estoque, produção, conta, guia TISS, lote, glosa, recurso, recebível, baixa financeira, conciliação ou NFS-e.</p>
           </div>
           <form action={reconciliarIntegracoesAction}>
             <button className="ui-button-secondary" disabled={!unidadeId} title={!unidadeId ? "Selecione uma unidade" : undefined}>
@@ -147,7 +147,7 @@ export default async function IntegracoesPage({
       <section className="ui-card mt-5 overflow-hidden">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="font-black text-slate-900">Pendências que exigem ação</h2>
-          <p className="mt-1 text-xs text-slate-500">Cobertura atual: diagnóstico, Centro Cirúrgico/OPME, Prescrição → Farmácia → Enfermagem → Estoque, Internação → NIR/Leitos → Alta e Conta → Auditoria → TISS → Glosa/Recurso → Financeiro.</p>
+          <p className="mt-1 text-xs text-slate-500">Cobertura atual: diagnóstico, Centro Cirúrgico/OPME, Prescrição → Farmácia → Enfermagem → Estoque, Internação → NIR/Leitos → Alta, Conta → Auditoria → TISS → Glosa/Recurso → Financeiro e Recebível → Baixa → Conciliação/NFS-e.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
