@@ -32,24 +32,6 @@ export async function criarLoteTiss(formData: FormData) {
   redirect(`/faturamento/lotes/${result.lote_id}`);
 }
 
-export async function atualizarDadosFinanceirosLote(loteId:string, formData:FormData){
-  const { supabase, user } = await getAssistencialContext();
-  const competencia=text(formData,"competencia"); const previsao=text(formData,"previsao_pagamento")||null;
-  if(!competencia) redirect(`/faturamento/lotes/${loteId}?erro=competencia`);
-  await supabase.from("tiss_lotes").update({competencia,previsao_pagamento:previsao}).eq("id",loteId);
-  await supabase.from("financeiro_recebiveis").update({competencia,previsao_pagamento:previsao,updated_by:user.id,updated_at:new Date().toISOString()}).eq("lote_id",loteId);
-  revalidatePath(`/faturamento/lotes/${loteId}`);
-}
-
-export async function registrarProtocoloEnvioOperadora(loteId:string, formData:FormData){
-  const { supabase } = await getAssistencialContext();
-  const protocolo=text(formData,"protocolo_envio_operadora"); if(!protocolo) redirect(`/faturamento/lotes/${loteId}?erro=protocolo-envio`);
-  const origem=text(formData,"origem_protocolo")||"portal";
-  await supabase.from("tiss_lotes").update({protocolo_envio_operadora:protocolo,protocolo_operadora:protocolo,origem_protocolo:origem,data_envio_manual:new Date().toISOString(),observacoes_envio:text(formData,"observacoes_envio")||null,status:"protocolado"}).eq("id",loteId);
-  await supabase.from("financeiro_recebiveis").update({status:"aguardando_pagamento",updated_at:new Date().toISOString()}).eq("lote_id",loteId);
-  revalidatePath(`/faturamento/lotes/${loteId}`);
-}
-
 export async function anexarDocumentoLote(loteId:string, formData:FormData){
   const { supabase, user, empresaId } = await getAssistencialContext();
   const arquivo=formData.get("arquivo"); const tipo=text(formData,"tipo")||"outro";
@@ -67,7 +49,12 @@ export async function gerarXmlPreliminar(loteId: string) {
   const { data: lote } = await supabase.from("tiss_lotes").select("id,numero_lote,convenio_id,versao:tiss_versoes(comunicacao_principal),guias:tiss_lote_guias(guia:tiss_guias(id,tipo_guia,numero_guia_prestador,registro_ans,numero_carteirinha,valor_total,itens:tiss_guia_itens(sequencial,tabela,codigo_procedimento,descricao,quantidade,valor_unitario,valor_total)))").eq("id", loteId).maybeSingle();
   if (!lote) redirect("/faturamento/lotes?erro=lote");
   const versaoRel = Array.isArray(lote.versao) ? lote.versao[0] : lote.versao;
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<!-- XML PRELIMINAR INTERNO. NAO ENVIAR. Requer montagem final conforme XSD oficial ANS e validacao XSD. -->\n<medsync:tissPreliminar xmlns:medsync="urn:medsync:tiss:preliminar" lote="${lote.numero_lote}">\n  <medsync:versaoComunicacao>${versaoRel?.comunicacao_principal ?? ""}</medsync:versaoComunicacao>\n  <medsync:observacao>Estrutura interna de conferencia; nao representa mensagem TISS valida para operadora.</medsync:observacao>\n</medsync:tissPreliminar>`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- XML PRELIMINAR INTERNO. NAO ENVIAR. Requer montagem final conforme XSD oficial ANS e validacao XSD. -->
+<medsync:tissPreliminar xmlns:medsync="urn:medsync:tiss:preliminar" lote="${lote.numero_lote}">
+  <medsync:versaoComunicacao>${versaoRel?.comunicacao_principal ?? ""}</medsync:versaoComunicacao>
+  <medsync:observacao>Estrutura interna de conferencia; nao representa mensagem TISS valida para operadora.</medsync:observacao>
+</medsync:tissPreliminar>`;
   await supabase.from("tiss_xmls").delete().eq("lote_id", loteId).eq("tipo_mensagem", "PRELIMINAR_INTERNO");
   const { error } = await supabase.from("tiss_xmls").insert({ lote_id:loteId, tipo_mensagem:"PRELIMINAR_INTERNO", versao_comunicacao:versaoRel?.comunicacao_principal ?? "", xml_conteudo:xml, xsd_validado:false, erros_validacao:[{codigo:"XSD_PENDENTE",mensagem:"XSD oficial ainda não instalado/validado no gerador."}] });
   if (error) redirect(`/faturamento/lotes/${loteId}?erro=xml`);
