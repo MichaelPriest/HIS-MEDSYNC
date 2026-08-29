@@ -80,6 +80,7 @@ export async function atenderItemRequisicaoSetorialAction(fd: FormData) {
 
   revalidatePath("/almoxarifado");
   revalidatePath("/almoxarifado/requisicoes");
+  revalidatePath("/assistencial/centro-cirurgico/suprimentos");
   go("/almoxarifado/requisicoes?sucesso=item_atendido");
 }
 
@@ -87,6 +88,16 @@ export async function receberRequisicaoSetorialAction(fd: FormData) {
   const { supabase } = await getAssistencialContext();
   const requisicaoId = text(fd, "requisicao_id");
   if (!requisicaoId) go("/almoxarifado/requisicoes?erro=requisicao");
+
+  const { data: requisicao, error: lookupError } = await supabase
+    .from("estoque_requisicoes_setoriais")
+    .select("cirurgia_id")
+    .eq("id", requisicaoId)
+    .maybeSingle();
+  if (lookupError) go(`/almoxarifado/requisicoes?erro=${encodeURIComponent(lookupError.message)}`);
+  if (requisicao?.cirurgia_id) {
+    go(`/almoxarifado/requisicoes?erro=${encodeURIComponent("Requisição cirúrgica: o Almoxarifado separa e transfere; o recebimento deve ser confirmado pelo Centro Cirúrgico.")}`);
+  }
 
   const { error } = await supabase.rpc("receber_requisicao_setorial", {
     p_requisicao_id: requisicaoId,
