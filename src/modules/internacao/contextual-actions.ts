@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { asRoute } from "@/lib/route-cast";
 import { requireAnyPermission } from "@/lib/permissions/server";
+import { buildInternacaoAdmissionRpcParams } from "@/modules/internacao/admission";
 
 function text(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
@@ -14,8 +15,18 @@ function back(atendimentoId: string, query: string): never {
   redirect(asRoute(`/internacao/nova/${atendimentoId}?${query}`));
 }
 
+function admissionError(message?: string) {
+  if (!message) return "salvar";
+  if (message.includes("INTERNACAO_ATIVA_JA_EXISTE")) return "internacao-ativa";
+  if (message.includes("ACOMODACAO_ANS")) return "acomodacao-ans";
+  if (message.includes("LEITO_")) return "leito";
+  if (message.includes("RESPONSAVEL")) return "profissional";
+  if (message.includes("ATENDIMENTO")) return "atendimento";
+  return "salvar";
+}
+
 export async function admitirPacienteInternacao(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await requireAnyPermission([
+  const { supabase, unidadeId } = await requireAnyPermission([
     "internacao.admitir",
     "internacao.criar",
   ]);
@@ -23,87 +34,26 @@ export async function admitirPacienteInternacao(formData: FormData) {
   const setor = text(formData, "setor");
   if (!atendimentoId || !setor || !unidadeId) return back(atendimentoId ?? "invalido", "erro=campos");
 
-  const { data: atendimento } = await supabase
-    .from("atendimentos")
-    .select("id,paciente_id,status,cobertura")
-    .eq("id", atendimentoId)
-    .eq("empresa_id", empresaId)
-    .eq("unidade_id", unidadeId)
-    .maybeSingle();
+  const params = buildInternacaoAdmissionRpcParams({
+    atendimentoId,
+    setor,
+    profissionalResponsavelId: text(formData, "profissional_responsavel_id"),
+    leitoId: text(formData, "leito_id"),
+    acomodacao: text(formData, "acomodacao"),
+    acomodacaoTuss49Codigo: text(formData, "acomodacao_tuss49_codigo"),
+    motivo: text(formData, "motivo"),
+    previsaoAlta: text(formData, "previsao_alta"),
+    observacoes: text(formData, "observacoes"),
+  });
 
-  if (!atendimento || atendimento.status === "cancelado") return back(atendimentoId, "erro=atendimento");
-
-  const { data: existente } = await supabase
-    .from("internacoes")
-    .select("id,status")
-    .eq("atendimento_id", atendimento.id)
-    .eq("empresa_id", empresaId)
-    .eq("unidade_id", unidadeId)
-    .in("status", ["aguardando_leito", "internado", "transferido"])
-    .order("data_internacao", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (existente) return back(atendimentoId, `erro=internacao-ativa&internacao=${existente.id}`);
-
-  const acomodacaoAnsCodigo = text(formData, "acomodacao_tuss49_codigo");
-  if (atendimento.cobertura === "convenio" && !acomodacaoAnsCodigo) return back(atendimentoId, "erro=acomodacao-ans");
-
-  const { data: dominioAns, error: dominioAnsError } = acomodacaoAnsCodigo
-    ? await supabase
-        .from("ans_fhir_dominios_ativos")
-        .select("conceito_id,codigo,display,versao,canonical")
-        .eq("tabela", 49)
-        .eq("codigo", acomodacaoAnsCodigo)
-        .maybeSingle()
-    : { data: null, error: null };
-
-  if (dominioAnsError || (acomodacaoAnsCodigo && !dominioAns)) return back(atendimentoId, "erro=acomodacao-ans-invalida");
-
-  const leitoId = text(formData, "leito_id");
-  const { data: internacao, error } = await supabase
-    .from("internacoes")
-    .insert({
-      empresa_id: empresaId,
-      unidade_id: unidadeId,
-      atendimento_id: atendimento.id,
-      profissional_responsavel_id: text(formData, "profissional_responsavel_id"),
-      setor,
-      acomodacao: text(formData, "acomodacao"),
-      acomodacao_tuss49_conceito_id: dominioAns?.conceito_id ?? null,
-      acomodacao_tuss49_codigo: dominioAns?.codigo ?? null,
-      acomodacao_tuss49_descricao: dominioAns?.display ?? null,
-      acomodacao_tuss49_versao: dominioAns?.versao ?? null,
-      acomodacao_tuss49_canonical: dominioAns?.canonical ?? null,
-      motivo: text(formData, "motivo"),
-      previsao_alta: text(formData, "previsao_alta"),
-      observacoes: text(formData, "observacoes"),
-      status: leitoId ? "internado" : "aguardando_leito",
-      created_by: user.id,
-      updated_by: user.id,
-    })
-    .select("id")
-    .single();
-
-  if (error || !internacao) {
-    console.error("[internacao] admissao contextual", { code: error?.code ?? "unknown" });
-    return back(atendimentoId, "erro=salvar");
-  }
-
-  if (leitoId) {
-    const { error: moveError } = await supabase.rpc("movimentar_internacao_leito", {
-      p_internacao_id: internacao.id,
-      p_leito_destino_id: leitoId,
-      p_motivo: "Admissão pelo prontuário",
-    });
-
-    if (moveError) {
-      console.error("[internacao] alocar leito na admissao", { code: moveError.code });
-      return back(atendimentoId, `erro=leito&internacao=${internacao.id}`);
-    }
+  const { data: internacaoId, error } = await supabase.rpc("admitir_internacao_operacional", params);
+  if (error || !internacaoId) {
+    console.error("[internacao] admissao contextual transacional", { code: error?.code ?? "unknown" });
+    return back(atendimentoId, `erro=${admissionError(error?.message)}`);
   }
 
   revalidatePath("/internacao");
-  revalidatePath(`/prontuario/${atendimento.id}`);
-  redirect(asRoute(`/prontuario/${atendimento.id}?sucesso=internacao`));
+  revalidatePath("/internacao/nir");
+  revalidatePath(`/prontuario/${atendimentoId}`);
+  redirect(asRoute(`/prontuario/${atendimentoId}?sucesso=internacao`));
 }

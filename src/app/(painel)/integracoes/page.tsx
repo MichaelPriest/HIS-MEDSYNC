@@ -55,6 +55,8 @@ function destinationHref(setor: string) {
   if (setor === "farmacia") return "/setores/farmacia";
   if (setor === "enfermagem") return "/assistencial/medicamentos";
   if (setor === "almoxarifado") return "/almoxarifado";
+  if (setor === "nir") return "/internacao/nir";
+  if (setor === "internacao") return "/internacao";
   return "/painel";
 }
 
@@ -131,7 +133,7 @@ export default async function IntegracoesPage({
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="font-black text-slate-900">Reconciliação operacional</h2>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Reprocessa apenas as regras de consistência. Não cria exame, laudo, cirurgia, OPME, dispensação, administração, movimento de estoque, produção ou item de conta.</p>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Reprocessa apenas as regras de consistência. Não cria exame, laudo, cirurgia, OPME, internação, ocupação de leito, dispensação, administração, movimento de estoque, produção ou item de conta.</p>
           </div>
           <form action={reconciliarIntegracoesAction}>
             <button className="ui-button-secondary" disabled={!unidadeId} title={!unidadeId ? "Selecione uma unidade" : undefined}>
@@ -144,7 +146,7 @@ export default async function IntegracoesPage({
       <section className="ui-card mt-5 overflow-hidden">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="font-black text-slate-900">Pendências que exigem ação</h2>
-          <p className="mt-1 text-xs text-slate-500">Cobertura atual: diagnóstico, Centro Cirúrgico/OPME, Prescrição → Farmácia → Enfermagem → Estoque e Livro de Produção/contrato/autorização.</p>
+          <p className="mt-1 text-xs text-slate-500">Cobertura atual: diagnóstico, Centro Cirúrgico/OPME, Prescrição → Farmácia → Enfermagem → Estoque, Internação → NIR/Leitos → Alta e Livro de Produção/contrato/autorização/conta.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
+import { buildInternacaoAdmissionRpcParams } from "@/modules/internacao/admission";
 
 const base = "/internacao";
 const txt = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
@@ -21,42 +22,24 @@ async function profissionalLogado(supabase: any, userId: string, empresaId: stri
 }
 
 export async function criarInternacao(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
+  const { supabase } = await getAssistencialContext();
   const atendimentoId = txt(formData, "atendimento_id");
   const setor = txt(formData, "setor");
   if (!atendimentoId || !setor) return go("erro=campos");
 
-  const { data: internacao, error } = await supabase
-    .from("internacoes")
-    .insert({
-      empresa_id: empresaId,
-      unidade_id: unidadeId,
-      atendimento_id: atendimentoId,
-      profissional_responsavel_id: txt(formData, "profissional_responsavel_id") || null,
-      setor,
-      acomodacao: txt(formData, "acomodacao") || null,
-      motivo: txt(formData, "motivo") || null,
-      previsao_alta: txt(formData, "previsao_alta") || null,
-      observacoes: txt(formData, "observacoes") || null,
-      status: "internado",
-      created_by: user.id,
-      updated_by: user.id,
-    })
-    .select("id")
-    .single();
+  const { error } = await supabase.rpc("admitir_internacao_operacional", buildInternacaoAdmissionRpcParams({
+    atendimentoId,
+    setor,
+    profissionalResponsavelId: txt(formData, "profissional_responsavel_id"),
+    leitoId: txt(formData, "leito_id"),
+    acomodacao: txt(formData, "acomodacao"),
+    acomodacaoTuss49Codigo: txt(formData, "acomodacao_tuss49_codigo"),
+    motivo: txt(formData, "motivo"),
+    previsaoAlta: txt(formData, "previsao_alta"),
+    observacoes: txt(formData, "observacoes"),
+  }));
 
-  if (error || !internacao) return go(`erro=${encodeURIComponent(error?.message ?? "salvar")}`);
-
-  const leitoId = txt(formData, "leito_id");
-  if (leitoId) {
-    const { error: moveError } = await supabase.rpc("movimentar_internacao_leito", {
-      p_internacao_id: internacao.id,
-      p_leito_destino_id: leitoId,
-      p_motivo: "Admissão",
-    });
-    if (moveError) return go(`erro=${encodeURIComponent(moveError.message)}`);
-  }
-
+  if (error) return go(`erro=${encodeURIComponent(error.message)}`);
   return go("sucesso=internacao");
 }
 
