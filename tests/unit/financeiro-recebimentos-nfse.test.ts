@@ -28,6 +28,18 @@ describe("Recebíveis → Conciliação → NFS-e",()=>{
     expect(actions).not.toContain('.from("financeiro_recebiveis").update');
   });
 
+  it("mantém as mutações financeiras do lote TISS em RPCs atômicos",()=>{
+    const actions=source("src/modules/tiss/lote-financeiro-actions.ts");
+    const legacy=source("src/modules/tiss/actions.ts");
+    const page=source("src/app/(painel)/faturamento/lotes/[loteId]/financeiro/page.tsx");
+    expect(actions).toContain('rpc("atualizar_dados_financeiros_lote_operacional"');
+    expect(actions).toContain('rpc("registrar_protocolo_envio_tiss_operacional"');
+    expect(page).toContain('@/modules/tiss/lote-financeiro-actions');
+    expect(legacy).not.toContain('export async function atualizarDadosFinanceirosLote');
+    expect(legacy).not.toContain('export async function registrarProtocoloEnvioOperadora');
+    expect(legacy).not.toContain('.from("financeiro_recebiveis").update');
+  });
+
   it("revoga escrita direta das tabelas financeiras críticas",()=>{
     const migration=source("supabase/migrations/20260828220121_financeiro_recebimentos_conciliacao_nfse_hardening.sql");
     expect(migration).toContain("revoke insert,update,delete on public.financeiro_recebiveis from authenticated");
@@ -47,5 +59,11 @@ describe("Recebíveis → Conciliação → NFS-e",()=>{
     expect(detalhe).toContain("Registrar baixa");
     expect(detalhe).toContain("Conciliar");
     expect(detalhe).toContain("Estornar");
+  });
+
+  it("mantém a Central explicitamente derivada também para baixas e NFS-e",()=>{
+    const central=source("src/app/(painel)/integracoes/page.tsx");
+    expect(central).toContain("Recebível → Baixa → Conciliação/NFS-e");
+    expect(central).toContain("baixa financeira, conciliação ou NFS-e");
   });
 });
