@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-export { anexarDocumentoLote } from "@/modules/tiss/actions";
+import { anexarDocumentoLote as anexarDocumentoLoteBase } from "@/modules/tiss/actions";
 
 function text(formData:FormData,key:string){return String(formData.get(key)??"").trim();}
 function errorKey(message?:string|null){
@@ -19,6 +19,10 @@ function refresh(loteId:string){
   revalidatePath(`/faturamento/lotes/${loteId}`);
   revalidatePath(`/faturamento/lotes/${loteId}/financeiro`);
   revalidatePath("/financeiro");
+}
+
+export async function anexarDocumentoLote(loteId:string,formData:FormData){
+  await anexarDocumentoLoteBase(loteId,formData);
 }
 
 export async function atualizarDadosFinanceirosLote(loteId:string,formData:FormData){
