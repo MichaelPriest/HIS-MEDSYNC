@@ -13,6 +13,7 @@ export default async function InternacaoLayout({ children }: { children: ReactNo
         <Link href="/internacao" className="ui-button-secondary">Painel</Link>
         <Link href="/internacao/leitos" className="ui-button-secondary">Leitos</Link>
         <Link href="/internacao/nir" className="ui-button-secondary">NIR</Link>
+        <Link href="/internacao/transferencias" className="ui-button-secondary">Transferências</Link>
         <Link href="/internacao/censo" className="ui-button-secondary">Censo</Link>
         <Link href="/internacao/altas" className="ui-button-secondary">Altas</Link>
       </nav>
