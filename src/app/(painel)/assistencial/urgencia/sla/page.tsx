@@ -79,9 +79,14 @@ export default async function UrgenciaSlaPage({
             Fila derivada do registro de emergência. Os tempos são configurados pela instituição; o sistema não aplica intervalos de Manchester automaticamente.
           </p>
         </div>
-        <Link className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50" href="/assistencial/urgencia">
-          Voltar para Urgência
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50" href="/assistencial/urgencia/observacao">
+            Observação
+          </Link>
+          <Link className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50" href="/assistencial/urgencia">
+            Voltar para Urgência
+          </Link>
+        </div>
       </header>
 
       {params.sucesso ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">Configuração atualizada.</div> : null}
