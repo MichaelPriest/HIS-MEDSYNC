@@ -23,7 +23,7 @@ describe("Urgência: SLA e reavaliação operacional", () => {
   });
 
   it("deriva atrasos e pendências sem expor helper interno ao cliente", () => {
-    const migration = source("supabase/migrations/20260830194712_urgencia_sla_reavaliacao_operacional.sql");
+    const migration = source("supabase/migrations/20260830195047_urgencia_sla_reavaliacao_operacional.sql");
     expect(migration).toContain("create or replace view public.emergencia_fila_operacional");
     expect(migration).toContain("'urgencia_sla_atendimento_vencido'");
     expect(migration).toContain("'urgencia_reavaliacao_vencida'");
