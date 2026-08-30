@@ -6,6 +6,7 @@ import { asRoute } from "@/lib/route-cast";
 import { requirePermission } from "@/lib/permissions/server";
 
 const BASE = "/assistencial/urgencia";
+const SLA_BASE = `${BASE}/sla`;
 
 function text(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
@@ -30,12 +31,19 @@ function go(query: string): never {
   redirect(asRoute(`${BASE}?${query}`));
 }
 
+function goSla(query: string): never {
+  redirect(asRoute(`${SLA_BASE}?${query}`));
+}
+
 function transitionError(message?: string | null) {
   const value = String(message ?? "");
   if (value.includes("REGISTRO_ATIVO")) return "registro-ativo";
   if (value.includes("ATENDIMENTO_INDISPONIVEL")) return "atendimento-indisponivel";
   if (value.includes("CLASSIFICACAO_INVALIDA")) return "classificacao";
+  if (value.includes("PRIORIDADE_INVALIDA")) return "prioridade";
+  if (value.includes("SLA_INVALIDO")) return "sla";
   if (value.includes("DESTINO_INVALIDO")) return "destino";
+  if (value.includes("REGISTRO_INDISPONIVEL")) return "registro";
   if (value.includes("SEM_PERMISSAO") || value.includes("NAO_AUTENTICADO")) return "permissao";
   return "operacao";
 }
@@ -72,6 +80,47 @@ export async function abrirRegistroEmergencia(formData: FormData) {
   revalidatePath(BASE);
   revalidatePath(`/prontuario/${atendimentoId}`);
   return go(`registro=${registroId}&sucesso=registro-aberto`);
+}
+
+export async function atualizarRegistroEmergencia(formData: FormData) {
+  const { supabase, empresaId, unidadeId } = await requirePermission("emergencia.gerenciar");
+  const emergenciaId = text(formData, "emergencia_id");
+  if (!emergenciaId || !unidadeId) return goSla("erro=registro");
+
+  const { data: emergencia } = await supabase
+    .from("emergencia_registros")
+    .select("id,atendimento_id,status")
+    .eq("id", emergenciaId)
+    .eq("empresa_id", empresaId)
+    .eq("unidade_id", unidadeId)
+    .maybeSingle();
+
+  if (!emergencia || emergencia.status === "encerrado") return goSla("erro=registro");
+
+  const prioridade = integer(formData, "prioridade");
+  const slaMinutos = integer(formData, "sla_minutos");
+  if (prioridade !== null && prioridade <= 0) return goSla(`registro=${emergenciaId}&erro=prioridade`);
+  if (slaMinutos !== null && slaMinutos <= 0) return goSla(`registro=${emergenciaId}&erro=sla`);
+
+  const { error } = await supabase.rpc("atualizar_registro_emergencia_operacional", {
+    p_emergencia_id: emergencia.id,
+    p_classificacao_risco: text(formData, "classificacao_risco"),
+    p_prioridade: prioridade,
+    p_sla_minutos: slaMinutos,
+    p_reavaliacao_em: text(formData, "reavaliacao_em"),
+    p_destino: text(formData, "destino"),
+    p_observacoes: text(formData, "observacoes"),
+  });
+
+  if (error) {
+    console.error("[urgencia] atualizar SLA", { code: error.code, operation: "atualizar_registro_emergencia_operacional" });
+    return goSla(`registro=${emergenciaId}&erro=${transitionError(error.message)}`);
+  }
+
+  revalidatePath(BASE);
+  revalidatePath(SLA_BASE);
+  revalidatePath(`/prontuario/${emergencia.atendimento_id}`);
+  return goSla(`registro=${emergenciaId}&sucesso=atualizado`);
 }
 
 export async function registrarReavaliacaoEmergencia(formData: FormData) {
@@ -127,6 +176,7 @@ export async function registrarReavaliacaoEmergencia(formData: FormData) {
   }
 
   revalidatePath(BASE);
+  revalidatePath(SLA_BASE);
   revalidatePath(`/prontuario/${emergencia.atendimento_id}`);
   return go(`registro=${emergenciaId}&sucesso=reavaliado`);
 }
@@ -158,6 +208,7 @@ export async function encerrarRegistroEmergencia(formData: FormData) {
   }
 
   revalidatePath(BASE);
+  revalidatePath(SLA_BASE);
   revalidatePath(`/prontuario/${emergencia.atendimento_id}`);
 
   if (destino === "internacao") {
