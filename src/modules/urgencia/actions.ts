@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { asRoute } from "@/lib/route-cast";
-import { requireAnyPermission, requirePermission } from "@/lib/permissions/server";
+import { requirePermission } from "@/lib/permissions/server";
 
 const BASE = "/assistencial/urgencia";
 
@@ -30,103 +30,48 @@ function go(query: string): never {
   redirect(asRoute(`${BASE}?${query}`));
 }
 
-async function getEpisode(
-  supabase: Awaited<ReturnType<typeof requireAnyPermission>>["supabase"],
-  empresaId: string,
-  unidadeId: string | null,
-  atendimentoId: string,
-) {
-  if (!unidadeId) return null;
-
-  const { data } = await supabase
-    .from("atendimentos")
-    .select("id,paciente_id,empresa_id,unidade_id")
-    .eq("id", atendimentoId)
-    .eq("empresa_id", empresaId)
-    .eq("unidade_id", unidadeId)
-    .maybeSingle();
-
-  return data;
-}
-
-async function getProfessionalId(
-  supabase: Awaited<ReturnType<typeof requireAnyPermission>>["supabase"],
-  empresaId: string,
-  userId: string,
-) {
-  const { data } = await supabase
-    .from("profissionais")
-    .select("id")
-    .eq("empresa_id", empresaId)
-    .eq("usuario_id", userId)
-    .eq("ativo", true)
-    .limit(1)
-    .maybeSingle();
-
-  return data?.id ?? null;
+function transitionError(message?: string | null) {
+  const value = String(message ?? "");
+  if (value.includes("REGISTRO_ATIVO")) return "registro-ativo";
+  if (value.includes("ATENDIMENTO_INDISPONIVEL")) return "atendimento-indisponivel";
+  if (value.includes("CLASSIFICACAO_INVALIDA")) return "classificacao";
+  if (value.includes("DESTINO_INVALIDO")) return "destino";
+  if (value.includes("SEM_PERMISSAO") || value.includes("NAO_AUTENTICADO")) return "permissao";
+  return "operacao";
 }
 
 export async function abrirRegistroEmergencia(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await requirePermission("emergencia.gerenciar");
+  const { supabase, unidadeId } = await requirePermission("emergencia.gerenciar");
   const atendimentoId = text(formData, "atendimento_id");
   if (!atendimentoId || !unidadeId) return go("erro=atendimento");
 
-  const atendimento = await getEpisode(supabase, empresaId, unidadeId, atendimentoId);
-  if (!atendimento) return go("erro=atendimento");
+  const { data: registroId, error } = await supabase.rpc("abrir_registro_emergencia_operacional", {
+    p_atendimento_id: atendimentoId,
+    p_origem: text(formData, "origem"),
+    p_mecanismo: text(formData, "mecanismo"),
+    p_classificacao_risco: text(formData, "classificacao_risco"),
+    p_protocolo: text(formData, "protocolo"),
+    p_sala: text(formData, "sala"),
+    p_estado_geral: text(formData, "estado_geral"),
+    p_via_aerea: text(formData, "via_aerea"),
+    p_respiracao: text(formData, "respiracao"),
+    p_circulacao: text(formData, "circulacao"),
+    p_neurologico: text(formData, "neurologico"),
+    p_exposicao: text(formData, "exposicao"),
+    p_procedimentos_imediatos: lines(formData, "procedimentos_imediatos"),
+    p_reavaliacao_em: text(formData, "reavaliacao_em"),
+    p_destino: text(formData, "destino"),
+    p_observacoes: text(formData, "observacoes"),
+  });
 
-  const { data: existente } = await supabase
-    .from("emergencia_registros")
-    .select("id,status")
-    .eq("atendimento_id", atendimento.id)
-    .eq("empresa_id", empresaId)
-    .eq("unidade_id", unidadeId)
-    .neq("status", "encerrado")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (existente) return go(`registro=${existente.id}&erro=registro-ativo`);
-
-  const professionalId = await getProfessionalId(supabase, empresaId, user.id);
-  const reavaliacaoEm = text(formData, "reavaliacao_em");
-  const { data: registro, error } = await supabase
-    .from("emergencia_registros")
-    .insert({
-      empresa_id: empresaId,
-      unidade_id: unidadeId,
-      atendimento_id: atendimento.id,
-      paciente_id: atendimento.paciente_id,
-      profissional_id: professionalId,
-      origem: text(formData, "origem"),
-      mecanismo: text(formData, "mecanismo"),
-      classificacao_risco: text(formData, "classificacao_risco"),
-      protocolo: text(formData, "protocolo"),
-      sala: text(formData, "sala"),
-      estado_geral: text(formData, "estado_geral"),
-      via_aerea: text(formData, "via_aerea"),
-      respiracao: text(formData, "respiracao"),
-      circulacao: text(formData, "circulacao"),
-      neurologico: text(formData, "neurologico"),
-      exposicao: text(formData, "exposicao"),
-      procedimentos_imediatos: lines(formData, "procedimentos_imediatos"),
-      reavaliacao_em: reavaliacaoEm || null,
-      destino: text(formData, "destino"),
-      observacoes: text(formData, "observacoes"),
-      status: "em_atendimento",
-      created_by: user.id,
-      updated_by: user.id,
-    })
-    .select("id")
-    .single();
-
-  if (error || !registro) {
-    console.error("[urgencia] abrir registro", { code: error?.code ?? "unknown" });
-    return go("erro=salvar");
+  if (error || !registroId) {
+    console.error("[urgencia] abrir registro", { code: error?.code ?? "unknown", operation: "abrir_registro_emergencia_operacional" });
+    return go(`erro=${transitionError(error?.message)}`);
   }
 
   revalidatePath(BASE);
-  revalidatePath(`/prontuario/${atendimento.id}`);
-  return go(`registro=${registro.id}&sucesso=registro-aberto`);
+  revalidatePath(`/prontuario/${atendimentoId}`);
+  return go(`registro=${registroId}&sucesso=registro-aberto`);
 }
 
 export async function registrarReavaliacaoEmergencia(formData: FormData) {
@@ -187,7 +132,7 @@ export async function registrarReavaliacaoEmergencia(formData: FormData) {
 }
 
 export async function encerrarRegistroEmergencia(formData: FormData) {
-  const { supabase, user, empresaId, unidadeId } = await requirePermission("emergencia.gerenciar");
+  const { supabase, empresaId, unidadeId } = await requirePermission("emergencia.gerenciar");
   const emergenciaId = text(formData, "emergencia_id");
   if (!emergenciaId || !unidadeId) return go("erro=registro");
 
@@ -201,23 +146,15 @@ export async function encerrarRegistroEmergencia(formData: FormData) {
   if (!emergencia) return go("erro=registro");
 
   const destino = text(formData, "destino") ?? "alta";
-  const { error } = await supabase
-    .from("emergencia_registros")
-    .update({
-      destino,
-      status: "encerrado",
-      observacoes: text(formData, "observacoes"),
-      reavaliacao_em: null,
-      updated_at: new Date().toISOString(),
-      updated_by: user.id,
-    })
-    .eq("id", emergencia.id)
-    .eq("empresa_id", empresaId)
-    .eq("unidade_id", unidadeId);
+  const { error } = await supabase.rpc("encerrar_registro_emergencia_operacional", {
+    p_emergencia_id: emergencia.id,
+    p_destino: destino,
+    p_observacoes: text(formData, "observacoes"),
+  });
 
   if (error) {
-    console.error("[urgencia] encerrar", { code: error.code });
-    return go(`registro=${emergenciaId}&erro=encerrar`);
+    console.error("[urgencia] encerrar", { code: error.code, operation: "encerrar_registro_emergencia_operacional" });
+    return go(`registro=${emergenciaId}&erro=${transitionError(error.message)}`);
   }
 
   revalidatePath(BASE);
