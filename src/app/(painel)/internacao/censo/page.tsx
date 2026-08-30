@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, Hospital } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Hospital } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
