@@ -80,6 +80,9 @@ export default async function UrgenciaSlaPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50" href="/assistencial/urgencia/indicadores">
+            Indicadores
+          </Link>
           <Link className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50" href="/assistencial/urgencia/observacao">
             Observação
           </Link>
