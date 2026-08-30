@@ -5,13 +5,7 @@ import type { Route } from "next";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-export default function HistoricoLayout({
-  children,
-  params,
-}: {
-  children: ReactNode;
-  params: Promise<{ atendimentoId: string }>;
-}) {
+export default function HistoricoLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const match = pathname.match(/\/prontuario\/([^/]+)\/historico/);
   const atendimentoId = match?.[1] ?? "";
