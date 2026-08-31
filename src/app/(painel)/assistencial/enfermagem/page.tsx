@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { AlertTriangle, Barcode, CheckCircle2, Clock3, Pill, Printer, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, Barcode, Clock3, Pill, Printer, UserRoundCheck } from "lucide-react";
+import { MedicationAdministrationBackgroundForm } from "@/components/enfermagem/medication-administration-background-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import { checarAdministracaoEnfermagemAction } from "@/modules/enfermagem/actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -116,9 +116,6 @@ export default async function EnfermagemChecagemPage({ searchParams }: { searchP
             const disponiveis = dispensacoes.filter((d) => d.prescricao_id === ap.prescricao_id);
             const atrasado = new Date(ap.programado_em).getTime() + Number(ap.tolerancia_minutos ?? 30) * 60000 < Date.now();
             const identificacaoHref = prescricao?.atendimento_id ? `/prontuario/${prescricao.atendimento_id}/identificacao?tipo=pulseira` as Route : null;
-            const voltarForm = sp.atendimento
-              ? `/assistencial/enfermagem?atendimento=${encodeURIComponent(sp.atendimento)}&retorno=${encodeURIComponent(retorno)}`
-              : retorno;
 
             return (
               <article key={ap.id} className={`his-card p-5 ${atrasado ? "border-rose-200" : ""}`}>
@@ -139,9 +136,7 @@ export default async function EnfermagemChecagemPage({ searchParams }: { searchP
                   </div>
 
                   {profissional ? (
-                    <form action={checarAdministracaoEnfermagemAction} className="grid w-full gap-2 lg:max-w-3xl lg:grid-cols-2">
-                      <input type="hidden" name="aprazamento_id" value={ap.id} />
-                      <input type="hidden" name="retorno" value={voltarForm} />
+                    <MedicationAdministrationBackgroundForm aprazamentoId={ap.id}>
                       <select name="dispensacao_id" className="ui-input" defaultValue="">
                         <option value="">Dispensação / lote liberado pela Farmácia</option>
                         {disponiveis.map((d) => <option key={d.id} value={d.id}>{d.selecao_lote === "fefo" ? `FEFO${d.fefo_sequencia ? ` #${d.fefo_sequencia}` : ""}` : "Manual"} · {d.item} · lote {d.lote ?? "—"} · val. {d.validade ?? "—"} · saldo {saldoDispensacao(d)} · {when(d.dispensado_em)}</option>)}
@@ -155,8 +150,7 @@ export default async function EnfermagemChecagemPage({ searchParams }: { searchP
                       <select name="segundo_profissional_id" className="ui-input" defaultValue=""><option value="">Sem segundo profissional</option>{profissionais.filter((pr) => pr.id !== profissional.id).map((pr) => <option key={pr.id} value={pr.id}>{pr.nome_completo}</option>)}</select>
                       <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold"><input type="checkbox" name="dupla_checagem" />Dupla checagem</label>
                       <input name="justificativa" className="ui-input lg:col-span-2" placeholder="Justificativa de recusa/omissão ou motivo da contingência sem etiqueta" />
-                      <button className="ui-button-primary lg:col-span-2 lg:justify-self-end"><CheckCircle2 className="size-4" />Confirmar checagem</button>
-                    </form>
+                    </MedicationAdministrationBackgroundForm>
                   ) : null}
                 </div>
               </article>
