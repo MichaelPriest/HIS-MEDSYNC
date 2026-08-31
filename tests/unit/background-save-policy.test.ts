@@ -14,6 +14,7 @@ const backgroundForms = [
   "src/components/prontuario/avaliacao-medica-background-form.tsx",
   "src/components/agenda/agenda-form.tsx",
   "src/components/agenda/agenda-status-actions.tsx",
+  "src/components/atendimentos/admission-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -68,5 +69,27 @@ describe("política de salvamento em segundo plano", () => {
     expect(source).toContain("<AgendaForm");
     expect(source).not.toContain("searchParams");
     expect(source).not.toContain("criarAgendamento");
+  });
+
+  it("mantém erros da Admissão inline e navega apenas após abertura real", () => {
+    const source = read("src/modules/atendimentos/actions.ts");
+    const redirects = source.match(/\bredirect\s*\(/g) ?? [];
+
+    expect(source).toContain("BackgroundActionState");
+    expect(source).toContain("return failure(\"campos-obrigatorios\")");
+    expect(source).toContain("return failure(\"cobertura\")");
+    expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/atendimentos\/novo/);
+    expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/senhas\?erro=/);
+    expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/agenda\?erro=/);
+    expect(redirects).toHaveLength(2);
+    expect(source).toContain("/autorizacoes?atendimento=");
+    expect(source).toContain("/triagem?sucesso=admissao&atendimento=");
+  });
+
+  it("renderiza a Admissão no formulário de segundo plano", () => {
+    const source = read("src/app/(painel)/atendimentos/novo/page.tsx");
+    expect(source).toContain("AdmissionBackgroundForm");
+    expect(source).toContain("<AdmissionBackgroundForm");
+    expect(source).not.toContain("<AdmissionForm");
   });
 });
