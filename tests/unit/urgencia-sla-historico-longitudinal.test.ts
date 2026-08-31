@@ -37,7 +37,7 @@ describe("Urgência: SLA no histórico longitudinal", () => {
 
     expect(layout).toContain("Histórico clínico");
     expect(layout).toContain("SLA da Urgência");
-    expect(layout).toContain("/historico/sla");
+    expect(layout).toContain('const sla = `${base}/sla`');
     expect(workspace).toContain('label: "Histórico clínico"');
     expect(workspace).not.toContain('label: "SLA da Urgência"');
   });
