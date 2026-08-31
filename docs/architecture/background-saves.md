@@ -20,15 +20,26 @@ O contrato compartilhado está em `src/lib/actions/background-action.ts` e usa `
 
 ## Exceções
 
-Navegação continua permitida quando ela é a própria intenção explícita do usuário, por exemplo login, seleção de contexto ou botão que leva a uma etapa/tela distinta. Não usar navegação como mecanismo de feedback de um salvamento comum.
+Navegação continua permitida quando ela é a própria intenção explícita do usuário, como login, seleção de contexto ou transição confirmada para uma etapa operacional distinta. Não usar navegação como mecanismo de feedback de um salvamento comum.
 
 ## Migração
 
-Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
+Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão é incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
 
-Convertidos no pacote inicial:
+Convertidos na `main` antes deste pacote:
 
 - alta médica ambulatorial;
 - solicitação de avaliação médica interprofissional.
 
-O teste `tests/unit/background-save-policy.test.ts` impede regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
+Convertido neste pacote de Auditoria:
+
+- executar auditoria automática;
+- iniciar auditoria;
+- adicionar pendência manual;
+- resolver pendência;
+- reabrir pendência manual;
+- revalidar e liberar para Contas Médicas.
+
+Na Auditoria, críticas automáticas resolvidas são histórico do motor e não são reabertas manualmente. Uma nova execução do motor decide se a condição voltou a existir. O histórico resolvido é agrupado por regra para evitar que execuções repetidas pareçam pendências duplicadas.
+
+O teste `tests/unit/background-save-policy.test.ts` protege os fluxos já consolidados na `main`, e `tests/unit/auditoria-background-ui.test.ts` protege a migração da Auditoria.
