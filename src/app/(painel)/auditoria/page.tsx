@@ -251,12 +251,18 @@ export default async function AuditoriaPage({
                       <form action={liberarAuditoria} className="grid gap-2 rounded-xl border border-brand-100 bg-brand-50/50 p-3">
                         <input type="hidden" name="auditoria_id" value={audit.id} />
                         <textarea name="observacoes" rows={2} className="ui-input" placeholder="Observações finais" />
-                        <button className="ui-button-primary" disabled={impeditivas.length > 0}>
-                          Liberar para Contas Médicas
+                        <button className="ui-button-primary">
+                          Revalidar e liberar para Contas Médicas
                         </button>
                         {impeditivas.length ? (
-                          <p className="text-xs font-semibold text-rose-700">Resolva {impeditivas.length} pendência(s) impeditiva(s) antes da liberação.</p>
-                        ) : null}
+                          <p className="text-xs font-semibold text-rose-700">
+                            Há {impeditivas.length} pendência(s) impeditiva(s) na última verificação. A liberação reexecuta a auditoria e só prossegue se elas continuarem resolvidas no estado atual da conta.
+                          </p>
+                        ) : (
+                          <p className="text-xs font-semibold text-emerald-700">
+                            A auditoria será reexecutada no momento da liberação para validar o estado atual da conta.
+                          </p>
+                        )}
                       </form>
                     </div>
                   ) : null}
