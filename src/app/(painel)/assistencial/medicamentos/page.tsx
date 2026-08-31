@@ -1,13 +1,7 @@
 import { ClipboardCheck, PackageCheck, Pill, ShieldCheck, Undo2 } from "lucide-react";
+import { PharmacyBackgroundForm } from "@/components/farmacia/pharmacy-background-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import {
-  devolverMedicamentoAction,
-  dispensarComponentePrescricaoAction,
-  dispensarPrescricaoAction,
-  registrarConciliacaoMedicamentosaAction,
-  validarPrescricaoFarmaceuticaAction,
-} from "@/modules/assistencial/medicamentos-actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -270,7 +264,7 @@ export default async function MedicamentosPage({ searchParams }: { searchParams:
           </div>
         </div>
         <div className="grid gap-5 p-5 xl:grid-cols-[1.35fr_.85fr]">
-          <form action={registrarConciliacaoMedicamentosaAction} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <PharmacyBackgroundForm kind="reconciliation" resetOnSuccess className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <label className="text-xs font-bold text-slate-600 sm:col-span-2 xl:col-span-2">
               Atendimento
               <select name="atendimento_id" required defaultValue="" className="ui-input mt-1">
@@ -299,7 +293,7 @@ export default async function MedicamentosPage({ searchParams }: { searchParams:
             <label className="text-xs font-bold text-slate-600 sm:col-span-2">Justificativa<textarea name="justificativa" rows={2} className="ui-input mt-1" placeholder="Justificativa clínica / farmacêutica" /></label>
             <label className="text-xs font-bold text-slate-600">Observações<textarea name="observacoes" rows={2} className="ui-input mt-1" /></label>
             <div className="sm:col-span-2 xl:col-span-3"><button className="ui-button-primary">Registrar conciliação</button></div>
-          </form>
+          </PharmacyBackgroundForm>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
             <h3 className="text-sm font-black text-slate-900">Últimas conciliações</h3>
@@ -342,17 +336,17 @@ export default async function MedicamentosPage({ searchParams }: { searchParams:
 
                   <div className="w-full xl:max-w-4xl">
                     {!validada ? (
-                      <form action={validarPrescricaoFarmaceuticaAction} className="rounded-xl border border-violet-100 bg-violet-50 p-3">
+                      <PharmacyBackgroundForm kind="validation" className="rounded-xl border border-violet-100 bg-violet-50 p-3">
                         <input type="hidden" name="prescricao_id" value={p.id} />
                         <div className="grid gap-2 sm:grid-cols-3">{[["alergias", "Alergias"], ["interacoes", "Interações"], ["dose", "Dose"], ["via", "Via"], ["funcao_renal", "Função renal"], ["duplicidade", "Duplicidade"]].map(([name, label]) => <label key={name} className="text-xs font-bold text-violet-900"><input name={name} type="checkbox" className="mr-1.5" />{label}</label>)}</div>
                         <textarea name="incompatibilidades" rows={2} className="ui-input mt-2" placeholder="Incompatibilidades identificadas" />
                         <textarea name="intervencao" rows={2} className="ui-input mt-2" placeholder="Intervenção farmacêutica / observações" />
                         <div className="mt-2 flex flex-col gap-2 sm:flex-row"><select name="status" className="ui-input" defaultValue="validada"><option value="validada">Validar</option><option value="validada_com_ressalva">Validar com ressalva</option><option value="intervencao">Solicitar intervenção</option><option value="rejeitada">Rejeitar</option></select><button className="ui-button-primary">Registrar validação</button></div>
-                      </form>
+                      </PharmacyBackgroundForm>
                     ) : (
                       <div className="space-y-3">
                         {p.produto_id ? (
-                          <form action={dispensarPrescricaoAction} className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+                          <PharmacyBackgroundForm kind="dispense" className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
                             <input type="hidden" name="prescricao_id" value={p.id} />
                             <input type="hidden" name="farmacia_local_id" value={previewPrincipal.localId ?? ""} />
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
@@ -360,7 +354,7 @@ export default async function MedicamentosPage({ searchParams }: { searchParams:
                               <label className="text-xs font-bold text-slate-600">Quantidade<input name="quantidade" required type="number" step="0.0001" min="0.0001" defaultValue={quantidadePrincipal} className="ui-input mt-1 w-28" /></label>
                               <button disabled={!previewPrincipal.localId || previewPrincipal.saldoTotal <= 0} className="ui-button-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"><PackageCheck className="size-4" />Dispensar FEFO</button>
                             </div>
-                          </form>
+                          </PharmacyBackgroundForm>
                         ) : <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">Item principal sem produto de estoque vinculado.</p>}
 
                         {comps.map((c) => {
@@ -374,13 +368,13 @@ export default async function MedicamentosPage({ searchParams }: { searchParams:
                               <p className="text-xs font-black uppercase text-emerald-700">Componente {c.ordem}</p>
                               <p className="mt-1 font-bold text-slate-900">+ {item?.descricao ?? "Componente"}{c.dose ? ` · ${c.dose}` : ""}</p>
                               {jaDispensado ? <p className="mt-2 text-xs font-black text-emerald-700">Já possui dispensação ativa</p> : produto ? (
-                                <form action={dispensarComponentePrescricaoAction} className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end">
+                                <PharmacyBackgroundForm kind="component-dispense" className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end">
                                   <input type="hidden" name="prescricao_componente_id" value={c.id} />
                                   <input type="hidden" name="farmacia_local_id" value={preview.localId ?? ""} />
                                   <div className="min-w-0 flex-1"><p className="text-xs font-bold text-slate-700">{preview.localNome ?? "Farmácia não configurada"}</p><p className="mt-1 text-xs text-slate-600">{alocacaoTexto(preview, quantidade)}</p></div>
                                   <label className="text-xs font-bold text-slate-600">Quantidade<input name="quantidade" required type="number" step="0.0001" min="0.0001" defaultValue={quantidade} className="ui-input mt-1 w-28" /></label>
                                   <button disabled={!preview.localId || preview.saldoTotal <= 0} className="ui-button-primary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"><PackageCheck className="size-4" />Dispensar componente</button>
-                                </form>
+                                </PharmacyBackgroundForm>
                               ) : <p className="mt-2 text-xs font-bold text-amber-700">Componente sem vínculo item assistencial → produto de estoque.</p>}
                             </div>
                           );
@@ -409,12 +403,12 @@ export default async function MedicamentosPage({ searchParams }: { searchParams:
                   <p className="mt-1 text-xs text-slate-500">Lote {d.lote ?? "—"} · validade {d.validade ?? "—"} · {when(d.dispensado_em)} · dispensado {quantidade} · devolvido {devolvida} · saldo {saldo}{d.prescricao_componente_id ? " · componente" : ""}</p>
                 </div>
                 {saldo > 0 && ["dispensado", "parcial"].includes(d.status) ? (
-                  <form action={devolverMedicamentoAction} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <PharmacyBackgroundForm kind="return" className="flex flex-col gap-2 sm:flex-row sm:items-end">
                     <input type="hidden" name="dispensacao_id" value={d.id} />
                     <label className="text-xs font-bold text-slate-600">Qtd.<input name="quantidade" required type="number" step="0.0001" min="0.0001" max={saldo} defaultValue={saldo} className="ui-input mt-1 w-24" /></label>
                     <label className="text-xs font-bold text-slate-600">Motivo<input name="motivo" required className="ui-input mt-1 min-w-56" placeholder="Sobra, suspensão, alta..." /></label>
                     <button className="ui-button-secondary whitespace-nowrap"><Undo2 className="size-4" />Devolver</button>
-                  </form>
+                  </PharmacyBackgroundForm>
                 ) : <span className="text-xs font-bold text-slate-400">Sem saldo para devolução</span>}
               </article>
             );
