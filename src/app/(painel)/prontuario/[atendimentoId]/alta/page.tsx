@@ -1,11 +1,11 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { CheckCircle2, CircleAlert, ClipboardCheck, Hospital, ShieldCheck, Stethoscope } from "lucide-react";
+import { CheckCircle2, CircleAlert, Hospital, ShieldCheck, Stethoscope } from "lucide-react";
 import { notFound } from "next/navigation";
 import { SectionPage } from "@/components/painel/section-page";
 import { EpisodioTimelinePendencias } from "@/components/prontuario/episodio-timeline-pendencias";
+import { AltaMedicaBackgroundForm } from "@/components/prontuario/alta-medica-background-form";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import { finalizarAtendimentoMedico } from "@/modules/prontuario-medico/encerramento-actions";
 
 const errorMessages: Record<string, string> = {
   "alta-campos": "Selecione o desfecho e preencha as orientações de alta.",
@@ -74,7 +74,7 @@ export default async function AltaMedicaPage({
     {encerrado ? <section className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-5 text-emerald-700"/><div><h2 className="font-black text-slate-950">Episódio encerrado</h2><p className="mt-1 text-sm text-slate-600">Novos registros clínicos não devem ser adicionados a este atendimento. Consulte o histórico abaixo ou retorne ao resumo.</p>{alta ? <div className="mt-4 rounded-xl border border-emerald-100 bg-white p-4"><p className="text-xs font-black uppercase tracking-wide text-emerald-700">Alta médica assinada</p><p className="mt-2 text-sm text-slate-700">{alta.texto_livre ?? alta.plano ?? "Alta registrada."}</p><p className="mt-2 text-xs text-slate-500">Assinada em {fmtData(alta.assinado_em)} · {profissionalAlta?.nome_completo ?? "Profissional"}</p>{alta.assinatura_hash ? <p className="mt-1 font-mono text-[11px] text-slate-400">Hash {alta.assinatura_hash.slice(0, 20)}…</p> : null}</div> : null}</div></div></section> : null}
 
     {!encerrado && !internacao ? <section className="ui-card mt-5 p-5 sm:p-6"><div className="flex items-start gap-3"><Stethoscope className="mt-0.5 size-5 text-brand-700"/><div><h2 className="font-black text-slate-950">Concluir atendimento médico</h2><p className="mt-1 text-sm text-slate-500">A conclusão só é efetivada se houver registro clínico assinado e nenhuma pendência bloqueante em outros setores. A operação cria e assina uma evolução de alta e encerra a fila clínica na mesma transação.</p></div></div>
-      {!podeAlta ? <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Este perfil não possui as duas permissões necessárias para concluir e assinar a alta.</div> : <form action={finalizarAtendimentoMedico} className="mt-5 space-y-4"><input type="hidden" name="atendimento_id" value={atendimentoId}/><div><label className="ui-label" htmlFor="desfecho">Desfecho *</label><select id="desfecho" name="desfecho" required defaultValue="alta" className="ui-input mt-1"><option value="alta">Alta médica</option><option value="alta_com_retorno">Alta com retorno programado</option><option value="encaminhamento_externo">Alta com encaminhamento externo</option></select></div><div><label className="ui-label" htmlFor="orientacoes">Orientações de alta *</label><textarea id="orientacoes" name="orientacoes" required rows={6} className="ui-input mt-1 min-h-36" placeholder="Orientações ao paciente, sinais de alerta, retorno, cuidados e encaminhamentos após a alta."/></div><div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"><p className="max-w-2xl text-xs text-slate-500">Ao confirmar, o sistema valida rascunhos, administrações pendentes, filas e encaminhamentos. Registros assinados permanecem imutáveis para auditoria.</p><button className="ui-button-primary px-5 py-3"><ClipboardCheck className="size-4"/>Concluir atendimento e assinar alta</button></div></form>}
+      {!podeAlta ? <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Este perfil não possui as duas permissões necessárias para concluir e assinar a alta.</div> : <AltaMedicaBackgroundForm atendimentoId={atendimentoId} />}
     </section> : null}
 
     <div className="mt-5 flex flex-wrap gap-2"><Link href={resumoHref} className="ui-button-secondary">Voltar ao resumo</Link>{!encerrado ? <Link href={clinicoHref} className="ui-button-secondary">Revisar evolução clínica</Link> : null}</div>
