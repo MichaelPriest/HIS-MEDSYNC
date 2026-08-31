@@ -8,6 +8,7 @@ const migratedServerActions = [
   "src/modules/prontuario-medico/encerramento-actions.ts",
   "src/modules/prontuario-medico/avaliacao-medica-actions.ts",
   "src/modules/triagem/actions.ts",
+  "src/modules/fila-medica/actions.ts",
 ];
 
 const backgroundForms = [
@@ -17,6 +18,7 @@ const backgroundForms = [
   "src/components/agenda/agenda-status-actions.tsx",
   "src/components/atendimentos/admission-background-form.tsx",
   "src/components/triagem/triage-background-actions.tsx",
+  "src/components/fila-medica/assume-patient-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -109,5 +111,20 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).toContain("TriageBackgroundForm");
     expect(page).not.toContain("action={chamarPacienteTriagem}");
     expect(page).not.toContain("action={registrarTriagem}");
+  });
+
+  it("mantém a Fila Médica sem redirects de erro e navega só após assumir o paciente", () => {
+    const actions = read("src/modules/fila-medica/actions.ts");
+    const page = read("src/app/(painel)/fila-medica/page.tsx");
+    const form = read("src/components/fila-medica/assume-patient-background-form.tsx");
+
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(actions).not.toContain("filaComErro");
+    expect(actions).toContain("data: { redirectTo: `/prontuario/${encaminhamento.atendimento_id}/clinico` }");
+    expect(page).toContain("AssumePatientBackgroundForm");
+    expect(page).not.toContain("action={assumirPaciente}");
+    expect(page).not.toContain("MENSAGENS_ERRO");
+    expect(form).toContain("router.push");
   });
 });
