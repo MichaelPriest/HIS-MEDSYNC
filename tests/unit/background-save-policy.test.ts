@@ -10,6 +10,7 @@ const migratedServerActions = [
   "src/modules/triagem/actions.ts",
   "src/modules/fila-medica/actions.ts",
   "src/modules/autorizacoes/actions.ts",
+  "src/modules/assistencial/medicamentos-background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -22,6 +23,8 @@ const backgroundForms = [
   "src/components/fila-medica/assume-patient-background-form.tsx",
   "src/components/autorizacoes/authorization-background-actions.tsx",
   "src/components/enfermagem/nursing-evolution-background-form.tsx",
+  "src/components/enfermagem/medication-administration-background-form.tsx",
+  "src/components/farmacia/pharmacy-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -169,5 +172,24 @@ describe("política de salvamento em segundo plano", () => {
     expect(andares).not.toContain("action={registrarEvolucaoEnfermagemAction}");
     expect(prontoSocorro).toContain("NursingEvolutionBackgroundForm");
     expect(prontoSocorro).not.toContain("action={registrarEvolucaoEnfermagemAction}");
+  });
+
+  it("mantém a Farmácia nos formulários de segundo plano sem actions legadas na página", () => {
+    const actions = read("src/modules/assistencial/medicamentos-background-actions.ts");
+    const page = read("src/app/(painel)/assistencial/medicamentos/page.tsx");
+
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(page).toContain("PharmacyBackgroundForm");
+    expect(page).toContain('kind="reconciliation"');
+    expect(page).toContain('kind="validation"');
+    expect(page).toContain('kind="dispense"');
+    expect(page).toContain('kind="component-dispense"');
+    expect(page).toContain('kind="return"');
+    expect(page).not.toContain("registrarConciliacaoMedicamentosaAction");
+    expect(page).not.toContain("validarPrescricaoFarmaceuticaAction");
+    expect(page).not.toContain("dispensarPrescricaoAction");
+    expect(page).not.toContain("dispensarComponentePrescricaoAction");
+    expect(page).not.toContain("devolverMedicamentoAction");
   });
 });
