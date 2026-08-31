@@ -18,8 +18,8 @@ function failure(code: string, message: string, detail?: string): BackgroundActi
   return { status: "error", code, message, detail };
 }
 
-function success<T = undefined>(message: string, data?: T): BackgroundActionState<T> {
-  return { status: "success", message, data };
+function success(message: string): BackgroundActionState {
+  return { status: "success", message };
 }
 
 function databaseFailure(
@@ -94,7 +94,7 @@ async function resolveActionContext(
 export async function executarAuditoriaAutomatica(
   _previousState: BackgroundActionState,
   formData: FormData,
-): Promise<BackgroundActionState<{ gerados: number }>> {
+): Promise<BackgroundActionState> {
   const auth = await resolveActionContext([
     "auditoria.executar",
     "auditoria.analisar",
@@ -120,7 +120,6 @@ export async function executarAuditoriaAutomatica(
     gerados
       ? `Auditoria reexecutada. ${gerados} pendência(s) atual(is) identificada(s).`
       : "Auditoria reexecutada sem pendências atuais.",
-    { gerados },
   );
 }
 
