@@ -1,19 +1,12 @@
 "use server";
 
-import type { Route } from "next";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 function text(fd: FormData, key: string) {
   const value = String(fd.get(key) ?? "").trim();
   return value || null;
-}
-function go(url: string): never { redirect(url as Route); }
-function retorno(fd: FormData, fallback = "/assistencial/enfermagem") {
-  const value = text(fd, "retorno");
-  return value && (value.startsWith("/assistencial/enfermagem") || value.startsWith("/prontuario/")) ? value : fallback;
 }
 
 function mensagemErroAdministracao(message: string) {
@@ -51,12 +44,20 @@ async function resolveProfissional(
   return data;
 }
 
-export async function checarAdministracaoEnfermagemAction(fd: FormData) {
+export async function checarAdministracaoEnfermagemAction(
+  _previousState: BackgroundActionState,
+  fd: FormData,
+): Promise<BackgroundActionState> {
   const { supabase } = await getAssistencialContext();
   const aprazamentoId = String(fd.get("aprazamento_id") ?? "").trim();
   const status = String(fd.get("status") ?? "administrado").trim();
-  const voltar = retorno(fd);
-  if (!aprazamentoId) go(`${voltar}${voltar.includes("?") ? "&" : "?"}erro=${encodeURIComponent("A dose aprazada não foi informada.")}`);
+  if (!aprazamentoId) {
+    return {
+      status: "error",
+      code: "aprazamento",
+      message: "A dose aprazada não foi informada.",
+    };
+  }
 
   const confirmacaoManualMedicamento = fd.get("confirmacao_manual_medicamento") === "on";
   const justificativaInformada = text(fd, "justificativa");
@@ -81,14 +82,28 @@ export async function checarAdministracaoEnfermagemAction(fd: FormData) {
 
   if (error) {
     console.error("[enfermagem] checagem", { code: error.code, operation: "registrar_administracao_beira_leito" });
-    go(`${voltar}${voltar.includes("?") ? "&" : "?"}erro=${encodeURIComponent(mensagemErroAdministracao(error.message))}`);
+    return {
+      status: "error",
+      code: error.message || error.code || "checagem",
+      message: mensagemErroAdministracao(error.message),
+      detail: error.code ? `Código técnico: ${error.code}` : undefined,
+    };
   }
 
   revalidatePath("/assistencial/enfermagem");
   revalidatePath("/assistencial/enfermagem/andares");
   revalidatePath("/assistencial/enfermagem/pronto-socorro");
   revalidatePath("/assistencial/medicamentos");
-  go(`${voltar}${voltar.includes("?") ? "&" : "?"}sucesso=${encodeURIComponent(status)}`);
+
+  const mensagens: Record<string, string> = {
+    administrado: "Administração registrada com identificação, dispensação e lote rastreáveis.",
+    recusado: "Recusa registrada na checagem de Enfermagem.",
+    omitido: "Omissão/não administração registrada na checagem de Enfermagem.",
+  };
+  return {
+    status: "success",
+    message: mensagens[status] ?? "Checagem registrada com sucesso.",
+  };
 }
 
 function evolutionFailure(code: string, message: string, detail?: string): BackgroundActionState {
