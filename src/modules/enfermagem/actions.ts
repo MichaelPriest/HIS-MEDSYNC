@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 function text(fd: FormData, key: string) {
@@ -90,24 +91,38 @@ export async function checarAdministracaoEnfermagemAction(fd: FormData) {
   go(`${voltar}${voltar.includes("?") ? "&" : "?"}sucesso=${encodeURIComponent(status)}`);
 }
 
-export async function registrarEvolucaoEnfermagemAction(fd: FormData) {
+function evolutionFailure(code: string, message: string, detail?: string): BackgroundActionState {
+  return { status: "error", code, message, detail };
+}
+
+export async function registrarEvolucaoEnfermagemAction(
+  _previousState: BackgroundActionState,
+  fd: FormData,
+): Promise<BackgroundActionState> {
   const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
   const atendimentoId = text(fd, "atendimento_id");
-  const voltar = retorno(fd, "/assistencial/enfermagem/andares");
-  if (!atendimentoId || !unidadeId) go(`${voltar}?erro=atendimento`);
+  if (!atendimentoId || !unidadeId) {
+    return evolutionFailure("atendimento", "O atendimento não está disponível para esta evolução.");
+  }
 
   const [profissional, atendimentoRes] = await Promise.all([
     resolveProfissional(supabase, empresaId, user.id, user.email),
     supabase.from("atendimentos").select("id,paciente_id").eq("id", atendimentoId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle(),
   ]);
-  if (!profissional) go(`${voltar}?erro=profissional`);
-  if (!atendimentoRes.data?.paciente_id) go(`${voltar}?erro=atendimento`);
+  if (!profissional) {
+    return evolutionFailure("profissional", "Seu usuário não está vinculado a um profissional ativo de Enfermagem.");
+  }
+  if (!atendimentoRes.data?.paciente_id) {
+    return evolutionFailure("atendimento", "O atendimento não foi localizado nesta unidade.");
+  }
 
   const avaliacao = text(fd, "avaliacao");
   const intervencoes = text(fd, "intervencoes");
   const resposta = text(fd, "resposta");
   const plano = text(fd, "plano");
-  if (!avaliacao && !intervencoes && !resposta && !plano) go(`${voltar}?erro=evolucao_vazia`);
+  if (!avaliacao && !intervencoes && !resposta && !plano) {
+    return evolutionFailure("evolucao-vazia", "Preencha ao menos um campo clínico antes de assinar a evolução.");
+  }
 
   const agora = new Date().toISOString();
   const { error } = await supabase.from("evolucoes_multiprofissionais").insert({
@@ -131,11 +146,15 @@ export async function registrarEvolucaoEnfermagemAction(fd: FormData) {
   });
   if (error) {
     console.error("[enfermagem] evolucao", { code: error.code, message: error.message });
-    go(`${voltar}?erro=${encodeURIComponent(error.message)}`);
+    return evolutionFailure(
+      "falha-evolucao",
+      "Não foi possível assinar a evolução de Enfermagem.",
+      error.code ? `Código técnico: ${error.code}` : undefined,
+    );
   }
 
   revalidatePath("/assistencial/enfermagem/andares");
   revalidatePath("/assistencial/enfermagem/pronto-socorro");
   revalidatePath(`/prontuario/${atendimentoId}`);
-  go(`${voltar}?sucesso=evolucao`);
+  return { status: "success", message: "Evolução de Enfermagem assinada e vinculada ao prontuário." };
 }
