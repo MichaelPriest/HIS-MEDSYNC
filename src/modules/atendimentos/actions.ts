@@ -290,7 +290,7 @@ export async function abrirAtendimento(
 
   const id = String(atendimentoId);
   await concluirPosAbertura(contexto, id, input, identificacao.config, formData);
-  redirect(destinoPosAdmissao(input.cobertura, id));
+  redirect(destinoPosAdmissao(input.cobertura, id) as never);
 }
 
 export async function abrirAtendimentoAgendado(
@@ -320,5 +320,5 @@ export async function abrirAtendimentoAgendado(
 
   const id = String(atendimentoId);
   await concluirPosAbertura(contexto, id, input, identificacao.config, formData);
-  redirect(destinoPosAdmissao(input.cobertura, id));
+  redirect(destinoPosAdmissao(input.cobertura, id) as never);
 }
