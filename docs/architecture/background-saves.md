@@ -44,4 +44,8 @@ Convertidos:
 - chamada/rechamada e registro da Triagem, com feedback inline e navegação somente para transições setoriais reais;
 - tomada de paciente na Fila Médica, com erros inline e navegação para o prontuário somente depois da confirmação da operação.
 
+## Consolidação da pilha
+
+Os pacotes de Agenda, Admissão, Triagem e Fila Médica foram consolidados na PR #100 contra `main`. O head consolidado contém integralmente os antigos pacotes #96, #98 e #99, sem migration de banco. Esses PRs não devem ser mesclados separadamente após a consolidação; a PR #100 passa a ser a unidade de gate e merge para os quatro módulos.
+
 O teste `tests/unit/background-save-policy.test.ts` impede regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
