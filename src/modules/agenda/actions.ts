@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 function optional(formData: FormData, name: string) {
@@ -15,17 +16,10 @@ function toIso(value: string) {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
-function agendaReturn(formData: FormData) {
-  const requested = String(formData.get("retorno") ?? "/agenda").trim();
-  return requested.startsWith("/agenda") ? requested : "/agenda";
-}
-
-function agendaRedirect(base: string, key: "erro" | "sucesso", value: string): never {
-  const separator = base.includes("?") ? "&" : "?";
-  redirect(`${base}${separator}${key}=${encodeURIComponent(value)}` as Route);
-}
-
-export async function criarAgendamento(formData: FormData) {
+export async function criarAgendamento(
+  _previousState: BackgroundActionState,
+  formData: FormData,
+): Promise<BackgroundActionState> {
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
   const pacienteId = String(formData.get("paciente_id") ?? "").trim();
   const inicioLocal = String(formData.get("inicio") ?? "").trim();
@@ -33,7 +27,13 @@ export async function criarAgendamento(formData: FormData) {
   const inicio = toIso(inicioLocal);
   const fim = toIso(fimLocal);
 
-  if (!pacienteId || !inicio || !fim) redirect("/agenda/novo?erro=campos-obrigatorios");
+  if (!pacienteId || !inicio || !fim) {
+    return {
+      status: "error",
+      code: "campos-obrigatorios",
+      message: "Selecione o paciente e informe início e fim do agendamento.",
+    };
+  }
 
   const { error } = await supabase.rpc("criar_agendamento_operacional", {
     p_payload: {
@@ -58,25 +58,82 @@ export async function criarAgendamento(formData: FormData) {
 
   if (error) {
     const code = String(error.message ?? "");
-    if (code.includes("AGENDA_CONFLITO_HORARIO")) redirect("/agenda/novo?erro=conflito-horario");
-    if (code.includes("AGENDA_PLANO_INVALIDO")) redirect("/agenda/novo?erro=plano");
-    if (code.includes("AGENDA_LOCAL_INVALIDO")) redirect("/agenda/novo?erro=local");
+    if (code.includes("AGENDA_CONFLITO_HORARIO")) {
+      return {
+        status: "error",
+        code: "conflito-horario",
+        message: "Existe conflito de horário para o profissional ou local selecionado.",
+      };
+    }
+    if (code.includes("AGENDA_PLANO_INVALIDO")) {
+      return {
+        status: "error",
+        code: "plano",
+        message: "O plano selecionado não pertence ao convênio informado ou está inativo.",
+      };
+    }
+    if (code.includes("AGENDA_LOCAL_INVALIDO")) {
+      return {
+        status: "error",
+        code: "local",
+        message: "O local selecionado não está disponível para atendimento nesta unidade.",
+      };
+    }
+
     console.error("[agenda.criar] falha", { code: error.code });
-    redirect("/agenda/novo?erro=falha-cadastro");
+    return {
+      status: "error",
+      code: "falha-cadastro",
+      message: "Não foi possível salvar o agendamento. Revise os dados e suas permissões.",
+    };
   }
 
   revalidatePath("/agenda");
-  redirect("/agenda?sucesso=agendado");
+
+  return {
+    status: "success",
+    code: "agendado",
+    message: "Agendamento criado com sucesso.",
+  };
 }
 
-export async function atualizarStatusAgendamento(formData: FormData) {
+export async function atualizarStatusAgendamento(
+  _previousState: BackgroundActionState,
+  formData: FormData,
+): Promise<BackgroundActionState> {
   const { supabase } = await getAssistencialContext();
   const agendamentoId = String(formData.get("agendamento_id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
   const motivo = optional(formData, "motivo");
-  const retorno = agendaReturn(formData);
 
-  if (!agendamentoId || !status) redirect("/agenda?erro=acao-invalida");
+  if (!agendamentoId || !status) {
+    return {
+      status: "error",
+      code: "acao-invalida",
+      message: "A ação solicitada para este agendamento é inválida.",
+    };
+  }
+
+  let cirurgiaEletiva = false;
+  if (status === "checkin") {
+    const { data: agendamento, error: agendaError } = await supabase
+      .from("agendamentos")
+      .select("cirurgia_eletiva")
+      .eq("id", agendamentoId)
+      .maybeSingle();
+
+    if (agendaError || !agendamento) {
+      console.error("[agenda.checkin] falha ao resolver destino", {
+        code: agendaError?.code ?? "SEM_DADO",
+      });
+      return {
+        status: "error",
+        code: "destino-checkin",
+        message: "Não foi possível identificar a próxima etapa deste agendamento.",
+      };
+    }
+    cirurgiaEletiva = Boolean(agendamento.cirurgia_eletiva);
+  }
 
   const { error } = await supabase.rpc("atualizar_status_agendamento", {
     p_agendamento: agendamentoId,
@@ -86,29 +143,48 @@ export async function atualizarStatusAgendamento(formData: FormData) {
 
   if (error) {
     const code = String(error.message ?? "");
-    if (code.includes("AGENDA_MOTIVO_CANCELAMENTO_OBRIGATORIO")) agendaRedirect(retorno, "erro", "motivo-cancelamento");
-    if (code.includes("AGENDA_TRANSICAO_INVALIDA") || code.includes("AGENDA_STATUS_FINAL")) agendaRedirect(retorno, "erro", "status");
+    if (code.includes("AGENDA_MOTIVO_CANCELAMENTO_OBRIGATORIO")) {
+      return {
+        status: "error",
+        code: "motivo-cancelamento",
+        message: "Informe o motivo do cancelamento.",
+      };
+    }
+    if (code.includes("AGENDA_TRANSICAO_INVALIDA") || code.includes("AGENDA_STATUS_FINAL")) {
+      return {
+        status: "error",
+        code: "status",
+        message: "O status do agendamento mudou ou não permite mais esta ação.",
+      };
+    }
+
     console.error("[agenda.status] falha", { code: error.code });
-    agendaRedirect(retorno, "erro", "acao");
+    return {
+      status: "error",
+      code: "acao",
+      message: "Não foi possível atualizar o agendamento.",
+    };
   }
 
   revalidatePath("/agenda");
 
   if (status === "checkin") {
-    const { data: agendamento, error: agendaError } = await supabase
-      .from("agendamentos")
-      .select("cirurgia_eletiva")
-      .eq("id", agendamentoId)
-      .maybeSingle();
-
-    if (agendaError || !agendamento) {
-      console.error("[agenda.checkin] falha ao resolver destino", { code: agendaError?.code ?? "SEM_DADO" });
-      agendaRedirect(retorno, "erro", "acao");
+    if (cirurgiaEletiva) {
+      redirect(`/assistencial/centro-cirurgico?agendamento=${agendamentoId}` as Route);
     }
-
-    if (agendamento.cirurgia_eletiva) redirect(`/assistencial/centro-cirurgico?agendamento=${agendamentoId}` as Route);
     redirect(`/atendimentos/novo?agendamento=${agendamentoId}` as Route);
   }
 
-  agendaRedirect(retorno, "sucesso", "status");
+  const labels: Record<string, string> = {
+    confirmado: "Agendamento confirmado.",
+    atendido: "Atendimento marcado como concluído na Agenda.",
+    faltou: "Falta registrada na Agenda.",
+    cancelado: "Agendamento cancelado.",
+  };
+
+  return {
+    status: "success",
+    code: status,
+    message: labels[status] ?? "Agenda atualizada com sucesso.",
+  };
 }

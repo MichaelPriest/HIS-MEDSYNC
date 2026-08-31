@@ -22,13 +22,17 @@ O contrato compartilhado está em `src/lib/actions/background-action.ts` e usa `
 
 Navegação continua permitida quando ela é a própria intenção explícita do usuário, por exemplo login, seleção de contexto ou botão que leva a uma etapa/tela distinta. Não usar navegação como mecanismo de feedback de um salvamento comum.
 
+Na Agenda, o `check-in` é uma exceção deliberada: após o banco confirmar a transição, a aplicação abre a próxima etapa operacional (`/atendimentos/novo` para atendimento comum ou Centro Cirúrgico para cirurgia eletiva). Confirmação, falta, conclusão e cancelamento permanecem na própria Agenda.
+
 ## Migração
 
 Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
 
-Convertidos no pacote inicial:
+Convertidos:
 
 - alta médica ambulatorial;
-- solicitação de avaliação médica interprofissional.
+- solicitação de avaliação médica interprofissional;
+- criação de agendamento;
+- confirmação, falta, conclusão e cancelamento de agendamento.
 
 O teste `tests/unit/background-save-policy.test.ts` impede regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.

@@ -12,6 +12,8 @@ const migratedServerActions = [
 const backgroundForms = [
   "src/components/prontuario/alta-medica-background-form.tsx",
   "src/components/prontuario/avaliacao-medica-background-form.tsx",
+  "src/components/agenda/agenda-form.tsx",
+  "src/components/agenda/agenda-status-actions.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -41,5 +43,30 @@ describe("política de salvamento em segundo plano", () => {
     const source = read("src/app/(painel)/prontuario/[atendimentoId]/avaliacoes/page.tsx");
     expect(source).toContain("AvaliacaoMedicaBackgroundForm");
     expect(source).not.toContain("action={solicitarAvaliacaoMedicaAction}");
+  });
+
+  it("mantém a Agenda sem redirects usados apenas como feedback", () => {
+    const source = read("src/modules/agenda/actions.ts");
+    const redirects = source.match(/\bredirect\s*\(/g) ?? [];
+
+    expect(source).toContain("BackgroundActionState");
+    expect(source).not.toContain("agendaRedirect");
+    expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/agenda/);
+    expect(redirects).toHaveLength(2);
+    expect(source).toContain("/assistencial/centro-cirurgico?agendamento=");
+    expect(source).toContain("/atendimentos/novo?agendamento=");
+  });
+
+  it("renderiza ações operacionais da Agenda no componente de segundo plano", () => {
+    const source = read("src/app/(painel)/agenda/page.tsx");
+    expect(source).toContain("AgendaStatusActions");
+    expect(source).not.toContain("atualizarStatusAgendamento");
+  });
+
+  it("mantém o novo agendamento no formulário de segundo plano", () => {
+    const source = read("src/app/(painel)/agenda/novo/page.tsx");
+    expect(source).toContain("<AgendaForm");
+    expect(source).not.toContain("searchParams");
+    expect(source).not.toContain("criarAgendamento");
   });
 });
