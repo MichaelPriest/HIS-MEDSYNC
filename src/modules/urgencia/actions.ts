@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/permissions/server";
 
 const BASE = "/assistencial/urgencia";
 const SLA_BASE = `${BASE}/sla`;
+const SLA_CONFIG_BASE = `${SLA_BASE}/configuracoes`;
 
 function text(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
@@ -35,14 +36,20 @@ function goSla(query: string): never {
   redirect(asRoute(`${SLA_BASE}?${query}`));
 }
 
+function goSlaConfig(query: string): never {
+  redirect(asRoute(`${SLA_CONFIG_BASE}?${query}`));
+}
+
 function transitionError(message?: string | null) {
   const value = String(message ?? "");
   if (value.includes("REGISTRO_ATIVO")) return "registro-ativo";
   if (value.includes("ATENDIMENTO_INDISPONIVEL")) return "atendimento-indisponivel";
-  if (value.includes("CLASSIFICACAO_INVALIDA")) return "classificacao";
+  if (value.includes("CONFIGURACAO_NAO_ENCONTRADA") || value.includes("CONFIGURACAO_INDISPONIVEL")) return "sla-configuracao";
+  if (value.includes("CLASSIFICACAO_NAO_INFORMADA") || value.includes("CLASSIFICACAO_INVALIDA")) return "classificacao";
   if (value.includes("PRIORIDADE_INVALIDA")) return "prioridade";
   if (value.includes("SLA_INVALIDO")) return "sla";
   if (value.includes("DESTINO_INVALIDO")) return "destino";
+  if (value.includes("UNIDADE_INDISPONIVEL")) return "unidade";
   if (value.includes("REGISTRO_INDISPONIVEL")) return "registro";
   if (value.includes("SEM_PERMISSAO") || value.includes("NAO_AUTENTICADO")) return "permissao";
   return "operacao";
@@ -121,6 +128,82 @@ export async function atualizarRegistroEmergencia(formData: FormData) {
   revalidatePath(SLA_BASE);
   revalidatePath(`/prontuario/${emergencia.atendimento_id}`);
   return goSla(`registro=${emergenciaId}&sucesso=atualizado`);
+}
+
+export async function salvarConfiguracaoSlaEmergencia(formData: FormData) {
+  const { supabase, empresaId, unidadeId } = await requirePermission("emergencia.gerenciar");
+  const classificacao = text(formData, "classificacao_risco");
+  const slaMinutos = integer(formData, "sla_minutos");
+  if (!empresaId || !unidadeId || !classificacao) return goSlaConfig("erro=classificacao");
+  if (slaMinutos === null || slaMinutos <= 0) return goSlaConfig("erro=sla");
+
+  const { error } = await supabase.rpc("salvar_configuracao_sla_emergencia_operacional", {
+    p_empresa_id: empresaId,
+    p_unidade_id: unidadeId,
+    p_classificacao_risco: classificacao,
+    p_sla_minutos: slaMinutos,
+    p_referencia_institucional: text(formData, "referencia_institucional"),
+    p_observacoes: text(formData, "observacoes"),
+  });
+
+  if (error) {
+    console.error("[urgencia] salvar configuração SLA", { code: error.code, operation: "salvar_configuracao_sla_emergencia_operacional" });
+    return goSlaConfig(`erro=${transitionError(error.message)}`);
+  }
+
+  revalidatePath(SLA_CONFIG_BASE);
+  revalidatePath(SLA_BASE);
+  return goSlaConfig("sucesso=configuracao-salva");
+}
+
+export async function desativarConfiguracaoSlaEmergencia(formData: FormData) {
+  const { supabase } = await requirePermission("emergencia.gerenciar");
+  const configuracaoId = text(formData, "configuracao_id");
+  if (!configuracaoId) return goSlaConfig("erro=sla-configuracao");
+
+  const { error } = await supabase.rpc("desativar_configuracao_sla_emergencia_operacional", {
+    p_configuracao_id: configuracaoId,
+  });
+
+  if (error) {
+    console.error("[urgencia] desativar configuração SLA", { code: error.code, operation: "desativar_configuracao_sla_emergencia_operacional" });
+    return goSlaConfig(`erro=${transitionError(error.message)}`);
+  }
+
+  revalidatePath(SLA_CONFIG_BASE);
+  revalidatePath(SLA_BASE);
+  return goSlaConfig("sucesso=configuracao-desativada");
+}
+
+export async function aplicarSlaInstitucionalEmergencia(formData: FormData) {
+  const { supabase, empresaId, unidadeId } = await requirePermission("emergencia.gerenciar");
+  const emergenciaId = text(formData, "emergencia_id");
+  if (!emergenciaId || !empresaId || !unidadeId) return goSla("erro=registro");
+
+  const { data: emergencia } = await supabase
+    .from("emergencia_registros")
+    .select("id,atendimento_id,status")
+    .eq("id", emergenciaId)
+    .eq("empresa_id", empresaId)
+    .eq("unidade_id", unidadeId)
+    .maybeSingle();
+
+  if (!emergencia || emergencia.status === "encerrado") return goSla("erro=registro");
+
+  const { error } = await supabase.rpc("aplicar_sla_institucional_emergencia_operacional", {
+    p_emergencia_id: emergencia.id,
+  });
+
+  if (error) {
+    console.error("[urgencia] aplicar SLA institucional", { code: error.code, operation: "aplicar_sla_institucional_emergencia_operacional" });
+    return goSla(`registro=${emergenciaId}&erro=${transitionError(error.message)}`);
+  }
+
+  revalidatePath(BASE);
+  revalidatePath(SLA_BASE);
+  revalidatePath(SLA_CONFIG_BASE);
+  revalidatePath(`/prontuario/${emergencia.atendimento_id}`);
+  return goSla(`registro=${emergenciaId}&sucesso=sla-institucional-aplicado`);
 }
 
 export async function registrarReavaliacaoEmergencia(formData: FormData) {
