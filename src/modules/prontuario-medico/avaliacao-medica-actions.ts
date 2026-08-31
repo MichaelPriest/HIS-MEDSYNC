@@ -1,31 +1,41 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { requireAnyPermission } from "@/lib/permissions/server";
-import { asRoute } from "@/lib/route-cast";
 
 const texto = (fd: FormData, nome: string) => String(fd.get(nome) ?? "").trim();
 
-export async function solicitarAvaliacaoMedicaAction(formData: FormData) {
+export async function solicitarAvaliacaoMedicaAction(
+  _previousState: BackgroundActionState,
+  formData: FormData,
+): Promise<BackgroundActionState> {
   const atendimentoId = texto(formData, "atendimento_id");
   const especialidade = texto(formData, "especialidade");
   const prioridade = texto(formData, "prioridade") || "rotina";
   const motivo = texto(formData, "motivo");
   const observacoes = texto(formData, "observacoes") || null;
+
   if (!atendimentoId || !especialidade || !motivo || !["rotina", "urgente", "emergencia"].includes(prioridade)) {
-    redirect(asRoute(`/prontuario/${atendimentoId}/avaliacoes?erro=campos`));
+    return { status: "error", code: "campos", message: "Revise especialidade, prioridade e motivo da avaliação." };
   }
 
   const { supabase, user, empresaId, unidadeId } = await requireAnyPermission(["prontuario.visualizar", "prescricao.criar"]);
-  if (!unidadeId) redirect(asRoute(`/prontuario/${atendimentoId}/avaliacoes?erro=unidade`));
+  if (!unidadeId) {
+    return { status: "error", code: "unidade", message: "Selecione uma unidade antes de solicitar a avaliação." };
+  }
 
   const [{ data: atendimento }, { data: profissional }] = await Promise.all([
     supabase.from("atendimentos").select("id,paciente_id,status").eq("id", atendimentoId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle(),
     supabase.from("profissionais").select("id").eq("empresa_id", empresaId).eq("usuario_id", user.id).eq("ativo", true).limit(1).maybeSingle(),
   ]);
-  if (!atendimento?.paciente_id) redirect(asRoute(`/prontuario/${atendimentoId}/avaliacoes?erro=atendimento`));
-  if (!profissional?.id) redirect(asRoute(`/prontuario/${atendimentoId}/avaliacoes?erro=profissional`));
+
+  if (!atendimento?.paciente_id) {
+    return { status: "error", code: "atendimento", message: "O atendimento não foi localizado nesta unidade." };
+  }
+  if (!profissional?.id) {
+    return { status: "error", code: "profissional", message: "Seu usuário não está vinculado a um profissional ativo." };
+  }
 
   const { error } = await supabase.from("solicitacoes_avaliacao_medica").insert({
     empresa_id: empresaId,
@@ -41,11 +51,18 @@ export async function solicitarAvaliacaoMedicaAction(formData: FormData) {
     created_by: user.id,
     updated_by: user.id,
   });
+
   if (error) {
     console.error("[avaliacao-medica] falha ao solicitar", { code: error.code, message: error.message, atendimentoId });
-    redirect(asRoute(`/prontuario/${atendimentoId}/avaliacoes?erro=salvar`));
+    return { status: "error", code: "salvar", message: "Não foi possível registrar a avaliação. Tente novamente." };
   }
 
   revalidatePath(`/prontuario/${atendimentoId}/avaliacoes`);
-  redirect(asRoute(`/prontuario/${atendimentoId}/avaliacoes?sucesso=solicitada`));
+  revalidatePath(`/prontuario/${atendimentoId}`);
+
+  return {
+    status: "success",
+    code: "solicitada",
+    message: "Avaliação solicitada e vinculada ao episódio.",
+  };
 }
