@@ -7,6 +7,7 @@ const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 const migratedServerActions = [
   "src/modules/prontuario-medico/encerramento-actions.ts",
   "src/modules/prontuario-medico/avaliacao-medica-actions.ts",
+  "src/modules/triagem/actions.ts",
 ];
 
 const backgroundForms = [
@@ -15,6 +16,7 @@ const backgroundForms = [
   "src/components/agenda/agenda-form.tsx",
   "src/components/agenda/agenda-status-actions.tsx",
   "src/components/atendimentos/admission-background-form.tsx",
+  "src/components/triagem/triage-background-actions.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -91,5 +93,21 @@ describe("política de salvamento em segundo plano", () => {
     expect(source).toContain("AdmissionBackgroundForm");
     expect(source).toContain("<AdmissionBackgroundForm");
     expect(source).not.toContain("<AdmissionForm");
+  });
+
+  it("mantém chamada e registro da Triagem sem redirect usado como feedback", () => {
+    const actions = read("src/modules/triagem/actions.ts");
+    const page = read("src/app/(painel)/triagem/page.tsx");
+
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(actions).toContain("return success(\"Paciente chamado no painel");
+    expect(actions).toContain("redirectTo: `/autorizacoes?atendimento=");
+    expect(actions).toContain("redirectTo: `/pronto-socorro?atendimento=");
+    expect(actions).not.toContain("/triagem?sucesso=encaminhado");
+    expect(page).toContain("TriageCallAction");
+    expect(page).toContain("TriageBackgroundForm");
+    expect(page).not.toContain("action={chamarPacienteTriagem}");
+    expect(page).not.toContain("action={registrarTriagem}");
   });
 });
