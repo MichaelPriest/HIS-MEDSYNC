@@ -1,9 +1,30 @@
 "use server";
 
-import type { Route } from "next";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
+
+type AssumirPacienteData = { redirectTo?: string };
+type AssumirPacienteState = BackgroundActionState<AssumirPacienteData>;
+
+const ERROR_MESSAGES: Record<string, string> = {
+  encaminhamento: "Encaminhamento inválido.",
+  "perfil-profissional": "O usuário não está vinculado a um profissional ativo.",
+  indisponivel: "Este paciente já foi chamado ou assumido por outro profissional.",
+  especialidade: "A especialidade do profissional não corresponde à fila do paciente.",
+  atendimento: "Não foi possível atualizar o atendimento clínico.",
+  "fila-setorial": "Não foi possível publicar a chamada no painel integrado.",
+  assumir: "O paciente foi assumido por outro profissional antes desta chamada.",
+};
+
+function failure(code: string, detail?: string): AssumirPacienteState {
+  return {
+    status: "error",
+    code,
+    message: ERROR_MESSAGES[code] ?? "Não foi possível chamar e assumir o paciente.",
+    detail,
+  };
+}
 
 function normalizar(value: string | null | undefined) {
   return (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -30,51 +51,53 @@ function setorClinico(setorAtual: string | null | undefined, origem: string | nu
   return setor && setor !== "triagem" ? setor : "consultorio";
 }
 
-function filaComErro(filaSetor: string, erro: string): Route {
-  const query = new URLSearchParams({ erro });
-  if (["ps", "ambulatorio", "internacao", "outros"].includes(filaSetor)) query.set("setor", filaSetor);
-  return `/fila-medica?${query.toString()}` as Route;
-}
-
-export async function assumirPaciente(formData: FormData) {
+export async function assumirPaciente(
+  _previousState: AssumirPacienteState,
+  formData: FormData,
+): Promise<AssumirPacienteState> {
   const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
   const encaminhamentoId = String(formData.get("encaminhamento_id") ?? "").trim();
-  const filaSetor = String(formData.get("fila_setor") ?? "").trim();
   const pontoAtendimento = String(formData.get("ponto_atendimento") ?? "").trim() || "Consultório 01";
-  if (!encaminhamentoId) redirect(filaComErro(filaSetor, "encaminhamento"));
+  if (!encaminhamentoId) return failure("encaminhamento");
 
   let { data: profissional } = await supabase.from("profissionais").select("id,nome_completo,especialidade").eq("usuario_id", user.id).eq("ativo", true).maybeSingle();
   if (!profissional && user.email) {
     const fallback = await supabase.from("profissionais").select("id,nome_completo,especialidade").ilike("email", user.email).eq("ativo", true).limit(1).maybeSingle();
     profissional = fallback.data;
   }
-  if (!profissional) redirect(filaComErro(filaSetor, "perfil-profissional"));
+  if (!profissional) return failure("perfil-profissional");
   const profissionalId = profissional.id;
 
-  const { data: encaminhamento } = await supabase.from("encaminhamentos_assistenciais")
+  const { data: encaminhamento, error: encaminhamentoError } = await supabase.from("encaminhamentos_assistenciais")
     .select("id,atendimento_id,paciente_id,especialidade,status,prioridade,motivo")
     .eq("id", encaminhamentoId)
     .eq("unidade_id", unidadeId)
     .maybeSingle();
-  if (!encaminhamento || encaminhamento.status !== "aguardando_profissional") redirect(filaComErro(filaSetor, "indisponivel"));
+  if (encaminhamentoError) {
+    console.error("[fila-medica] falha ao consultar encaminhamento", { code: encaminhamentoError.code });
+    return failure("encaminhamento");
+  }
+  if (!encaminhamento || encaminhamento.status !== "aguardando_profissional") return failure("indisponivel");
 
   const especialidadeProf = normalizar(profissional.especialidade);
   const especialidadeFila = normalizar(encaminhamento.especialidade);
-  if (!especialidadeProf || (!especialidadeProf.includes(especialidadeFila) && !especialidadeFila.includes(especialidadeProf))) redirect(filaComErro(filaSetor, "especialidade"));
+  if (!especialidadeProf || (!especialidadeProf.includes(especialidadeFila) && !especialidadeFila.includes(especialidadeProf))) return failure("especialidade");
 
   const { data: atendimento, error: atendimentoConsultaError } = await supabase.from("atendimentos")
     .select("id,paciente_id,setor_atual,origem,tipo_atendimento")
     .eq("id", encaminhamento.atendimento_id)
     .eq("unidade_id", unidadeId)
     .maybeSingle();
-  if (atendimentoConsultaError || !atendimento) redirect(filaComErro(filaSetor, "atendimento"));
+  if (atendimentoConsultaError || !atendimento) {
+    if (atendimentoConsultaError) console.error("[fila-medica] falha ao consultar atendimento", { code: atendimentoConsultaError.code });
+    return failure("atendimento");
+  }
 
   const setorCodigo = setorClinico(atendimento.setor_atual, atendimento.origem, atendimento.tipo_atendimento);
   const pacienteId = encaminhamento.paciente_id ?? atendimento.paciente_id;
   const now = new Date().toISOString();
 
-  // Faz primeiro a tomada otimista do encaminhamento. A condição no status garante
-  // que apenas um profissional vença a corrida e só o vencedor publique a chamada.
+  // A condição no status garante que apenas um profissional vença a corrida.
   const { data: encaminhamentoAtualizado, error: claimError } = await supabase.from("encaminhamentos_assistenciais").update({
     profissional_id: profissionalId,
     status: "em_atendimento",
@@ -83,7 +106,10 @@ export async function assumirPaciente(formData: FormData) {
     updated_at: now,
     updated_by: user.id,
   }).eq("id", encaminhamentoId).eq("unidade_id", unidadeId).eq("status", "aguardando_profissional").select("id").maybeSingle();
-  if (claimError || !encaminhamentoAtualizado) redirect(filaComErro(filaSetor, "assumir"));
+  if (claimError || !encaminhamentoAtualizado) {
+    if (claimError) console.error("[fila-medica] falha ao assumir encaminhamento", { code: claimError.code });
+    return failure("assumir");
+  }
 
   async function liberarClaim() {
     await supabase.from("encaminhamentos_assistenciais").update({
@@ -107,7 +133,8 @@ export async function assumirPaciente(formData: FormData) {
     .maybeSingle();
   if (filaSetorialConsultaError) {
     await liberarClaim();
-    redirect(filaComErro(filaSetor, "fila-setorial"));
+    console.error("[fila-medica] falha ao consultar fila setorial", { code: filaSetorialConsultaError.code });
+    return failure("fila-setorial");
   }
 
   const filaSetorialPayload = {
@@ -136,7 +163,8 @@ export async function assumirPaciente(formData: FormData) {
     });
   if (filaSetorialResult.error) {
     await liberarClaim();
-    redirect(filaComErro(filaSetor, "fila-setorial"));
+    console.error("[fila-medica] falha ao publicar fila setorial", { code: filaSetorialResult.error.code });
+    return failure("fila-setorial");
   }
 
   const { error: atendimentoError } = await supabase.from("atendimentos").update({
@@ -149,10 +177,15 @@ export async function assumirPaciente(formData: FormData) {
   }).eq("id", encaminhamento.atendimento_id).eq("unidade_id", unidadeId);
   if (atendimentoError) {
     await liberarClaim();
-    redirect(filaComErro(filaSetor, "atendimento"));
+    console.error("[fila-medica] falha ao atualizar atendimento", { code: atendimentoError.code });
+    return failure("atendimento");
   }
 
   revalidatePath("/fila-medica");
   revalidatePath(`/painel-chamadas/${unidadeId}`);
-  redirect(`/prontuario/${encaminhamento.atendimento_id}/clinico`);
+  return {
+    status: "success",
+    message: "Paciente chamado e assumido. Abrindo o prontuário…",
+    data: { redirectTo: `/prontuario/${encaminhamento.atendimento_id}/clinico` },
+  };
 }
