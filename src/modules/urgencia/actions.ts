@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/permissions/server";
 
 const BASE = "/assistencial/urgencia";
 const SLA_BASE = `${BASE}/sla`;
+const OBSERVACAO_BASE = `${BASE}/observacao`;
 
 function text(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
@@ -35,6 +36,10 @@ function goSla(query: string): never {
   redirect(asRoute(`${SLA_BASE}?${query}`));
 }
 
+function goObservacao(query: string): never {
+  redirect(asRoute(`${OBSERVACAO_BASE}?${query}`));
+}
+
 function transitionError(message?: string | null) {
   const value = String(message ?? "");
   if (value.includes("REGISTRO_ATIVO")) return "registro-ativo";
@@ -43,6 +48,8 @@ function transitionError(message?: string | null) {
   if (value.includes("PRIORIDADE_INVALIDA")) return "prioridade";
   if (value.includes("SLA_INVALIDO")) return "sla";
   if (value.includes("DESTINO_INVALIDO")) return "destino";
+  if (value.includes("OBSERVACAO_ATIVA")) return "observacao-ativa";
+  if (value.includes("OBSERVACAO_INDISPONIVEL")) return "observacao";
   if (value.includes("REGISTRO_INDISPONIVEL")) return "registro";
   if (value.includes("SEM_PERMISSAO") || value.includes("NAO_AUTENTICADO")) return "permissao";
   return "operacao";
@@ -177,8 +184,73 @@ export async function registrarReavaliacaoEmergencia(formData: FormData) {
 
   revalidatePath(BASE);
   revalidatePath(SLA_BASE);
+  revalidatePath(OBSERVACAO_BASE);
   revalidatePath(`/prontuario/${emergencia.atendimento_id}`);
   return go(`registro=${emergenciaId}&sucesso=reavaliado`);
+}
+
+export async function iniciarObservacaoEmergencia(formData: FormData) {
+  const { supabase, empresaId, unidadeId } = await requirePermission("emergencia.gerenciar");
+  const emergenciaId = text(formData, "emergencia_id");
+  if (!emergenciaId || !unidadeId) return go("erro=registro");
+
+  const { data: emergencia } = await supabase
+    .from("emergencia_registros")
+    .select("id,atendimento_id,status")
+    .eq("id", emergenciaId)
+    .eq("empresa_id", empresaId)
+    .eq("unidade_id", unidadeId)
+    .maybeSingle();
+
+  if (!emergencia || emergencia.status === "encerrado") return go("erro=registro");
+
+  const { data: observacaoId, error } = await supabase.rpc("iniciar_observacao_emergencia_operacional", {
+    p_emergencia_id: emergencia.id,
+    p_motivo: text(formData, "motivo"),
+    p_local_observacao: text(formData, "local_observacao"),
+    p_observacoes: text(formData, "observacoes"),
+    p_proxima_reavaliacao_em: text(formData, "proxima_reavaliacao_em"),
+  });
+
+  if (error || !observacaoId) {
+    console.error("[urgencia] iniciar observacao", { code: error?.code ?? "unknown", operation: "iniciar_observacao_emergencia_operacional" });
+    return go(`registro=${emergenciaId}&erro=${transitionError(error?.message)}`);
+  }
+
+  revalidatePath(BASE);
+  revalidatePath(SLA_BASE);
+  revalidatePath(OBSERVACAO_BASE);
+  revalidatePath(`/prontuario/${emergencia.atendimento_id}`);
+  return goObservacao(`observacao=${observacaoId}&sucesso=iniciada`);
+}
+
+export async function encerrarObservacaoEmergencia(formData: FormData) {
+  const { supabase, unidadeId } = await requirePermission("emergencia.gerenciar");
+  const observacaoId = text(formData, "observacao_id");
+  const destino = text(formData, "destino_final");
+  if (!observacaoId || !destino || !unidadeId) return goObservacao("erro=observacao");
+
+  const { data: atendimentoId, error } = await supabase.rpc("encerrar_observacao_emergencia_operacional", {
+    p_observacao_id: observacaoId,
+    p_destino_final: destino,
+    p_observacoes: text(formData, "observacoes"),
+  });
+
+  if (error || !atendimentoId) {
+    console.error("[urgencia] encerrar observacao", { code: error?.code ?? "unknown", operation: "encerrar_observacao_emergencia_operacional" });
+    return goObservacao(`observacao=${observacaoId}&erro=${transitionError(error?.message)}`);
+  }
+
+  revalidatePath(BASE);
+  revalidatePath(SLA_BASE);
+  revalidatePath(OBSERVACAO_BASE);
+  revalidatePath(`/prontuario/${atendimentoId}`);
+
+  if (destino === "internacao") {
+    redirect(asRoute(`/internacao/nova/${atendimentoId}`));
+  }
+
+  return goObservacao("sucesso=encerrada");
 }
 
 export async function encerrarRegistroEmergencia(formData: FormData) {
@@ -209,6 +281,7 @@ export async function encerrarRegistroEmergencia(formData: FormData) {
 
   revalidatePath(BASE);
   revalidatePath(SLA_BASE);
+  revalidatePath(OBSERVACAO_BASE);
   revalidatePath(`/prontuario/${emergencia.atendimento_id}`);
 
   if (destino === "internacao") {
