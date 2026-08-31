@@ -1,8 +1,11 @@
 import Link from "next/link";
-import { BellRing, Clock3, HeartPulse, Stethoscope, UserRound } from "lucide-react";
+import { Clock3, HeartPulse, Stethoscope, UserRound } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
+import {
+  TriageBackgroundForm,
+  TriageCallAction,
+} from "@/components/triagem/triage-background-actions";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import { chamarPacienteTriagem, registrarTriagem } from "@/modules/triagem/actions";
 
 type PacienteRel = { nome_completo?: string; cpf?: string | null; ra?: string; numero_registro?: number };
 type FilaTriagem = { id: string; atendimento_id: string; status: string; ponto_atendimento: string | null; chamado_em: string | null };
@@ -22,7 +25,7 @@ function mensagemSucesso(codigo: string | undefined) {
   return "Atendimento aberto e incluído na fila de triagem.";
 }
 
-export default async function TriagemPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string; atendimento?: string; chamado?: string }> }) {
+export default async function TriagemPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string; atendimento?: string }> }) {
   const params = await searchParams;
   const { supabase, unidadeId } = await getAssistencialContext();
   const [{ data: atendimentos }, { data: especialidades }] = await Promise.all([
@@ -67,8 +70,7 @@ export default async function TriagemPage({ searchParams }: { searchParams: Prom
 
   return <SectionPage eyebrow="Assistencial / Triagem" title="Fila de triagem" description="Somente atendimentos já abertos e ainda sem triagem concluída aparecem nesta fila. Ao concluir, o paciente sai automaticamente daqui e segue para a fila médica.">
     {params.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{mensagemSucesso(params.sucesso)}</div> : null}
-    {params.chamado ? <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">Paciente chamado no painel. A chamada pode ser repetida pelo mesmo botão.</div> : null}
-    {params.erro ? <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Não foi possível concluir a operação. Verifique atendimento, autorização e permissões da unidade.</div> : null}
+    {params.erro ? <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Não foi possível concluir a operação anterior. Verifique atendimento, autorização e permissões da unidade.</div> : null}
 
     <div className="grid gap-6 xl:grid-cols-[minmax(320px,.78fr)_minmax(0,1.22fr)]">
       <section className="ui-card overflow-hidden">
@@ -109,11 +111,7 @@ export default async function TriagemPage({ searchParams }: { searchParams: Prom
               </div>
 
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <form action={chamarPacienteTriagem}>
-                  <input type="hidden" name="atendimento_id" value={item.id} />
-                  <input type="hidden" name="ponto_atendimento" value="Sala de Triagem" />
-                  <button className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-700 transition hover:bg-sky-100"><BellRing className="size-4" />{chamado ? "Rechamar no painel" : "Chamar no painel"}</button>
-                </form>
+                <TriageCallAction atendimentoId={item.id} chamado={chamado} />
                 <Link href={`/triagem?atendimento=${item.id}`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-800"><HeartPulse className="size-4" />Aplicar triagem</Link>
               </div>
             </article>;
@@ -122,8 +120,7 @@ export default async function TriagemPage({ searchParams }: { searchParams: Prom
         </div>
       </section>
 
-      {selecionado ? <form action={registrarTriagem} className="ui-card p-6">
-        <input type="hidden" name="atendimento_id" value={selecionado.id} />
+      {selecionado ? <TriageBackgroundForm atendimentoId={selecionado.id}>
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-5">
           <div className="flex items-start gap-3"><span className="grid size-11 place-items-center rounded-xl bg-brand-50 text-brand-700"><UserRound className="size-5" /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Paciente selecionado</p><h2 className="mt-1 text-lg font-black text-slate-900">{pacienteSelecionado?.nome_completo ?? "Paciente"}</h2><p className="mt-1 text-sm text-slate-500">RA {pacienteSelecionado?.ra ?? "—"} · Registro #{pacienteSelecionado?.numero_registro ?? "—"} · Atendimento {selecionado.numero_atendimento ?? "—"}</p></div></div>
           <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">{selecionado.cobertura === "convenio" ? "Convênio" : "Particular"}</span>
@@ -145,8 +142,7 @@ export default async function TriagemPage({ searchParams }: { searchParams: Prom
           <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2 xl:col-span-4"><span>Queixa principal</span><textarea name="queixa_principal" rows={3} className="ui-input" /></label>
           <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2 xl:col-span-4"><span>Observações</span><textarea name="observacoes" rows={3} className="ui-input" /></label>
         </div>
-        <div className="mt-6 flex justify-end border-t border-slate-100 pt-5"><button className="ui-button-primary">Concluir triagem e encaminhar</button></div>
-      </form> : <section className="ui-card grid min-h-[420px] place-items-center p-8 text-center"><div><HeartPulse className="mx-auto size-10 text-slate-300"/><h2 className="mt-4 font-semibold text-slate-800">Nenhum atendimento aguardando triagem</h2><p className="mt-2 max-w-md text-sm text-slate-500">A fila é alimentada automaticamente quando a Recepção abre um atendimento.</p></div></section>}
+      </TriageBackgroundForm> : <section className="ui-card grid min-h-[420px] place-items-center p-8 text-center"><div><HeartPulse className="mx-auto size-10 text-slate-300"/><h2 className="mt-4 font-semibold text-slate-800">Nenhum atendimento aguardando triagem</h2><p className="mt-2 max-w-md text-sm text-slate-500">A fila é alimentada automaticamente quando a Recepção abre um atendimento.</p></div></section>}
     </div>
   </SectionPage>;
 }
