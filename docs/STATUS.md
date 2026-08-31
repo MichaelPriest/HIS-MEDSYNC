@@ -1,85 +1,99 @@
 # Estado real da implementação
 
-Atualizado em 2026-08-30.
+Atualizado em 2026-08-31.
 
 Este documento registra o estado **real confirmado** do MedSync HIS. A existência de rota, tabela, migration, teste automatizado ou deploy verde **não significa homologação hospitalar**. Homologação operacional continua dependendo de validação com os setores, integrações externas e dados institucionais reais.
 
 ## Referência atual
 
-- `main` confirmada antes desta atualização: `ab623449e498efaccd5de97e02d79374f934ee81`, merge do PR #87.
-- A produção Vercel desse mesmo SHA estava `READY`.
-- A cadeia que começou nos PRs #80 → #81 → #82 → #83 já foi consolidada: #80 e #81 foram mesclados; #82 foi fechado como superseded; #83 foi corrigido, validado e mesclado.
-- O erro de Next.js 16 do PR #83 em `src/modules/tiss/lote-financeiro-actions.ts` foi resolvido mantendo o anexo de documentos por uma server action `async` explícita; não existe mais a reexportação inválida em arquivo `"use server"`.
-- PR #84 (censo/diárias de internação), PR #86 (transições de Urgência) e PR #87 (SLA/reavaliação de Urgência) já foram mesclados.
-- O pacote de transferências interunidades originado no PR #85 está implementado e sincronizado com a `main` atual. Seu merge só pode ocorrer com CI e Vercel verdes no **mesmo SHA final**.
+- `main`: `9af0ecbfec2306404da31a7606e838d517d8ebc5`, merge do PR #90 — alinhamento do nome versionado da migration de SLA com o histórico real do Supabase.
+- O CI pós-merge #835 da mesma `main` ficou verde, incluindo lint, typecheck, testes, build, Chromium, smoke E2E público e E2E autenticado.
+- O deployment Vercel de **produção** do mesmo SHA `9af0ecbf...` ficou `READY`.
+- PR #93 foi mesclada antes da #90 e corrigiu a tela `/auditoria`: o PostgREST retornava HTTP 300 por relação ambígua entre `auditoria_contas` e `contas_faturamento`, e a tela tratava a falha como fila vazia. A consulta agora explicita `auditoria_contas_conta_id_fkey` e não oculta erros de carregamento.
+- PRs #80, #81, #83, #84, #85, #86, #87, #90 e #93 estão mescladas; #82 foi fechada como superseded.
+- PR #88 (Observação da Urgência) continua aberta; PR #89 (indicadores operacionais) permanece empilhada sobre #88.
+- Pacote atual em validação: PR #91 — parametrização institucional versionada de SLA da Urgência, reconstruída sobre a `main` atual sem carregar novamente o histórico da #90.
+- PR #92 — histórico longitudinal factual das aplicações de SLA — permanece empilhada sobre #91 e deve ser sincronizada somente depois da #91.
 
 ## Princípios arquiteturais obrigatórios
 
-- O atendimento/RA e o prontuário longitudinal permanecem como eixo assistencial; módulos setoriais não criam uma segunda fonte clínica concorrente.
-- A Central de Pendências é **derivada**: detecta divergências e direciona responsáveis, mas não reescreve fatos de prontuário, estoque, laudo, cirurgia, TISS ou financeiro para ocultar inconsistências.
-- Escritas críticas usam operações transacionais no banco com autenticação, escopo de empresa/unidade e RBAC. Não reabrir `INSERT/UPDATE/DELETE` direto no cliente para contornar RLS/RPC.
-- Medicamentos continuam obrigatoriamente no fluxo `Prescrição → Farmácia → Dispensação → Administração`; consumo cirúrgico direto não substitui esse ciclo.
-- Não criar pacientes, unidades, leitos, estoques, lotes, valores, autorizações, contas, glosas, NFS-e ou fatos clínicos fictícios para “completar” cenário de homologação.
+- Atendimento/RA e prontuário longitudinal permanecem como eixo assistencial; módulos setoriais não criam uma segunda fonte clínica concorrente.
+- A Central de Pendências é **derivada**: detecta divergências e direciona responsáveis, mas não reescreve fatos das fontes para ocultar inconsistências.
+- Escritas críticas usam operações transacionais no banco com autenticação, escopo empresa/unidade e RBAC. Não reabrir `INSERT/UPDATE/DELETE` direto no cliente para contornar RLS/RPC.
+- Medicamentos continuam obrigatoriamente no fluxo `Prescrição → Farmácia → Dispensação → Administração`.
+- Não criar pacientes, unidades, leitos, estoques, lotes, valores, autorizações, contas, glosas, NFS-e, parâmetros institucionais ou fatos clínicos fictícios para completar cenário de homologação.
 - Migrations aplicadas no Supabase devem permanecer versionadas no repositório; drift entre banco e GitHub deve ser tratado explicitamente.
+- Parâmetros clínico-operacionais institucionais não devem ser inferidos de protocolos externos sem configuração explícita da instituição.
 
 ## Estado por área
 
 | Área | Estado confirmado | Próximos pontos críticos |
 |---|---|---|
-| Fundação / Auth / multiempresa | RBAC granular, contexto empresa/unidade, perfis, navegação setorial, RLS/FORCE RLS e helpers de autorização já sustentam os módulos operacionais. | ampliar testes multi-tenant, break-glass clínico controlado e continuar hardening dos RPCs legados apontados pelos Advisors |
-| Navegação / Central Assistencial | Navegação organizada por macroárea e perfil; `/integracoes` concentra pendências intersetoriais sem virar fonte de dados. | homologar usabilidade por perfil real e melhorar acessibilidade/atalhos |
-| Recepção / Totem / Agenda | Totem/senhas, recepção, check-in e agenda possuem bases operacionais integradas ao atendimento. | SLA, recorrência, disponibilidade, lembretes, impressão e homologação do painel de chamada |
-| Prontuário longitudinal | Resumo, histórico, anamnese/evolução com autosave, prescrição, documentos, LIS/RIS e cirurgia compartilham o episódio. Impressão clínica e rascunho único foram endurecidos. | adendos/assinaturas adicionais, protocolos e homologação clínica/regulatória |
-| Farmácia / Enfermagem / medicamentos | FEFO, validação, dispensação, administração, devolução, estoque e produção estão correlacionados pela integração ponta a ponta. Divergências históricas não são corrigidas artificialmente. | saneamento rastreável do legado, regras clínicas adicionais e homologação farmacêutica/assistencial |
-| Laboratório / LIS | Pedido, accession, coleta, cadeia de custódia, resultados, críticos, validação e laudo longitudinal estão implementados; anexos GED podem acompanhar laudos liberados. | interfaces reais com equipamentos, protocolos de bancada e homologação laboratorial |
-| Diagnóstico por Imagem / RIS | Pedido, agenda, execução, dose/contraste, identificadores DICOM/PACS, laudo, retificação e críticos estão integrados ao prontuário. | PACS/visualizador real, storage DICOM e homologação radiológica |
-| GED | Storage privado, upload assinado, hash, versão, assinatura e vínculo com documentos/laudos estão disponíveis sob autorização setorial. | temporalidade, retenção/descarte e política documental institucional |
-| Centro Cirúrgico / CME | Fluxo transacional de agendamento, checklist, anestesia, RPA, equipe ampliada, múltiplos procedimentos, OPME, CME, suprimentos por lote, consumo/estorno e produção está integrado ao mesmo RA. | homologação presencial, estoque satélite real quando existir, impressos/termos e protocolos locais |
-| Compras / Almoxarifado / Estoque | Cotação MATMED, alçadas configuráveis, pedido, recebimento, lote, saldo, inventário, reposição e transferências físicas possuem operações transacionais. Nenhuma alçada monetária institucional foi inventada. | parametrizar alçadas reais, curva ABC/planejamento, inventários cíclicos e saneamento de divergências históricas |
-| Comercial / Contratos / Tabelas | Contratos, negociações, edições imutáveis/versionadas, itens, auditoria e importação AMB estruturada estão no workspace comercial. | revisar contratos reais, vínculos sem itens, novas bases licenciadas e precificação contratual |
-| Internação / NIR | Admissão é transacional; internação/RA/leito são coordenados; alta preserva o fato clínico mesmo se faturamento falhar; censo factual e diária idempotente foram adicionados no PR #84. | concluir merge/gates do pacote interunidades, homologar NIR e validar giro/ocupação com operação real |
-| Transferências interunidades | Fluxo `origem → solicitação NIR → decisão destino → leito destino → novo atendimento/RA + internação destino → continuidade longitudinal` implementado com RPCs, reserva de leito e fila enriquecida. O ambiente conectado possui apenas **uma unidade ativa**, portanto não há destino real para homologação interunidades e nenhuma unidade fictícia foi criada. | validar o fluxo completo quando existir segunda unidade institucional real; manter RBAC/RLS e vínculo longitudinal |
-| Urgência / Emergência | PR #86 tornou abertura/encerramento transacionais com unicidade e auditoria. PR #87 acrescentou prioridade, SLA institucional configurável, reavaliação operacional e fila derivada, sem hardcode de tempos clínicos. | parametrizar SLA institucional real, protocolos locais, observação, indicadores e homologação |
-| Faturamento / Livro de Produção | Produção assistencial está integrada a cirurgia, internação, medicamentos e conta. Falhas pós-alta viram pendência em vez de desfazer a alta clínica. | ampliar fechamento/precificação e homologar ciclo de conta com faturamento real |
-| TISS | Guia + itens, lote, protocolo, glosa e recurso possuem RPCs transacionais e validação anti-glosa. A anomalia histórica global sem tenant confiável foi preservada tecnicamente em vez de receber escopo inventado. | XSD oficial por versão/tipo, XML definitivo, adapters/retornos reais das operadoras e homologação TISS |
-| Financeiro / NFS-e | PR #83 integrou recebível, baixa parcial/total, retenções/tarifas, conciliação, estorno auditável e NFS-e com RBAC. Mutações críticas do lote TISS deixaram de usar DML financeiro direto. Migration posterior adicionou contas a pagar/caixa operacional. | adapters NFS-e reais, conciliação bancária/retornos, fechamento financeiro e homologação com processos reais |
-| RH / Segurança / TI / Engenharia Clínica | Workspaces e fundações setoriais existem, com níveis de completude diferentes. | evoluir fluxos completos, integrações de dispositivos/ativos e homologação por setor |
+| Fundação / Auth / multiempresa | RBAC granular, contexto empresa/unidade, perfis, navegação setorial, RLS/FORCE RLS e helpers de autorização sustentam os módulos operacionais. | ampliar testes multi-tenant, break-glass clínico controlado e hardening de RPCs legados |
+| Navegação / Central Assistencial | Navegação por macroárea/perfil e Central de Pendências derivada, sem virar fonte concorrente. | homologar usabilidade por perfil real e melhorar acessibilidade/atalhos |
+| Recepção / Totem / Agenda | Totem/senhas, recepção, check-in e agenda integrados ao atendimento. | recorrência, disponibilidade, lembretes, impressão e homologação operacional |
+| Prontuário longitudinal | Resumo, histórico, evolução, prescrição, documentos, LIS/RIS e cirurgia compartilham o mesmo episódio. | adendos/assinaturas adicionais, protocolos e homologação clínica/regulatória |
+| Farmácia / Enfermagem | FEFO, validação, dispensação, administração, devolução, estoque e produção correlacionados. | saneamento rastreável do legado e homologação farmacêutica/assistencial |
+| Laboratório / LIS | Pedido, accession, coleta, cadeia de custódia, resultados, críticos, validação e laudo longitudinal implementados. | interfaces reais com equipamentos e homologação laboratorial |
+| Diagnóstico por Imagem / RIS | Pedido, agenda, execução, dose/contraste, DICOM/PACS, laudo, retificação e críticos integrados. | PACS/visualizador real e homologação radiológica |
+| GED | Storage privado, upload assinado, hash, versão, assinatura e vínculo documental/laudos sob autorização setorial. | temporalidade, retenção e política documental institucional |
+| Centro Cirúrgico / CME | Agendamento, checklist, anestesia, RPA, equipe ampliada, múltiplos procedimentos, OPME, CME, suprimentos por lote, consumo/estorno e produção integrados ao RA. | homologação presencial, impressos/termos e protocolos locais |
+| Compras / Estoque | Cotação MATMED, alçadas configuráveis, pedido, recebimento, lote, saldo, inventário, reposição e transferências físicas transacionais. | parametrizar alçadas reais, curva ABC e inventários cíclicos |
+| Internação / NIR | Admissão transacional; internação/RA/leito coordenados; censo/diária idempotentes; alta clínica não é revertida por falha de faturamento. | homologar NIR, giro/ocupação e cenários reais |
+| Transferências interunidades | PR #85 mesclada. Fluxo `origem → solicitação NIR → decisão destino → reserva/leito → novo atendimento/RA + internação destino → continuidade longitudinal` implementado. O ambiente conectado possui somente **uma unidade ativa**, logo não há destino institucional real para homologação e nenhuma unidade fictícia foi criada. | validar ponta a ponta quando existir segunda unidade institucional real |
+| Urgência / Emergência | Abertura/encerramento, prioridade, SLA por atendimento e reavaliação são transacionais. #88 acrescenta Observação; #89 acrescenta indicadores derivados. A #91 adiciona configuração institucional versionada de SLA por unidade/classificação, sem seed e sem autoaplicação. | concluir gates da cadeia, cadastrar valores institucionais reais e homologar fluxos/protocolos com a operação |
+| Faturamento / Auditoria | Produção e conta pós-alta estão integradas. A Auditoria recebe contas e críticas automáticas; a falha de exibição por embed PostgREST ambíguo foi corrigida na #93 e está em produção. | tratar críticas reais, ampliar precificação/fechamento e homologar ciclo com faturamento real |
+| TISS | Guia + itens, lote, protocolo, glosa e recurso possuem RPCs transacionais e validação anti-glosa. | XSD oficial por versão/tipo, XML definitivo, adapters/retornos reais das operadoras e homologação TISS |
+| Financeiro / NFS-e | Recebível, baixa parcial/total, retenções/tarifas, conciliação, estorno auditável, contas a pagar/caixa e base de NFS-e com RBAC. | adapters NFS-e reais, conciliação bancária e fechamento financeiro |
+| RH / Segurança / TI / Engenharia Clínica | Workspaces e fundações setoriais existem com níveis distintos de completude. | evoluir fluxos completos e homologar por setor |
+
+## Auditoria pós-alta — estado confirmado
+
+O atendimento real usado para diagnosticar a falha de exibição foi encerrado corretamente e sua fila de consultório foi concluída. A conta permaneceu em Auditoria, como deveria; o problema era exclusivamente a consulta da página.
+
+A auditoria permanece `aguardando` enquanto existirem críticas não tratadas. No cenário confirmado havia quatro itens automáticos abertos, incluindo um erro de valor e alertas de documentação, referência contratual e autorização. A correção de UI **não resolve nem silencia essas críticas**; elas continuam exigindo tratamento operacional apropriado.
+
+## Urgência — parametrização institucional de SLA (PR #91)
+
+Migration já aplicada no Supabase conectado:
+
+- `20260830230050_urgencia_parametrizacao_sla_institucional`
+
+Estado estrutural confirmado:
+
+- `emergencia_sla_configuracoes` e `emergencia_sla_aplicacoes` existem com RLS/FORCE RLS;
+- escrita operacional ocorre pelos RPCs `salvar_configuracao_sla_emergencia_operacional`, `desativar_configuracao_sla_emergencia_operacional` e `aplicar_sla_institucional_emergencia_operacional`;
+- alterações de política preservam histórico de vigência e não reescrevem atendimentos anteriores;
+- aplicar SLA institucional a um atendimento é ação explícita e gera trilha factual;
+- no último estado confirmado existem **0 configurações** e **0 aplicações**. Nenhum tempo foi pré-carregado ou inferido.
 
 ## Supabase — migrations recentes confirmadas
 
 Além das migrations históricas já versionadas, o projeto conectado contém, entre outras, as seguintes etapas recentes:
 
 - `20260828182501_centro_cirurgico_consumo_estoque_operacional`
-- `20260828183329_centro_cirurgico_consumo_catalogo_legado`
-- `20260828183446_centro_cirurgico_producao_consumo_canonica`
 - `20260828194919_integracao_internacao_ponta_a_ponta`
-- `20260828202327_internacao_admissao_leito_internal_paridade`
 - `20260828212958_integracao_faturamento_tiss_ponta_a_ponta`
-- `20260828213116_faturamento_tiss_protocolo_glosa_recurso_transacional`
 - `20260828220121_financeiro_recebimentos_conciliacao_nfse_hardening`
-- `20260828221406_financeiro_lote_tiss_mutacoes_transacionais`
-- `20260829224450_tiss_operacoes_manuais_transacionais`
 - `20260829234859_financeiro_contas_pagar_caixa_operacional`
 - `20260830005304_internacao_censo_diarias_operacional`
-- `20260830005630_internacao_censo_sincronizar_movimentacao_leito`
-- `20260830005713_internacao_censo_movimentacao_leito_deterministica`
 - `20260830012951_internacao_transferencia_interunidades_operacional`
-- `20260830013036_internacao_transferencia_cnes_destino`
 - `20260830023008_internacao_transferencia_reserva_leito_hardening`
 - `20260830023525_internacao_transferencia_destinos_operacionais`
 - `20260830023629_internacao_transferencia_fila_operacional`
 - `20260830191401_urgencia_transicoes_operacionais`
 - `20260830195047_urgencia_sla_reavaliacao_operacional`
+- `20260830212736_urgencia_observacao_operacional`
+- `20260830230050_urgencia_parametrizacao_sla_institucional`
+- `20260830231419_urgencia_sla_historico_longitudinal`
 
-A lista do banco é a referência para confirmar aplicação; nomes/versões descritos em PRs antigos não substituem o estado conectado atual.
+A lista do banco é a referência para confirmar aplicação. As migrations de #88, #91 e #92 já existirem no banco não significa que as respectivas UIs/branches estejam mescladas na `main`.
 
 ## Transferências interunidades — garantias atuais
 
-O pacote do PR #85 usa os RPCs `solicitar_transferencia_interunidade`, `aceitar_transferencia_interunidade`, `recusar_transferencia_interunidade` e `cancelar_transferencia_interunidade`, além das consultas operacionais de destinos e fila. A tabela de transferências e esses RPCs foram confirmados no Supabase conectado.
+O pacote do PR #85 usa RPCs transacionais para solicitar, aceitar, recusar e cancelar transferências, além das consultas operacionais de destinos e fila. Reserva ativa de leito para outro atendimento bloqueia ocupação concorrente; reserva compatível é consumida no aceite. O destino recebe somente a visão operacional necessária e a continuidade longitudinal é preservada por vínculo explícito entre os segmentos.
 
-Uma reserva ativa de leito para outro atendimento bloqueia ocupação concorrente; reserva compatível é consumida no aceite. A unidade de destino recebe somente a visão operacional necessária, sem liberar globalmente o prontuário da origem. O aceite preserva a continuidade longitudinal por vínculo explícito entre segmento de origem e novo atendimento/RA/internação destino.
-
-No estado conectado de 2026-08-30 há **uma única unidade ativa**. Por isso o software pode ser validado estrutural/transacionalmente, mas o fluxo interunidades completo ainda **não pode ser homologado com destino institucional real**.
+No estado conectado há **uma única unidade ativa**. Por isso o software pode ser validado estrutural/transacionalmente, mas o fluxo interunidades completo ainda **não pode ser homologado com destino institucional real**.
 
 ## Gates e critério de merge
 
