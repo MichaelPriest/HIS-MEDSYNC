@@ -118,6 +118,7 @@ describe("política de salvamento em segundo plano", () => {
   it("mantém a Fila Médica sem redirects de erro e navega só após assumir o paciente", () => {
     const actions = read("src/modules/fila-medica/actions.ts");
     const page = read("src/app/(painel)/fila-medica/page.tsx");
+    const prontoSocorroPage = read("src/app/(painel)/pronto-socorro/page.tsx");
     const form = read("src/components/fila-medica/assume-patient-background-form.tsx");
 
     expect(actions).not.toContain('from "next/navigation"');
@@ -127,6 +128,8 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).toContain("AssumePatientBackgroundForm");
     expect(page).not.toContain("action={assumirPaciente}");
     expect(page).not.toContain("MENSAGENS_ERRO");
+    expect(prontoSocorroPage).toContain("AssumePatientBackgroundForm");
+    expect(prontoSocorroPage).not.toContain("action={assumirPaciente}");
     expect(form).toContain("router.push");
   });
 
