@@ -59,13 +59,17 @@ export default async function AuditoriaPage({
 }) {
   const qs = await searchParams;
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("auditoria_contas")
     .select(
-      "id,status,iniciado_em,finalizado_em,observacoes,atendimento:atendimentos(numero_atendimento,paciente:pacientes(nome_completo,ra,numero_registro)),conta:contas_faturamento(id,valor_bruto,valor_liquido,status),itens:auditoria_conta_itens(id,codigo,categoria,severidade,descricao,origem,automatizada,resolvida,resolucao,ultima_verificacao_em)",
+      "id,status,iniciado_em,finalizado_em,observacoes,atendimento:atendimentos(numero_atendimento,paciente:pacientes(nome_completo,ra,numero_registro)),conta:contas_faturamento!auditoria_contas_conta_id_fkey(id,valor_bruto,valor_liquido,status),itens:auditoria_conta_itens(id,codigo,categoria,severidade,descricao,origem,automatizada,resolvida,resolucao,ultima_verificacao_em)",
     )
     .order("created_at", { ascending: false })
     .limit(100);
+
+  if (error) {
+    console.error("[auditoria] falha ao carregar contas", { code: error.code, message: error.message });
+  }
 
   const auditorias = (data ?? []) as unknown as AuditoriaRow[];
   const abertas = auditorias.filter((audit) => audit.status !== "liberada");
@@ -91,6 +95,11 @@ export default async function AuditoriaPage({
       {qs.erro ? (
         <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
           Operação bloqueada: {decodeURIComponent(qs.erro)}.
+        </div>
+      ) : null}
+      {error ? (
+        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          Não foi possível carregar a fila de Auditoria. Atualize a página; se persistir, informe o código {error.code} ao suporte.
         </div>
       ) : null}
 
@@ -255,7 +264,7 @@ export default async function AuditoriaPage({
               </section>
             );
           })
-        ) : (
+        ) : error ? null : (
           <div className="ui-card p-8 text-center text-slate-500">Nenhuma conta aguardando auditoria.</div>
         )}
       </div>
