@@ -11,8 +11,9 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 - O PR #95 estabeleceu a política global de salvamentos em segundo plano e converteu inicialmente alta médica ambulatorial e solicitação de avaliação médica interprofissional.
 - O pacote atual da Agenda está no PR #96. Criação, confirmação, falta, conclusão e cancelamento foram convertidos para feedback inline sem navegação usada apenas para refletir o salvamento; o `check-in` preserva navegação porque ela representa a transição real para a próxima etapa operacional.
 - O PR #96 permanece aberto porque o check Vercel do SHA final foi bloqueado por limite externo de builds. O pacote não deve ser mesclado usando deployment de SHA anterior.
-- O pacote empilhado de Admissão/Recepção está no branch `feat/admissao-background-validation`: erros de paciente, cobertura, TISS, identificação do beneficiário e falhas do RPC retornam feedback inline; a navegação é preservada somente após criação efetiva do atendimento/RA, seguindo para Autorização ou Triagem.
-- O histórico consolidado inclui PR #84 (censo/diárias de internação), PR #86 (transições de Urgência), PR #87 (SLA/reavaliação de Urgência), PR #90 (alinhamento da migration de SLA), PR #93/#94 (correções de Auditoria) e PR #95 (fundação de salvamentos sem recarga), conforme estado confirmado no repositório e no banco.
+- O pacote empilhado de Admissão/Recepção está no PR #98: erros de paciente, cobertura, TISS, identificação do beneficiário e falhas do RPC retornam feedback inline; a navegação é preservada somente após criação efetiva do atendimento/RA, seguindo para Autorização ou Triagem.
+- O pacote empilhado de Triagem está no branch `feat/triagem-background-saves`: chamada/rechamada e erros de registro ficam na própria tela; conclusão normal atualiza a fila sem reload; navegação é preservada somente quando a próxima etapa real é Autorização ou Pronto-Socorro.
+- O histórico consolidado inclui PR #84 (censo/diárias de internação), PR #86 (transições de Urgência), PR #87 (SLA/reavaliação de Urgência), PR #90 (alinhamento da migration de SLA), PR #93 (correção da fila de Auditoria), PR #95 (fundação de salvamentos sem recarga) e os pacotes posteriores ainda abertos, conforme estado confirmado no repositório e no banco.
 - O pacote de transferências interunidades originado no PR #85 permanece implementado. Homologação completa continua dependente de uma segunda unidade institucional real.
 
 ## Princípios arquiteturais obrigatórios
@@ -31,7 +32,7 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 |---|---|---|
 | Fundação / Auth / multiempresa | RBAC granular, contexto empresa/unidade, perfis, navegação setorial, RLS/FORCE RLS e helpers de autorização já sustentam os módulos operacionais. A fundação de `BackgroundActionState` + React 19 `useActionState` passou a ser o padrão para mutações sem recarga. | ampliar testes multi-tenant, break-glass clínico controlado, continuar hardening dos RPCs legados e migrar as ações legadas para o novo padrão sem reload |
 | Navegação / Central Assistencial | Navegação organizada por macroárea e perfil; `/integracoes` concentra pendências intersetoriais sem virar fonte de dados. | homologar usabilidade por perfil real e melhorar acessibilidade/atalhos |
-| Recepção / Totem / Agenda | Totem/senhas, recepção, check-in e agenda possuem bases operacionais integradas ao atendimento. No PR #96, a Agenda salva criação, confirmação, falta, conclusão e cancelamento em segundo plano; o `check-in` continua levando à próxima etapa após confirmação do banco. No pacote empilhado de Admissão, validações e falhas de abertura permanecem inline e preservam os dados do formulário; somente a abertura real do RA navega para Autorização ou Triagem. | concluir gates/merge do PR #96 e do pacote de Admissão; revisar mutações restantes de Totem/senhas/recepção; evoluir recorrência, disponibilidade, lembretes, impressão e homologação do painel de chamada |
+| Recepção / Totem / Agenda / Triagem | Totem/senhas, recepção, check-in, agenda e triagem possuem bases operacionais integradas ao atendimento. No PR #96, a Agenda salva criação, confirmação, falta, conclusão e cancelamento em segundo plano; o `check-in` continua levando à próxima etapa após confirmação do banco. No PR #98, validações e falhas de Admissão permanecem inline e somente a abertura real do RA navega. No pacote de Triagem, chamada/rechamada e registro comum não usam reload; Autorização e Pronto-Socorro permanecem navegações semânticas pós-save. | concluir gates/merge da pilha; revisar mutações restantes de Totem/senhas/recepção e fila médica; evoluir recorrência, disponibilidade, lembretes, impressão e homologação do painel de chamada |
 | Prontuário longitudinal | Resumo, histórico, anamnese/evolução com autosave, prescrição, documentos, LIS/RIS e cirurgia compartilham o episódio. Impressão clínica e rascunho único foram endurecidos; alta e solicitação de avaliação médica já usam salvamento em segundo plano. | adendos/assinaturas adicionais, protocolos, migração das ações legadas restantes e homologação clínica/regulatória |
 | Farmácia / Enfermagem / medicamentos | FEFO, validação, dispensação, administração, devolução, estoque e produção estão correlacionados pela integração ponta a ponta. Divergências históricas não são corrigidas artificialmente. | saneamento rastreável do legado, regras clínicas adicionais, migração das mutações legadas sem reload e homologação farmacêutica/assistencial |
 | Laboratório / LIS | Pedido, accession, coleta, cadeia de custódia, resultados, críticos, validação e laudo longitudinal estão implementados; anexos GED podem acompanhar laudos liberados. | interfaces reais com equipamentos, protocolos de bancada, migração de mutações legadas sem reload e homologação laboratorial |
@@ -44,7 +45,7 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 | Transferências interunidades | Fluxo `origem → solicitação NIR → decisão destino → leito destino → novo atendimento/RA + internação destino → continuidade longitudinal` implementado com RPCs, reserva de leito e fila enriquecida. O último cenário institucional confirmado possuía apenas **uma unidade ativa**, portanto não havia destino real para homologação interunidades e nenhuma unidade fictícia foi criada. | validar o fluxo completo quando existir segunda unidade institucional real; manter RBAC/RLS e vínculo longitudinal |
 | Urgência / Emergência | Abertura/encerramento transacionais, prioridade, SLA institucional, reavaliação, observação e histórico longitudinal de SLA possuem fundação operacional versionada no banco. | parametrizar SLA institucional real, protocolos locais, indicadores, homologação e revisão das mutações legadas de tela |
 | Faturamento / Livro de Produção | Produção assistencial está integrada a cirurgia, internação, medicamentos e conta. Falhas pós-alta viram pendência em vez de desfazer a alta clínica. | ampliar fechamento/precificação, migrar mutações legadas sem reload e homologar ciclo de conta com faturamento real |
-| Auditoria / Contas Médicas | Fluxos de Auditoria e liberação financeira vêm sendo endurecidos para reconhecer vínculos e autorizações reais do atendimento, sem falsificar liberações formais. | homologar o fluxo pós-alta ponta a ponta, revisar permissões/estados e migrar interações de tela que ainda dependam de reload |
+| Auditoria / Contas Médicas | Fluxos de Auditoria e liberação financeira vêm sendo endurecidos para reconhecer vínculos e autorizações reais do atendimento, sem falsificar liberações formais. O PR #97 corrige a separação entre pendências atuais e histórico resolvido e converte operações da Auditoria para feedback em segundo plano. | concluir gate Vercel do PR #97, homologar o fluxo pós-alta ponta a ponta e migrar Contas Médicas restantes sem reload |
 | TISS | Guia + itens, lote, protocolo, glosa e recurso possuem RPCs transacionais e validação anti-glosa. A anomalia histórica global sem tenant confiável foi preservada tecnicamente em vez de receber escopo inventado. | XSD oficial por versão/tipo, XML definitivo, adapters/retornos reais das operadoras, migração de mutações legadas sem reload e homologação TISS |
 | Financeiro / NFS-e | Recebível, baixa parcial/total, retenções/tarifas, conciliação, estorno auditável e NFS-e possuem fundação com RBAC; mutações críticas do lote TISS deixaram de usar DML financeiro direto e contas a pagar/caixa operacional foram adicionados posteriormente. | adapters NFS-e reais, conciliação bancária/retornos, fechamento financeiro, revisão das mutações legadas e homologação com processos reais |
 | RH / Segurança / TI / Engenharia Clínica | Workspaces e fundações setoriais existem, com níveis de completude diferentes. | evoluir fluxos completos, integrações de dispositivos/ativos, revisar mutações legadas e homologar por setor |
@@ -79,7 +80,7 @@ Além das migrations históricas já versionadas, o projeto conectado contém, e
 - `20260830231419_urgencia_sla_historico_longitudinal`
 - `20260831035056_auditoria_autorizacao_unificada`
 
-A lista do banco é a referência para confirmar aplicação; nomes/versões descritos em PRs antigos não substituem o estado conectado atual. Os pacotes atuais de Agenda e Admissão não alteram schema e não adicionam migration.
+A lista do banco é a referência para confirmar aplicação; nomes/versões descritos em PRs antigos não substituem o estado conectado atual. Os pacotes atuais de Agenda, Admissão e Triagem não alteram schema e não adicionam migration.
 
 ## Transferências interunidades — garantias atuais
 
@@ -99,11 +100,14 @@ Já convertidos e protegidos contra regressão:
 - solicitação de avaliação médica interprofissional;
 - criação de agendamento;
 - confirmação, falta, conclusão e cancelamento de agendamento;
-- validações e falhas de abertura da Admissão/Recepção.
+- validações e falhas de abertura da Admissão/Recepção;
+- chamada/rechamada e registro da Triagem.
 
 A Agenda preserva dois redirects semânticos de `check-in`: atendimento comum segue para abertura do atendimento e cirurgia eletiva segue para Centro Cirúrgico. Eles não são usados como mecanismo de feedback de salvamento.
 
 A Admissão preserva a navegação somente após o banco confirmar a criação real do atendimento/RA: convênio segue para Autorização e particular segue para Triagem. Erros permanecem no formulário e não usam redirect como feedback.
+
+A Triagem permanece na própria página para chamada/rechamada, erros e conclusão comum. Após confirmação do save, a interface só navega quando o fluxo assistencial exige Autorização ou Pronto-Socorro.
 
 A migração do restante do sistema continua incremental. Não declarar todos os módulos convertidos até que as ações legadas tenham sido inventariadas e removidas da lista.
 
