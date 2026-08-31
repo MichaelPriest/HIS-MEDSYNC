@@ -24,6 +24,8 @@ Navegação continua permitida quando ela é a própria intenção explícita do
 
 Na Agenda, o `check-in` é uma exceção deliberada: após o banco confirmar a transição, a aplicação abre a próxima etapa operacional (`/atendimentos/novo` para atendimento comum ou Centro Cirúrgico para cirurgia eletiva). Confirmação, falta, conclusão e cancelamento permanecem na própria Agenda.
 
+Na Admissão, erros de paciente, cobertura, TISS, identificação do beneficiário e falhas transacionais permanecem no próprio formulário. Após a abertura real do atendimento/RA ser confirmada pelo banco, a navegação continua obrigatória porque representa a próxima etapa operacional: Autorização para convênio ou Triagem para particular.
+
 ## Migração
 
 Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
@@ -33,6 +35,7 @@ Convertidos:
 - alta médica ambulatorial;
 - solicitação de avaliação médica interprofissional;
 - criação de agendamento;
-- confirmação, falta, conclusão e cancelamento de agendamento.
+- confirmação, falta, conclusão e cancelamento de agendamento;
+- validações e falhas de abertura da Admissão/Recepção, preservando navegação apenas após criação efetiva do atendimento.
 
 O teste `tests/unit/background-save-policy.test.ts` impede regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
