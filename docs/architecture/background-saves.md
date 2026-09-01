@@ -32,6 +32,8 @@ Na Fila Médica, erros de perfil profissional, especialidade, concorrência, ate
 
 Em Autorizações, biometria/token, validações e salvamento de guia permanecem na mesma tela. Navegação só ocorre depois de uma liberação/dispensa confirmada quando a jornada realmente precisa seguir para Triagem, Fila Médica ou Pronto-Socorro. Se a guia for salva mas o encaminhamento posterior falhar, a tela informa essa condição sem ocultar que a autorização já foi persistida.
 
+Na Enfermagem, evolução assistencial e administração à beira-leito permanecem na própria tela. A checagem de medicamentos continua usando o RPC `registrar_administracao_beira_leito` como autoridade para prescrição ativa, validação farmacêutica, identificação do paciente, dispensação, lote, contingência sem etiqueta e dupla checagem; apenas o feedback deixou de depender de redirect/reload.
+
 ## Migração
 
 Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
@@ -45,6 +47,8 @@ Convertidos:
 - validações e falhas de abertura da Admissão/Recepção, preservando navegação apenas após criação efetiva do atendimento;
 - chamada/rechamada e registro da Triagem, com feedback inline e navegação somente para transições setoriais reais;
 - tomada de paciente na Fila Médica, com erros inline e navegação para o prontuário somente depois da confirmação da operação;
-- identificação do beneficiário e atualização de Autorizações, com feedback inline e navegação somente para continuidade assistencial real.
+- identificação do beneficiário e atualização de Autorizações, com feedback inline e navegação somente para continuidade assistencial real;
+- evolução de Enfermagem em Andares e Pronto-Socorro;
+- administração de medicamentos à beira-leito, preservando o RPC e todos os campos de rastreabilidade clínica/farmacêutica.
 
-O teste `tests/unit/background-save-policy.test.ts` impede regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
+Os testes `tests/unit/background-save-policy.test.ts` e `tests/unit/enfermagem-background-saves.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.

@@ -1,18 +1,12 @@
 "use server";
 
-import type { Route } from "next";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 function text(fd: FormData, key: string) {
   const value = String(fd.get(key) ?? "").trim();
   return value || null;
-}
-function go(url: string): never { redirect(url as Route); }
-function retorno(fd: FormData, fallback = "/assistencial/enfermagem") {
-  const value = text(fd, "retorno");
-  return value && (value.startsWith("/assistencial/enfermagem") || value.startsWith("/prontuario/")) ? value : fallback;
 }
 
 function mensagemErroAdministracao(message: string) {
@@ -50,12 +44,20 @@ async function resolveProfissional(
   return data;
 }
 
-export async function checarAdministracaoEnfermagemAction(fd: FormData) {
+export async function checarAdministracaoEnfermagemAction(
+  _previousState: BackgroundActionState,
+  fd: FormData,
+): Promise<BackgroundActionState> {
   const { supabase } = await getAssistencialContext();
   const aprazamentoId = String(fd.get("aprazamento_id") ?? "").trim();
   const status = String(fd.get("status") ?? "administrado").trim();
-  const voltar = retorno(fd);
-  if (!aprazamentoId) go(`${voltar}${voltar.includes("?") ? "&" : "?"}erro=${encodeURIComponent("A dose aprazada não foi informada.")}`);
+  if (!aprazamentoId) {
+    return {
+      status: "error",
+      code: "aprazamento",
+      message: "A dose aprazada não foi informada.",
+    };
+  }
 
   const confirmacaoManualMedicamento = fd.get("confirmacao_manual_medicamento") === "on";
   const justificativaInformada = text(fd, "justificativa");
@@ -80,34 +82,62 @@ export async function checarAdministracaoEnfermagemAction(fd: FormData) {
 
   if (error) {
     console.error("[enfermagem] checagem", { code: error.code, operation: "registrar_administracao_beira_leito" });
-    go(`${voltar}${voltar.includes("?") ? "&" : "?"}erro=${encodeURIComponent(mensagemErroAdministracao(error.message))}`);
+    return {
+      status: "error",
+      code: error.message || error.code || "checagem",
+      message: mensagemErroAdministracao(error.message),
+      detail: error.code ? `Código técnico: ${error.code}` : undefined,
+    };
   }
 
   revalidatePath("/assistencial/enfermagem");
   revalidatePath("/assistencial/enfermagem/andares");
   revalidatePath("/assistencial/enfermagem/pronto-socorro");
   revalidatePath("/assistencial/medicamentos");
-  go(`${voltar}${voltar.includes("?") ? "&" : "?"}sucesso=${encodeURIComponent(status)}`);
+
+  const mensagens: Record<string, string> = {
+    administrado: "Administração registrada com identificação, dispensação e lote rastreáveis.",
+    recusado: "Recusa registrada na checagem de Enfermagem.",
+    omitido: "Omissão/não administração registrada na checagem de Enfermagem.",
+  };
+  return {
+    status: "success",
+    message: mensagens[status] ?? "Checagem registrada com sucesso.",
+  };
 }
 
-export async function registrarEvolucaoEnfermagemAction(fd: FormData) {
+function evolutionFailure(code: string, message: string, detail?: string): BackgroundActionState {
+  return { status: "error", code, message, detail };
+}
+
+export async function registrarEvolucaoEnfermagemAction(
+  _previousState: BackgroundActionState,
+  fd: FormData,
+): Promise<BackgroundActionState> {
   const { supabase, user, empresaId, unidadeId } = await getAssistencialContext();
   const atendimentoId = text(fd, "atendimento_id");
-  const voltar = retorno(fd, "/assistencial/enfermagem/andares");
-  if (!atendimentoId || !unidadeId) go(`${voltar}?erro=atendimento`);
+  if (!atendimentoId || !unidadeId) {
+    return evolutionFailure("atendimento", "O atendimento não está disponível para esta evolução.");
+  }
 
   const [profissional, atendimentoRes] = await Promise.all([
     resolveProfissional(supabase, empresaId, user.id, user.email),
     supabase.from("atendimentos").select("id,paciente_id").eq("id", atendimentoId).eq("empresa_id", empresaId).eq("unidade_id", unidadeId).maybeSingle(),
   ]);
-  if (!profissional) go(`${voltar}?erro=profissional`);
-  if (!atendimentoRes.data?.paciente_id) go(`${voltar}?erro=atendimento`);
+  if (!profissional) {
+    return evolutionFailure("profissional", "Seu usuário não está vinculado a um profissional ativo de Enfermagem.");
+  }
+  if (!atendimentoRes.data?.paciente_id) {
+    return evolutionFailure("atendimento", "O atendimento não foi localizado nesta unidade.");
+  }
 
   const avaliacao = text(fd, "avaliacao");
   const intervencoes = text(fd, "intervencoes");
   const resposta = text(fd, "resposta");
   const plano = text(fd, "plano");
-  if (!avaliacao && !intervencoes && !resposta && !plano) go(`${voltar}?erro=evolucao_vazia`);
+  if (!avaliacao && !intervencoes && !resposta && !plano) {
+    return evolutionFailure("evolucao-vazia", "Preencha ao menos um campo clínico antes de assinar a evolução.");
+  }
 
   const agora = new Date().toISOString();
   const { error } = await supabase.from("evolucoes_multiprofissionais").insert({
@@ -131,11 +161,15 @@ export async function registrarEvolucaoEnfermagemAction(fd: FormData) {
   });
   if (error) {
     console.error("[enfermagem] evolucao", { code: error.code, message: error.message });
-    go(`${voltar}?erro=${encodeURIComponent(error.message)}`);
+    return evolutionFailure(
+      "falha-evolucao",
+      "Não foi possível assinar a evolução de Enfermagem.",
+      error.code ? `Código técnico: ${error.code}` : undefined,
+    );
   }
 
   revalidatePath("/assistencial/enfermagem/andares");
   revalidatePath("/assistencial/enfermagem/pronto-socorro");
   revalidatePath(`/prontuario/${atendimentoId}`);
-  go(`${voltar}?sucesso=evolucao`);
+  return { status: "success", message: "Evolução de Enfermagem assinada e vinculada ao prontuário." };
 }

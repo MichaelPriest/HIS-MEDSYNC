@@ -21,6 +21,7 @@ const backgroundForms = [
   "src/components/triagem/triage-background-actions.tsx",
   "src/components/fila-medica/assume-patient-background-form.tsx",
   "src/components/autorizacoes/authorization-background-actions.tsx",
+  "src/components/enfermagem/nursing-evolution-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -150,5 +151,23 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).not.toContain("action={registrarIdentificacaoAutorizacao}");
     expect(page).not.toContain("action={atualizarAutorizacao}");
     expect(forms).toContain("router.push");
+  });
+
+  it("mantém evolução de Enfermagem inline em Andares e Pronto-Socorro", () => {
+    const actions = read("src/modules/enfermagem/actions.ts");
+    const evolutionStart = actions.indexOf("export async function registrarEvolucaoEnfermagemAction");
+    const evolutionSource = actions.slice(evolutionStart);
+    const andares = read("src/app/(painel)/assistencial/enfermagem/andares/page.tsx");
+    const prontoSocorro = read("src/app/(painel)/assistencial/enfermagem/pronto-socorro/page.tsx");
+
+    expect(evolutionStart).toBeGreaterThan(-1);
+    expect(evolutionSource).toContain("BackgroundActionState");
+    expect(evolutionSource).toContain("return evolutionFailure");
+    expect(evolutionSource).toContain('status: "success"');
+    expect(evolutionSource).not.toMatch(/\bredirect\s*\(/);
+    expect(andares).toContain("NursingEvolutionBackgroundForm");
+    expect(andares).not.toContain("action={registrarEvolucaoEnfermagemAction}");
+    expect(prontoSocorro).toContain("NursingEvolutionBackgroundForm");
+    expect(prontoSocorro).not.toContain("action={registrarEvolucaoEnfermagemAction}");
   });
 });
