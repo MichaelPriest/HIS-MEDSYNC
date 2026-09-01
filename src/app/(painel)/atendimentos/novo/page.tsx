@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AdmissionForm } from "@/components/atendimentos/admission-form";
+import { AdmissionBackgroundForm } from "@/components/atendimentos/admission-background-form";
 import type { AdmissionPatient } from "@/components/atendimentos/patient-remote-picker";
 import { SectionPage } from "@/components/painel/section-page";
 import { abrirAtendimento, abrirAtendimentoAgendado } from "@/modules/atendimentos/actions";
@@ -150,7 +150,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
     <div className="mb-4 rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm text-brand-950">
       {isAgenda ? <><strong>Check-in da Agenda validado.</strong> O paciente agendado está protegido para preservar RA/prontuário.</> : <><strong>Senha {senha?.senha}</strong> validada. {initialPatient ? "O paciente está selecionado e a admissão pode continuar." : "Pesquise por nome, nome social, CPF, carteirinha, RA ou registro; se ainda não existir, cadastre o paciente."}</>}
     </div>
-    <AdmissionForm
+    <AdmissionBackgroundForm
       action={action}
       empresaId={empresaId}
       unidadeId={unidadeId}

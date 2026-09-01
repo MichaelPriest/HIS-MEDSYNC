@@ -1,8 +1,8 @@
 "use server";
 
 import { createHash, randomUUID } from "node:crypto";
-import type { Route } from "next";
 import { redirect } from "next/navigation";
+import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 function optional(formData: FormData, name: string) {
@@ -18,6 +18,37 @@ function metodoPermitido(config: string, metodo: string | null) {
   if (!metodo) return false;
   if (config === "biometria_ou_token") return metodo === "biometria_digital" || metodo === "token";
   return config === metodo;
+}
+
+const ADMISSION_ERRORS: Record<string, string> = {
+  "campos-obrigatorios": "Preencha os campos obrigatórios do paciente e do atendimento.",
+  cobertura: "Revise o convênio, plano e os dados da carteirinha.",
+  paciente: "O paciente selecionado não está mais disponível para esta admissão.",
+  profissional: "Selecione um profissional válido. Para convênio, o profissional é obrigatório.",
+  "conselho-incompleto": "O profissional está com conselho, número ou UF incompletos. Corrija o cadastro profissional antes de faturar.",
+  "cbo-ausente": "O profissional selecionado não possui CBO cadastrado. A abertura por convênio foi bloqueada para evitar glosa.",
+  "cnes-ausente": "A unidade não possui CNES cadastrado. Corrija a estrutura da unidade antes da abertura por convênio.",
+  "registro-ans-ausente": "A operadora selecionada não possui Registro ANS cadastrado.",
+  "carteira-vencida": "A carteirinha está vencida. Atualize o vínculo do beneficiário antes de abrir o atendimento.",
+  "validade-carteira": "O plano exige validade da carteirinha. Informe a data de validade.",
+  "carteirinha-padrao": "A carteirinha não corresponde ao padrão configurado para o plano selecionado.",
+  tuss: "Selecione um procedimento TUSS válido para este atendimento.",
+  "indicacao-clinica": "A indicação clínica é obrigatória para SADT, exames, pequena cirurgia e sessão de terapia.",
+  "classificacao-tiss": "Revise os domínios regulatórios ANS/TISS e a classificação operacional do atendimento.",
+  permissao: "Seu perfil não possui permissão para abrir atendimentos nesta unidade.",
+  "senha-invalida": "Esta senha não está mais disponível para admissão. Ela pode ter sido processada por outro guichê.",
+  "agendamento-invalido": "Este agendamento não está mais disponível para abertura de atendimento. Verifique o check-in ou se ele já foi admitido.",
+  "agendamento-cirurgico": "Cirurgia eletiva deve seguir pelo fluxo de pré-admissão/centro cirúrgico.",
+  "identificacao-obrigatoria": "Este convênio exige biometria ou token para concluir a admissão. Informe a identificação do beneficiário na aba Cobertura / Autorização.",
+  "falha-cadastro": "Não foi possível concluir a admissão. Revise os dados e tente novamente.",
+};
+
+function failure(code: string): BackgroundActionState {
+  return {
+    status: "error",
+    code,
+    message: ADMISSION_ERRORS[code] ?? ADMISSION_ERRORS["falha-cadastro"],
+  };
 }
 
 function errorCode(message?: string | null) {
@@ -124,27 +155,33 @@ function admissionInput(formData: FormData) {
   };
 }
 
+type IdentificacaoConfig = {
+  metodo?: string | null;
+  provedor?: string | null;
+  exige_no_atendimento?: boolean | null;
+  ativo?: boolean | null;
+};
+
 async function validarIdentificacaoExigida(
   contexto: Awaited<ReturnType<typeof getAssistencialContext>>,
   input: ReturnType<typeof admissionInput>,
-  retorno: string,
-) {
-  if (input.cobertura !== "convenio" || !input.convenioId) return null;
+): Promise<{ config: IdentificacaoConfig | null; error: BackgroundActionState | null }> {
+  if (input.cobertura !== "convenio" || !input.convenioId) return { config: null, error: null };
   const { data: config } = await contexto.supabase.from("convenio_identificacao_config")
     .select("metodo,provedor,exige_no_atendimento,ativo")
     .eq("empresa_id", contexto.empresaId).eq("convenio_id", input.convenioId).eq("ativo", true).maybeSingle();
-  if (!config?.exige_no_atendimento || config.metodo === "nenhum") return config ?? null;
+  if (!config?.exige_no_atendimento || config.metodo === "nenhum") return { config: config ?? null, error: null };
   if (!input.identificacaoReferencia || !metodoPermitido(config.metodo, input.identificacaoMetodo)) {
-    redirect(`${retorno}&erro=identificacao-obrigatoria` as Route);
+    return { config, error: failure("identificacao-obrigatoria") };
   }
-  return config;
+  return { config, error: null };
 }
 
 async function registrarIdentificacaoAtendimento(
   contexto: Awaited<ReturnType<typeof getAssistencialContext>>,
   atendimentoId: string,
   input: ReturnType<typeof admissionInput>,
-  config: { provedor?: string | null; exige_no_atendimento?: boolean } | null,
+  config: IdentificacaoConfig | null,
 ) {
   if (!input.convenioId || !input.identificacaoMetodo || !input.identificacaoReferencia) return;
   const { error } = await contexto.supabase.from("atendimento_identificacao_eventos").insert({
@@ -211,7 +248,7 @@ async function concluirPosAbertura(
   contexto: Awaited<ReturnType<typeof getAssistencialContext>>,
   atendimentoId: string,
   input: ReturnType<typeof admissionInput>,
-  config: { provedor?: string | null; exige_no_atendimento?: boolean } | null,
+  config: IdentificacaoConfig | null,
   formData: FormData,
 ) {
   await Promise.all([
@@ -220,14 +257,26 @@ async function concluirPosAbertura(
   ]);
 }
 
-export async function abrirAtendimento(senhaId: string, formData: FormData) {
+function destinoPosAdmissao(cobertura: string, atendimentoId: string) {
+  return cobertura === "convenio"
+    ? `/autorizacoes?atendimento=${atendimentoId}`
+    : `/triagem?sucesso=admissao&atendimento=${atendimentoId}`;
+}
+
+export async function abrirAtendimento(
+  senhaId: string,
+  _previousState: BackgroundActionState,
+  formData: FormData,
+): Promise<BackgroundActionState> {
   const contexto = await getAssistencialContext();
-  if (!senhaId) redirect("/senhas?erro=senha-obrigatoria");
+  if (!senhaId) return failure("senha-invalida");
 
   const input = admissionInput(formData);
-  if (!input.camposValidos) redirect(`/atendimentos/novo?senha=${senhaId}&erro=campos-obrigatorios`);
-  if (!input.coberturaValida || !input.convenioCompleto) redirect(`/atendimentos/novo?senha=${senhaId}&erro=cobertura`);
-  const config = await validarIdentificacaoExigida(contexto, input, `/atendimentos/novo?senha=${encodeURIComponent(senhaId)}`);
+  if (!input.camposValidos) return failure("campos-obrigatorios");
+  if (!input.coberturaValida || !input.convenioCompleto) return failure("cobertura");
+
+  const identificacao = await validarIdentificacaoExigida(contexto, input);
+  if (identificacao.error) return identificacao.error;
 
   const { data: atendimentoId, error } = await contexto.supabase.rpc("abrir_atendimento_por_senha_v2", {
     p_senha_id: senhaId,
@@ -236,22 +285,28 @@ export async function abrirAtendimento(senhaId: string, formData: FormData) {
 
   if (error || !atendimentoId) {
     console.error("[admissao] falha na transacao de abertura", { code: error?.code ?? "SEM_ID", operation: "abrir_atendimento_por_senha_v2" });
-    redirect(`/atendimentos/novo?senha=${senhaId}&erro=${errorCode(error?.message)}`);
+    return failure(errorCode(error?.message));
   }
 
   const id = String(atendimentoId);
-  await concluirPosAbertura(contexto, id, input, config, formData);
-  redirect(input.cobertura === "convenio" ? `/autorizacoes?atendimento=${id}` : `/triagem?sucesso=admissao&atendimento=${id}`);
+  await concluirPosAbertura(contexto, id, input, identificacao.config, formData);
+  redirect(destinoPosAdmissao(input.cobertura, id) as never);
 }
 
-export async function abrirAtendimentoAgendado(agendamentoId: string, formData: FormData) {
+export async function abrirAtendimentoAgendado(
+  agendamentoId: string,
+  _previousState: BackgroundActionState,
+  formData: FormData,
+): Promise<BackgroundActionState> {
   const contexto = await getAssistencialContext();
-  if (!agendamentoId) redirect("/agenda?erro=agendamento-invalido");
+  if (!agendamentoId) return failure("agendamento-invalido");
 
   const input = admissionInput(formData);
-  if (!input.camposValidos) redirect(`/atendimentos/novo?agendamento=${agendamentoId}&erro=campos-obrigatorios`);
-  if (!input.coberturaValida || !input.convenioCompleto) redirect(`/atendimentos/novo?agendamento=${agendamentoId}&erro=cobertura`);
-  const config = await validarIdentificacaoExigida(contexto, input, `/atendimentos/novo?agendamento=${encodeURIComponent(agendamentoId)}`);
+  if (!input.camposValidos) return failure("campos-obrigatorios");
+  if (!input.coberturaValida || !input.convenioCompleto) return failure("cobertura");
+
+  const identificacao = await validarIdentificacaoExigida(contexto, input);
+  if (identificacao.error) return identificacao.error;
 
   const { data: atendimentoId, error } = await contexto.supabase.rpc("abrir_atendimento_por_agendamento_v2", {
     p_agendamento_id: agendamentoId,
@@ -260,10 +315,10 @@ export async function abrirAtendimentoAgendado(agendamentoId: string, formData: 
 
   if (error || !atendimentoId) {
     console.error("[admissao.agenda] falha na transacao de abertura", { code: error?.code ?? "SEM_ID", operation: "abrir_atendimento_por_agendamento_v2" });
-    redirect(`/atendimentos/novo?agendamento=${agendamentoId}&erro=${errorCode(error?.message)}`);
+    return failure(errorCode(error?.message));
   }
 
   const id = String(atendimentoId);
-  await concluirPosAbertura(contexto, id, input, config, formData);
-  redirect(input.cobertura === "convenio" ? `/autorizacoes?atendimento=${id}` : `/triagem?sucesso=admissao&atendimento=${id}`);
+  await concluirPosAbertura(contexto, id, input, identificacao.config, formData);
+  redirect(destinoPosAdmissao(input.cobertura, id) as never);
 }

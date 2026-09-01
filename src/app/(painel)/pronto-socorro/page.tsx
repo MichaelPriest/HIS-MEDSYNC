@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { Activity, Ambulance, BedDouble, Clock3, FlaskConical, HeartPulse, Pill, ScanLine, Stethoscope } from "lucide-react";
+import { AssumePatientBackgroundForm } from "@/components/fila-medica/assume-patient-background-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { requireAnyPermission } from "@/lib/permissions/server";
-import { assumirPaciente } from "@/modules/fila-medica/actions";
 
 type Rel<T> = T | T[] | null;
 type Paciente = { nome_completo: string | null; ra: string | null; numero_registro: number | null; data_nascimento: string | null };
@@ -84,8 +84,8 @@ export default async function ProntoSocorroPage({ searchParams }: { searchParams
               <p className="mt-1 text-xs text-slate-500">Atend. #{atendimento.numero_atendimento ?? "—"} · RA {paciente?.ra ?? "—"} · Registro #{paciente?.numero_registro ?? "—"} · {atendimento.especialidade_destino ?? "Especialidade não definida"}</p>
               <div className="mt-3 grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-4"><Info label="Queixa" value={triagem?.queixa_principal ?? "—"}/><Info label="Dor" value={triagem?.dor_escala == null ? "—" : `${triagem.dor_escala}/10`}/><Info label="PA / FC" value={`${triagem?.pressao_arterial ?? "—"} · ${triagem?.frequencia_cardiaca ?? "—"} bpm`}/><Info label="SpO₂ / Temp." value={`${triagem?.saturacao_o2 ?? "—"}% · ${triagem?.temperatura_c ?? "—"} °C`}/></div>
             </div>
-            <div className="flex flex-wrap gap-2 xl:max-w-[520px] xl:justify-end">
-              {encaminhamento?.status === "aguardando_profissional" ? <form action={assumirPaciente}><input type="hidden" name="encaminhamento_id" value={encaminhamento.id}/><button className="ui-button-primary"><Stethoscope className="size-4"/>Assumir paciente</button></form> : <Link href={clinico} className="ui-button-primary"><Stethoscope className="size-4"/>Atendimento médico</Link>}
+            <div className="flex flex-wrap gap-2 xl:max-w-[600px] xl:justify-end">
+              {encaminhamento?.status === "aguardando_profissional" ? <AssumePatientBackgroundForm encaminhamentoId={encaminhamento.id} filaSetor="ps" pontoPadrao="Box Médico 01"/> : <Link href={clinico} className="ui-button-primary"><Stethoscope className="size-4"/>Atendimento médico</Link>}
               <Link href={prescricao} className="ui-button-secondary"><Pill className="size-4"/>Prescrição</Link>
               <Link href={laboratorio} className="ui-button-secondary"><FlaskConical className="size-4"/>Laboratório</Link>
               <Link href={imagem} className="ui-button-secondary"><ScanLine className="size-4"/>Imagem</Link>

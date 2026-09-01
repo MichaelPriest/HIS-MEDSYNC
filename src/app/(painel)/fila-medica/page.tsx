@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { BellRing, BedDouble, Building2, Clock3, MapPin, Siren, Stethoscope, UserRoundCheck } from "lucide-react";
+import { BedDouble, Building2, Clock3, Siren, Stethoscope, UserRoundCheck } from "lucide-react";
+import { AssumePatientBackgroundForm } from "@/components/fila-medica/assume-patient-background-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import { assumirPaciente } from "@/modules/fila-medica/actions";
 
 function one<T>(rel: T | T[] | null): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel;
@@ -62,18 +62,8 @@ function classificarSetor(atendimento: AtendimentoFila | null): SetorFila {
   return "outros";
 }
 
-const MENSAGENS_ERRO: Record<string, string> = {
-  encaminhamento: "Encaminhamento inválido.",
-  "perfil-profissional": "O usuário não está vinculado a um profissional ativo.",
-  indisponivel: "Este paciente já foi chamado ou assumido por outro profissional.",
-  especialidade: "A especialidade do profissional não corresponde à fila do paciente.",
-  atendimento: "Não foi possível atualizar o atendimento clínico.",
-  "fila-setorial": "Não foi possível publicar a chamada no painel integrado.",
-  assumir: "O paciente foi assumido por outro profissional antes desta chamada.",
-};
-
-export default async function FilaMedicaPage({ searchParams }: { searchParams: Promise<{ erro?: string; setor?: string }> }) {
-  const { erro, setor: setorParam } = await searchParams;
+export default async function FilaMedicaPage({ searchParams }: { searchParams: Promise<{ setor?: string }> }) {
+  const { setor: setorParam } = await searchParams;
   const { supabase, user, unidadeId } = await getAssistencialContext();
 
   let profissional = (await supabase.from("profissionais").select("id,nome_completo,especialidade").eq("usuario_id", user.id).eq("ativo", true).maybeSingle()).data;
@@ -115,12 +105,6 @@ export default async function FilaMedicaPage({ searchParams }: { searchParams: P
       title="Filas médicas por setor"
       description="As filas são separadas por contexto assistencial. O médico continua vendo apenas pacientes compatíveis com sua especialidade, sem misturar Pronto-Socorro, Ambulatório e Internação."
     >
-      {erro ? (
-        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {MENSAGENS_ERRO[erro] ?? "Não foi possível chamar e assumir o paciente."}
-        </div>
-      ) : null}
-
       {!profissional ? (
         <div className="ui-card p-6">
           <div className="flex items-center gap-3">
@@ -204,22 +188,11 @@ export default async function FilaMedicaPage({ searchParams }: { searchParams: P
                         </div>
                       </div>
 
-                      <form action={assumirPaciente} className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[330px] sm:flex-row">
-                        <input type="hidden" name="encaminhamento_id" value={item.id} />
-                        <input type="hidden" name="fila_setor" value={setor.codigo} />
-                        <label className="relative min-w-0 flex-1">
-                          <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                          <input
-                            name="ponto_atendimento"
-                            defaultValue={setor.ponto}
-                            required
-                            maxLength={80}
-                            className="ui-input h-10 w-full pl-9"
-                            aria-label="Ponto de atendimento da chamada"
-                          />
-                        </label>
-                        <button className="ui-button-primary h-10 whitespace-nowrap"><BellRing className="size-4" /> Chamar e assumir</button>
-                      </form>
+                      <AssumePatientBackgroundForm
+                        encaminhamentoId={item.id}
+                        filaSetor={setor.codigo}
+                        pontoPadrao={setor.ponto}
+                      />
                     </div>
                   </div>
                 );
