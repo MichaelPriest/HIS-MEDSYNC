@@ -2,14 +2,8 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FileClock, FileText, FlaskConical, RotateCcw } from "lucide-react";
+import { LaboratoryReportBackgroundForm } from "@/components/laboratorio/laboratory-report-background-form";
 import { SectionPage } from "@/components/painel/section-page";
-import {
-  abrirRetificacaoLaudoLaboratorio,
-  liberarLaudoLaboratorio,
-  notificarCriticoNoLaudo,
-  salvarLaudoLaboratorio,
-  validarResultadoNoLaudo,
-} from "@/modules/assistencial/laboratorio-laudo-actions";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 export const dynamic = "force-dynamic";
@@ -174,16 +168,16 @@ export default async function LaboratorioLaudoPage({
                       <td className="px-4 py-4">
                         <div className="space-y-2">
                           {resultado.liberado ? <p className="text-xs font-bold text-emerald-700">Validado {fmt(resultado.liberado_em)}</p> : podeResultar ? (
-                            <form action={validarResultadoNoLaudo}>
+                            <LaboratoryReportBackgroundForm kind="validate">
                               <input type="hidden" name="laudo_id" value={laudo.id} />
                               <input type="hidden" name="resultado_id" value={resultado.id} />
                               <button className="ui-button-secondary">Validar analito</button>
-                            </form>
+                            </LaboratoryReportBackgroundForm>
                           ) : <p className="text-xs text-slate-500">Aguardando validação técnica.</p>}
                           {resultado.valor_critico ? resultado.notificado_em ? (
                             <p className="text-xs font-bold text-rose-700">Crítico comunicado a {resultado.notificado_a ?? "destinatário registrado"} · {fmt(resultado.notificado_em)}</p>
                           ) : podeResultar ? (
-                            <form action={notificarCriticoNoLaudo} className="grid gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
+                            <LaboratoryReportBackgroundForm kind="critical" resetOnSuccess className="grid gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
                               <input type="hidden" name="laudo_id" value={laudo.id} />
                               <input type="hidden" name="resultado_id" value={resultado.id} />
                               <input name="notificado_a" required className="ui-input" placeholder="Comunicado a" />
@@ -193,7 +187,7 @@ export default async function LaboratorioLaudoPage({
                               </div>
                               <input name="observacoes" className="ui-input" placeholder="Observações da comunicação" />
                               <button className="ui-button-primary justify-self-end">Registrar comunicação</button>
-                            </form>
+                            </LaboratoryReportBackgroundForm>
                           ) : <p className="text-xs font-bold text-rose-700">Comunicação crítica pendente pela equipe do laboratório.</p> : null}
                         </div>
                       </td>
@@ -205,7 +199,7 @@ export default async function LaboratorioLaudoPage({
           </div>
 
           {!liberado && podeLaudar ? (
-            <form action={salvarLaudoLaboratorio} className="his-card p-6">
+            <LaboratoryReportBackgroundForm kind="save" className="his-card p-6">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <input type="hidden" name="solicitacao_id" value={laudo.solicitacao_id} />
               <div className="mb-4"><h2 className="font-black">Editor do laudo</h2><p className="text-sm text-slate-500">Resultados estruturados ficam acima; use o texto para interpretação, conclusão e observações quando aplicável.</p></div>
@@ -221,7 +215,7 @@ export default async function LaboratorioLaudoPage({
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">Observações<textarea name="observacoes" rows={3} defaultValue={laudo.observacoes ?? ""} className="ui-input" /></label>
                 <div className="flex justify-end"><button className="ui-button-secondary">Salvar rascunho</button></div>
               </div>
-            </form>
+            </LaboratoryReportBackgroundForm>
           ) : liberado ? (
             <div className="his-card p-6">
               <div className="mb-5 flex items-center gap-2"><CheckCircle2 className="size-5 text-emerald-700" /><h2 className="font-black">Laudo assinado</h2></div>
@@ -238,20 +232,20 @@ export default async function LaboratorioLaudoPage({
           ) : null}
 
           {!liberado && podeLiberar ? (
-            <form action={liberarLaudoLaboratorio} className="his-card p-5">
+            <LaboratoryReportBackgroundForm kind="release" className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><h2 className="font-black">Assinar e liberar exame</h2><p className="text-sm text-slate-500">A liberação final assina o laudo, consolida os resultados e encerra a solicitação laboratorial.</p></div>
                 <button className="ui-button-primary" disabled={resultados.length === 0 || criticosPendentes.length > 0}><CheckCircle2 className="size-4" /> Assinar e liberar</button>
               </div>
-            </form>
+            </LaboratoryReportBackgroundForm>
           ) : liberado && podeLiberar ? (
-            <form action={abrirRetificacaoLaudoLaboratorio} className="his-card p-5">
+            <LaboratoryReportBackgroundForm kind="rectify" resetOnSuccess className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <div className="flex items-center gap-2"><RotateCcw className="size-5 text-amber-700" /><h2 className="font-black">Abrir retificação</h2></div>
               <p className="mt-1 text-sm text-slate-500">A versão liberada permanece preservada no histórico e uma nova versão editável é criada.</p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row"><input name="motivo" required className="ui-input flex-1" placeholder="Motivo obrigatório da retificação" /><button className="ui-button-secondary">Retificar laudo</button></div>
-            </form>
+            </LaboratoryReportBackgroundForm>
           ) : null}
         </div>
 
