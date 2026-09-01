@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { useMemo, useState } from "react";
 import { BookOpenCheck, CircleAlert, Search, UsersRound } from "lucide-react";
 import type { KnowledgeBaseArticle } from "@/modules/knowledge-base/articles";
@@ -103,7 +104,7 @@ export function KnowledgeBaseBrowser({ articles, categories }: Props) {
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   {article.links.map((link) => (
-                    <Link key={`${article.slug}-${link.href}`} href={link.href} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800">
+                    <Link key={`${article.slug}-${link.href}`} href={link.href as Route} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800">
                       Abrir {link.label}
                     </Link>
                   ))}
