@@ -6,17 +6,18 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 
 ## Referência atual
 
-- `main`: `318c9b0fb4dc47780b1421d19cd4936c49a9d407`, merge da PR #110.
-- A produção do merge #109 (`e5243e3ef5779c58e1b97fb4a2925ff29934fee8`) está `READY`.
-- O deployment de produção de `318c9b0f...` foi criado após o merge #110 e estava `QUEUED` na última verificação deste pacote; reconfirmar antes de qualquer novo merge.
+- `main`: `dc439dd159acd96958c29b74c6dd5e1c99236ec8`, merge da PR #112 — laudos LIS sem reload.
+- A produção do mesmo SHA `dc439dd...` está `READY` no Vercel.
 - PR #104 consolidou Agenda, Admissão/Recepção, Triagem e Fila Médica sem reload.
 - PR #105 consolidou Autorizações sem reload.
 - PR #106 consolidou Enfermagem sem reload, incluindo evolução e administração à beira-leito.
 - PR #107 consolidou Farmácia sem reload, incluindo conciliação, validação farmacêutica, dispensação FEFO e devolução.
 - PR #108 corrigiu a fila de Auditoria, separando pendências atuais de histórico resolvido e removendo feedback por reload.
-- PR #109 corrigiu a liberação da Auditoria, o trigger de integração e a persistência da revalidação antes do handoff para Contas Médicas. A migration `20260901223840_auditoria_trigger_liberacao_finalizado_em` está aplicada.
-- PR #110 consolidou a bancada Laboratório/LIS sem reload: preparo de amostra, cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico. CI #877 e Vercel do head `57f884d4...` ficaram verdes antes do merge.
-- O pacote atual migra o editor de laudos Laboratório/LIS para o mesmo padrão, sem migration e sem alteração de schema/RLS/RPC.
+- PR #109 corrigiu a liberação da Auditoria, o trigger de integração e a persistência da revalidação antes do handoff para Contas Médicas.
+- PR #110 consolidou a bancada Laboratório/LIS sem reload: preparo de amostra, cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico.
+- PR #112 consolidou o editor de laudos Laboratório/LIS: abertura confirmada do editor, rascunho, validação, comunicação crítica, assinatura/liberação e retificação sem reload.
+- O pacote atual migra a operação do Diagnóstico por Imagem/RIS para o mesmo padrão: agenda, status, início/conclusão de execução, contraste e dose. O editor/liberação de laudos RIS fica em pacote separado.
+- PR #111 permanece aberta para o fallback comercial TUSS; a migration correspondente já consta no Supabase conectado e não deve ser confundida com merge/homologação da PR.
 
 ## Princípios arquiteturais obrigatórios
 
@@ -36,8 +37,8 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 | Recepção / Agenda / Autorizações / Triagem / Fila Médica | Fluxos principais foram consolidados sem reload pelas PRs #104 e #105. Navegação é preservada apenas para transições reais, como check-in, abertura do RA e entrada no prontuário. | Totem/senhas restantes, recorrência, lembretes e homologação de painel |
 | Prontuário longitudinal | Resumo, histórico, anamnese/evolução, prescrição, documentos, LIS/RIS e cirurgia compartilham o episódio. Alta e avaliações médicas usam salvamento em segundo plano. | adendos, assinaturas adicionais, protocolos e homologação clínica |
 | Farmácia / Enfermagem / medicamentos | FEFO, validação, dispensação, administração, devolução, lote, contingência sem etiqueta e dupla checagem estão integrados e os fluxos principais salvam inline. | saneamento rastreável do legado e homologação farmacêutica/assistencial |
-| Laboratório / LIS | A bancada operacional foi consolidada na PR #110. No pacote atual, iniciar laudo retorna navegação apenas após criação confirmada; salvar rascunho, validar analito, registrar comunicação crítica, assinar/liberar e abrir retificação usam `useActionState` e feedback inline. | concluir gates/merge do editor, interfaces reais com analisadores, protocolos de bancada e homologação laboratorial |
-| Diagnóstico por Imagem / RIS | Pedido, agenda, execução, dose/contraste, DICOM/PACS hooks, laudo, retificação e críticos estão integrados. | PACS/visualizador real e migração das mutações legadas sem reload |
+| Laboratório / LIS | Bancada e editor de laudos estão consolidados sem reload pelas PRs #110 e #112, preservando RPCs de amostra, resultado, criticidade, validação, assinatura/liberação e retificação. | interfaces reais com analisadores, protocolos de bancada e homologação laboratorial |
+| Diagnóstico por Imagem / RIS | Pedido, agenda, execução, dose/contraste, DICOM/PACS hooks, laudo, retificação e críticos estão integrados. O pacote atual converte agenda, transições, execução, contraste e dose para `useActionState`/feedback inline. | converter editor/liberação de laudos RIS, PACS/visualizador real e homologação por modalidade |
 | GED | Storage privado, hash, versão, assinatura e vínculos com documentos/laudos estão disponíveis. | retenção, temporalidade e revisão de mutações legadas |
 | Centro Cirúrgico / CME | Agendamento, checklist, anestesia, RPA, equipe, procedimentos, OPME, CME e consumo/estorno integram o mesmo RA. | homologação presencial, termos e protocolos locais |
 | Compras / Almoxarifado / Estoque | Cotação, alçadas, pedido, recebimento, lote, saldo, inventário, reposição e transferências possuem operações transacionais. | alçadas reais, curva ABC, inventários e mutações legadas sem reload |
@@ -45,7 +46,7 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 | Internação / NIR | Admissão/RA/leito, alta, censo e diárias estão integrados; transferências interunidades possuem base operacional. | homologação NIR, segunda unidade real e mutações restantes sem reload |
 | Urgência / Emergência | Abertura/encerramento, prioridade, SLA, reavaliação e observação possuem fundação operacional. | concluir/sincronizar cadeia antiga de PRs quando os gates permitirem, parametrização real e homologação |
 | Faturamento / TISS / Financeiro | Produção, conta, TISS, glosa/recurso, recebíveis, conciliação e NFS-e possuem fundações transacionais. | XSD/adapters reais, fechamento, precificação e homologação financeira/fiscal |
-| Auditoria / Contas Médicas | Fila pós-alta, histórico resolvido, revalidação e handoff para Contas Médicas foram corrigidos nas PRs #108/#109. A produção de #109 está `READY`. | homologar ciclo pós-alta ponta a ponta com operação real |
+| Auditoria / Contas Médicas | Fila pós-alta, histórico resolvido, revalidação e handoff para Contas Médicas foram corrigidos nas PRs #108/#109. | homologar ciclo pós-alta ponta a ponta com operação real |
 | RH / Segurança / TI / Engenharia Clínica | Workspaces e fundações setoriais existem em níveis diferentes de completude. | evoluir fluxos completos e integrações reais |
 
 ## Supabase — migrations recentes confirmadas
@@ -67,8 +68,9 @@ Além das migrations históricas, o banco conectado contém entre as mais recent
 - `20260830231419_urgencia_sla_historico_longitudinal`
 - `20260831035056_auditoria_autorizacao_unificada`
 - `20260901223840_auditoria_trigger_liberacao_finalizado_em`
+- `20260901225717_faturamento_fallback_comercial_tuss`
 
-A lista do Supabase conectado é a referência para aplicação. O pacote atual de laudos do Laboratório não adiciona migration.
+A lista do Supabase conectado é a referência para aplicação. O pacote atual de background saves do RIS não adiciona migration.
 
 ## Salvamentos em segundo plano — estado da migração
 
@@ -85,7 +87,8 @@ Já convertidos e protegidos contra regressão:
 - evolução e administração de Enfermagem;
 - conciliação, validação farmacêutica, dispensação FEFO e devolução na Farmácia;
 - bancada Laboratório/LIS: preparo de amostra, cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico;
-- editor de laudos Laboratório/LIS: rascunho, validação de analito, comunicação de crítico, assinatura/liberação e retificação inline.
+- editor de laudos Laboratório/LIS: abertura pós-criação confirmada, rascunho, validação, comunicação de crítico, assinatura/liberação e retificação inline;
+- operação Diagnóstico por Imagem/RIS no pacote atual: agendamento, transições da agenda, início/conclusão de execução, contraste e dose.
 
 Exceções de navegação permanecem somente quando representam mudança real de etapa. No Laboratório, **Iniciar laudo** cria/confirma o laudo no banco e só então abre o editor pelo cliente.
 
