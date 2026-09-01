@@ -12,6 +12,7 @@ const migratedServerActions = [
   "src/modules/autorizacoes/actions.ts",
   "src/modules/assistencial/medicamentos-background-actions.ts",
   "src/modules/assistencial/imagem-background-actions.ts",
+  "src/modules/assistencial/imagem-laudo-background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -27,6 +28,7 @@ const backgroundForms = [
   "src/components/enfermagem/medication-administration-background-form.tsx",
   "src/components/farmacia/pharmacy-background-form.tsx",
   "src/components/imagem/radiology-background-form.tsx",
+  "src/components/imagem/radiology-report-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -214,5 +216,35 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).not.toContain("concluirExecucaoImagem,");
     expect(page).not.toContain("registrarContrasteImagem,");
     expect(page).not.toContain("registrarDoseImagem,");
+  });
+
+  it("mantém os laudos RIS sem redirects de feedback e abre editor apenas após criação confirmada", () => {
+    const actions = read("src/modules/assistencial/imagem-laudo-background-actions.ts");
+    const listPage = read("src/app/(painel)/assistencial/imagem/page.tsx");
+    const editorPage = read("src/app/(painel)/assistencial/imagem/laudos/[laudoId]/page.tsx");
+    const form = read("src/components/imagem/radiology-report-background-form.tsx");
+
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(actions).toContain("salvar_laudo_imagem");
+    expect(actions).toContain("registrar_criticidade_laudo_imagem");
+    expect(actions).toContain("liberar_laudo_imagem");
+    expect(actions).toContain("abrir_retificacao_laudo_imagem");
+    expect(actions).toContain("redirectTo: `/assistencial/imagem/laudos/${id}`");
+    expect(form).toContain("OpenRadiologyReportForm");
+    expect(form).toContain("router.push");
+    expect(listPage).toContain("OpenRadiologyReportForm");
+    expect(listPage).toContain('kind="release"');
+    expect(listPage).not.toContain("salvarLaudoImagem");
+    expect(listPage).not.toContain("liberarLaudoImagem");
+    expect(editorPage).toContain('kind="save"');
+    expect(editorPage).toContain('kind="critical"');
+    expect(editorPage).toContain('kind="release"');
+    expect(editorPage).toContain('kind="rectify"');
+    expect(editorPage).not.toContain("searchParams");
+    expect(editorPage).not.toContain("salvarLaudoImagem");
+    expect(editorPage).not.toContain("registrarCriticidadeLaudoImagem");
+    expect(editorPage).not.toContain("liberarLaudoImagem");
+    expect(editorPage).not.toContain("abrirRetificacaoLaudoImagem");
   });
 });
