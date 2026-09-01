@@ -1,21 +1,39 @@
-import Link from "next/link";
-import { BookOpenCheck, Building2, ClipboardCheck, FileText, HeartPulse, ReceiptText, Search, ShoppingCart, Stethoscope, WalletCards } from "lucide-react";
+import { BookOpenCheck, Layers3, Search, UsersRound } from "lucide-react";
+import { KnowledgeBaseBrowser } from "@/components/manual/knowledge-base-browser";
 import { SectionPage } from "@/components/painel/section-page";
+import { knowledgeBaseArticles, knowledgeBaseCategories } from "@/modules/knowledge-base/articles";
 
-const secoes=[
-  {titulo:"1. Entrada e recepção",icone:HeartPulse,texto:"Totem → senha → recepção → identificação do paciente → confirmação cadastral → abertura do atendimento Particular ou Convênio.",links:[["Senhas / Recepção","/senhas"],["Atendimentos","/atendimentos"]]},
-  {titulo:"2. Guias e autorização",icone:ClipboardCheck,texto:"Registre guia, senha, protocolo, validade, procedimentos e valores autorizados. Divergências devem ser resolvidas antes do faturamento.",links:[["Central de Guias","/central-guias"],["Autorizações","/autorizacoes"]]},
-  {titulo:"3. Triagem e atendimento",icone:Stethoscope,texto:"A Triagem define a especialidade de destino. O profissional logado assume o paciente na fila da sua especialidade e trabalha no mesmo episódio assistencial.",links:[["Triagem","/triagem"],["Minha fila médica","/fila-medica"],["Prontuário","/prontuario"]]},
-  {titulo:"4. Auditoria e Contas Médicas",icone:FileText,texto:"Após a alta, a conta passa obrigatoriamente pela Auditoria e depois por Contas Médicas. Pendências bloqueantes impedem o TISS.",links:[["Auditoria","/auditoria"],["Contas Médicas","/contas-medicas"],["GED","/ged"]]},
-  {titulo:"5. Comercial e contratos",icone:Building2,texto:"Mantenha contratos, tabelas por edição, AMB/CBHPM, SIMPRO/BRASÍNDICE/OPME, regras avançadas e pacotes. Não sobrescreva edições históricas.",links:[["Comercial","/comercial"],["Tabelas","/comercial/tabelas"],["Procedimentos","/comercial/procedimentos"],["Regras e pacotes","/comercial/regras"]]},
-  {titulo:"6. Faturamento e TISS",icone:ReceiptText,texto:"Conta → crítica → guia → lote → XML validado → envio manual/webservice → protocolo → retorno → glosa/recurso. XML sem XSD válido não deve ser enviado.",links:[["Pré-faturamento","/faturamento"],["Lotes TISS","/faturamento/lotes"],["Glosas","/faturamento/glosas"]]},
-  {titulo:"7. Compras e estoque",icone:ShoppingCart,texto:"Solicitação → cotação → aprovação → pedido → recebimento → Almoxarifado/Farmácia → obrigação financeira. Preserve lote, validade e rastreabilidade.",links:[["Compras","/compras"],["Almoxarifado","/almoxarifado"],["Farmácia","/setores/farmacia"]]},
-  {titulo:"8. Financeiro e NFS-e",icone:WalletCards,texto:"Acompanhe recebíveis, previsão de pagamento, glosas e NFS-e. Integrações municipais automáticas só devem ser usadas com adapter homologado.",links:[["Financeiro","/financeiro"],["Notas fiscais / NFS-e","/financeiro/notas-fiscais"],["Configuração NFS-e","/configuracoes/nfse"]]},
-] as const;
+export default function ManualPage() {
+  const audiences = new Set(knowledgeBaseArticles.flatMap((article) => article.audience));
 
-export default function ManualPage(){return <SectionPage eyebrow="Ajuda / Manual" title="Manual do MedSync HIS" description="Guia rápido dos principais fluxos. Use esta área para entender a sequência correta entre os módulos.">
-  <div className="ui-card mb-6 p-5"><div className="flex gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><BookOpenCheck className="size-5"/></span><div><h2 className="font-semibold text-slate-900">Como usar o sistema</h2><p className="mt-1 text-sm leading-6 text-slate-600">O HIS foi desenhado como um fluxo integrado. Sempre continue o mesmo atendimento/conta em vez de criar registros paralelos. Dados da assistência alimentam autorização, auditoria, faturamento e financeiro.</p></div></div></div>
-  <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5"><strong className="text-sm text-amber-900">Atenção durante o desenvolvimento</strong><p className="mt-1 text-sm leading-6 text-amber-800">Alguns módulos ainda estão em evolução. TISS definitivo depende dos XSD oficiais aplicáveis e homologação; webservices de operadoras e NFS-e dependem das credenciais/adapters reais. Não trate uma estrutura criada como integração homologada.</p></div>
-  <div className="grid gap-5 xl:grid-cols-2">{secoes.map(({titulo,icone:Icon,texto,links})=><section key={titulo} className="ui-card p-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-700"><Icon className="size-5"/></span><h2 className="font-semibold text-slate-900">{titulo}</h2></div><p className="mt-4 text-sm leading-6 text-slate-600">{texto}</p><div className="mt-4 flex flex-wrap gap-2">{links.map(([label,href])=><Link key={href} href={href} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-800">{label}</Link>)}</div></section>)}</div>
-  <section className="ui-card mt-6 p-6"><div className="flex items-center gap-3"><Search className="size-5 text-brand-700"/><div><h2 className="font-semibold text-slate-900">Regras rápidas</h2><p className="text-sm text-slate-500">Pontos que evitam erros operacionais.</p></div></div><ul className="mt-4 grid gap-3 text-sm leading-6 text-slate-700 md:grid-cols-2"><li>• Pesquise por nome, CPF, RA ou registro antes de cadastrar paciente.</li><li>• Confirme os dados novamente na admissão.</li><li>• Para convênio, confira plano, carteirinha, autorização e contrato.</li><li>• Não pule Auditoria ou Contas Médicas.</li><li>• Não sobrescreva edição histórica de tabela comercial.</li><li>• Compare valor autorizado, contratado, executado e faturado.</li><li>• Não envie XML TISS sem validação XSD aplicável.</li><li>• Nunca grave senha/token/certificado em campo comum do banco.</li></ul></section>
-</SectionPage>}
+  return (
+    <SectionPage
+      eyebrow="Ajuda / Base de Conhecimento"
+      title="Base de Conhecimento do MedSync HIS"
+      description="Guias operacionais pesquisáveis para aprender a usar os módulos mantendo o mesmo atendimento, as regras de segurança e a sequência correta entre os setores."
+    >
+      <section className="grid gap-3 sm:grid-cols-3">
+        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Guias disponíveis</p><BookOpenCheck className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{knowledgeBaseArticles.length}</p></div>
+        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Categorias</p><Layers3 className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{knowledgeBaseCategories.length - 1}</p></div>
+        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Perfis orientados</p><UsersRound className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{audiences.size}</p></div>
+      </section>
+
+      <section className="ui-card my-5 p-5">
+        <div className="flex gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Search className="size-5" /></span>
+          <div>
+            <h2 className="font-black text-slate-900">Procure pela tarefa que precisa executar</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “triagem”, “dispensação”, “laudo”, “TISS”, “glosa” ou “NFS-e”. Cada guia informa a sequência de uso, cuidados e atalhos para as telas relacionadas.</p>
+          </div>
+        </div>
+      </section>
+
+      <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+        <strong className="text-sm text-amber-900">Base operacional em evolução</strong>
+        <p className="mt-1 text-sm leading-6 text-amber-800">Os guias ensinam o comportamento atualmente implementado, mas não substituem protocolos institucionais, treinamento assistencial, regras contratuais ou homologações externas. Integrações como PACS/DICOM, TISS, webservices de operadoras e NFS-e devem refletir a infraestrutura real da instituição.</p>
+      </div>
+
+      <KnowledgeBaseBrowser articles={knowledgeBaseArticles} categories={knowledgeBaseCategories} />
+    </SectionPage>
+  );
+}
