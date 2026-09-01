@@ -252,6 +252,46 @@ export async function liberarAuditoria(
   const auditoriaId = txt(formData, "auditoria_id");
   if (!auditoriaId) return failure("auditoria", "Auditoria não informada.");
 
+  const { error: revalidacaoError } = await auth.context.supabase.rpc(
+    "executar_auditoria_conta_automatica",
+    { p_auditoria_id: auditoriaId },
+  );
+
+  if (revalidacaoError) {
+    return databaseFailure(
+      revalidacaoError,
+      "Não foi possível revalidar a Auditoria antes da liberação.",
+    );
+  }
+
+  const { data: impeditivas, error: impeditivasError } = await auth.context.supabase
+    .from("auditoria_conta_itens")
+    .select("codigo,severidade,descricao")
+    .eq("auditoria_id", auditoriaId)
+    .eq("resolvida", false)
+    .in("severidade", ["erro", "bloqueio"])
+    .limit(5);
+
+  if (impeditivasError) {
+    return databaseFailure(
+      impeditivasError,
+      "A Auditoria foi revalidada, mas não foi possível confirmar as pendências impeditivas.",
+    );
+  }
+
+  revalidatePath("/auditoria");
+
+  if (impeditivas?.length) {
+    const detalhe = impeditivas
+      .map((item) => `${item.codigo ? `${item.codigo}: ` : ""}${item.descricao}`)
+      .join(" · ");
+    return failure(
+      "pendencias",
+      "A conta ainda possui pendência impeditiva após a revalidação automática.",
+      detalhe || "Revise as pendências abertas antes de liberar a conta.",
+    );
+  }
+
   const { error } = await auth.context.supabase.rpc("liberar_auditoria_conta", {
     p_auditoria_id: auditoriaId,
     p_observacoes: txt(formData, "observacoes") || null,
