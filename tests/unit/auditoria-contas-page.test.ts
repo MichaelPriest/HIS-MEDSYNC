@@ -23,4 +23,28 @@ describe("Auditoria de Contas", () => {
     expect(page).toContain("Não foi possível carregar a fila de Auditoria");
     expect(page).toContain("error ? null");
   });
+
+  it("persiste a revalidação antes de tentar liberar a conta", () => {
+    const actions = source("src/modules/auditoria/actions.ts");
+    const revalidacao = actions.indexOf('"executar_auditoria_conta_automatica"');
+    const leituraImpedimentos = actions.indexOf('.from("auditoria_conta_itens")', revalidacao);
+    const liberacao = actions.indexOf('"liberar_auditoria_conta"', leituraImpedimentos);
+
+    expect(revalidacao).toBeGreaterThan(-1);
+    expect(leituraImpedimentos).toBeGreaterThan(revalidacao);
+    expect(liberacao).toBeGreaterThan(leituraImpedimentos);
+    expect(actions).toContain('.eq("resolvida", false)');
+    expect(actions).toContain('.in("severidade", ["erro", "bloqueio"])');
+    expect(actions).toContain("A conta ainda possui pendência impeditiva após a revalidação automática.");
+  });
+
+  it("usa finalizado_em no evento de integração da liberação", () => {
+    const migration = source(
+      "supabase/migrations/20260901223840_auditoria_trigger_liberacao_finalizado_em.sql",
+    );
+
+    expect(migration).toContain("coalesce(new.finalizado_em, now())");
+    expect(migration).not.toContain("new.liberado_em");
+    expect(migration).toContain("'conta.auditada'");
+  });
 });
