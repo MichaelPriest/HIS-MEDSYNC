@@ -36,6 +36,8 @@ Na Enfermagem, evolução assistencial e administração à beira-leito permanec
 
 Na Farmácia, conciliação medicamentosa, validação farmacêutica, dispensação FEFO do item principal e de componentes e devolução permanecem na própria tela. Os RPCs `validar_prescricao_farmaceutica`, `dispensar_medicamento_prescricao_fefo`, `dispensar_componente_prescricao_fefo`, `devolver_medicamento_dispensacao` e `registrar_conciliacao_medicamentosa` continuam como autoridades transacionais; a migração não introduz DML paralelo nem altera FEFO, lote ou saldo.
 
+Na bancada do Laboratório/LIS, preparo e accession da amostra, cadeia de custódia, encaminhamento para setor/bancada, registro de resultado, validação técnica e comunicação de resultado crítico permanecem na mesma tela. Os RPCs laboratoriais continuam sendo a autoridade para rastreabilidade, equipamento, criticidade, liberação e read-back. Abrir um laudo novo pode navegar para o editor porque essa abertura é uma mudança real de workspace; salvar/validar dentro do editor deve seguir o mesmo padrão sem reload em pacote separado.
+
 ## Migração
 
 Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
@@ -52,6 +54,7 @@ Convertidos:
 - identificação do beneficiário e atualização de Autorizações, com feedback inline e navegação somente para continuidade assistencial real;
 - evolução de Enfermagem em Andares e Pronto-Socorro;
 - administração de medicamentos à beira-leito, preservando o RPC e todos os campos de rastreabilidade clínica/farmacêutica;
-- conciliação medicamentosa, validação farmacêutica, dispensação FEFO principal/componente e devolução na Farmácia.
+- conciliação medicamentosa, validação farmacêutica, dispensação FEFO principal/componente e devolução na Farmácia;
+- bancada Laboratório/LIS: preparo de amostra, status/cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico.
 
-Os testes `tests/unit/background-save-policy.test.ts`, `tests/unit/enfermagem-background-saves.test.ts` e `tests/unit/farmacia-background-actions.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
+Os testes `tests/unit/background-save-policy.test.ts`, `tests/unit/enfermagem-background-saves.test.ts`, `tests/unit/farmacia-background-actions.test.ts` e `tests/unit/laboratorio-background-saves.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
