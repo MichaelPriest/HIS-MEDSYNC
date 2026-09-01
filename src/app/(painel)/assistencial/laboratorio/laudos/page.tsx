@@ -1,8 +1,8 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, FileText, FlaskConical, Microscope } from "lucide-react";
+import { OpenLaboratoryReportForm } from "@/components/laboratorio/laboratory-report-background-form";
 import { SectionPage } from "@/components/painel/section-page";
-import { abrirLaudoLaboratorio } from "@/modules/assistencial/laboratorio-laudo-actions";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 export const dynamic = "force-dynamic";
@@ -124,12 +124,12 @@ export default async function LaboratorioLaudosPage({ searchParams }: { searchPa
                       {laudo ? (
                         <Link href={`/assistencial/laboratorio/laudos/${laudo.id}` as Route} className="ui-button-secondary">Abrir laudo</Link>
                       ) : (
-                        <form action={abrirLaudoLaboratorio}>
+                        <OpenLaboratoryReportForm>
                           <input type="hidden" name="solicitacao_id" value={sol.id} />
                           <button className="ui-button-primary" disabled={resumo.total === 0} title={resumo.total === 0 ? "Registre ao menos um resultado antes de iniciar o laudo" : undefined}>
                             <Microscope className="size-4" /> Iniciar laudo
                           </button>
-                        </form>
+                        </OpenLaboratoryReportForm>
                       )}
                     </td>
                   </tr>
