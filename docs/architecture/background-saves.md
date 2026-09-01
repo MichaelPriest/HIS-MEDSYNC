@@ -30,6 +30,8 @@ Na Triagem, chamar/rechamar o paciente e falhas de registro permanecem na própr
 
 Na Fila Médica, erros de perfil profissional, especialidade, concorrência, atendimento e publicação da fila permanecem inline. Após a tomada do encaminhamento e atualização assistencial serem confirmadas, a aplicação navega para o prontuário clínico porque essa abertura representa a continuidade real do atendimento pelo profissional que venceu a disputa.
 
+Em Autorizações, biometria/token, validações e salvamento de guia permanecem na mesma tela. Navegação só ocorre depois de uma liberação/dispensa confirmada quando a jornada realmente precisa seguir para Triagem, Fila Médica ou Pronto-Socorro. Se a guia for salva mas o encaminhamento posterior falhar, a tela informa essa condição sem ocultar que a autorização já foi persistida.
+
 ## Migração
 
 Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
@@ -42,6 +44,7 @@ Convertidos:
 - confirmação, falta, conclusão e cancelamento de agendamento;
 - validações e falhas de abertura da Admissão/Recepção, preservando navegação apenas após criação efetiva do atendimento;
 - chamada/rechamada e registro da Triagem, com feedback inline e navegação somente para transições setoriais reais;
-- tomada de paciente na Fila Médica, com erros inline e navegação para o prontuário somente depois da confirmação da operação.
+- tomada de paciente na Fila Médica, com erros inline e navegação para o prontuário somente depois da confirmação da operação;
+- identificação do beneficiário e atualização de Autorizações, com feedback inline e navegação somente para continuidade assistencial real.
 
 O teste `tests/unit/background-save-policy.test.ts` impede regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.

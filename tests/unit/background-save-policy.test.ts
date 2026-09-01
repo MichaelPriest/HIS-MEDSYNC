@@ -9,6 +9,7 @@ const migratedServerActions = [
   "src/modules/prontuario-medico/avaliacao-medica-actions.ts",
   "src/modules/triagem/actions.ts",
   "src/modules/fila-medica/actions.ts",
+  "src/modules/autorizacoes/actions.ts",
 ];
 
 const backgroundForms = [
@@ -19,6 +20,7 @@ const backgroundForms = [
   "src/components/atendimentos/admission-background-form.tsx",
   "src/components/triagem/triage-background-actions.tsx",
   "src/components/fila-medica/assume-patient-background-form.tsx",
+  "src/components/autorizacoes/authorization-background-actions.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -129,5 +131,24 @@ describe("política de salvamento em segundo plano", () => {
     expect(prontoSocorroPage).toContain("AssumePatientBackgroundForm");
     expect(prontoSocorroPage).not.toContain("action={assumirPaciente}");
     expect(form).toContain("router.push");
+  });
+
+  it("mantém Autorizações inline e navega somente para próxima etapa real", () => {
+    const actions = read("src/modules/autorizacoes/actions.ts");
+    const page = read("src/app/(painel)/autorizacoes/page.tsx");
+    const forms = read("src/components/autorizacoes/authorization-background-actions.tsx");
+
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(actions).toContain("return failure(\"identificacao-obrigatoria\")");
+    expect(actions).toContain("return success(\"Autorização salva.\")");
+    expect(actions).toContain("/triagem?atendimento=");
+    expect(actions).toContain("/fila-medica?atendimento=");
+    expect(actions).toContain("/pronto-socorro?atendimento=");
+    expect(page).toContain("AuthorizationIdentificationBackgroundForm");
+    expect(page).toContain("AuthorizationUpdateBackgroundForm");
+    expect(page).not.toContain("action={registrarIdentificacaoAutorizacao}");
+    expect(page).not.toContain("action={atualizarAutorizacao}");
+    expect(forms).toContain("router.push");
   });
 });

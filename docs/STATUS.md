@@ -13,7 +13,8 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 - O PR #96 permanece aberto porque o check Vercel do SHA final foi bloqueado por limite externo de builds. O pacote não deve ser mesclado usando deployment de SHA anterior.
 - O pacote empilhado de Admissão/Recepção está no PR #98: erros de paciente, cobertura, TISS, identificação do beneficiário e falhas do RPC retornam feedback inline; a navegação é preservada somente após criação efetiva do atendimento/RA, seguindo para Autorização ou Triagem.
 - O pacote empilhado de Triagem está no PR #99: chamada/rechamada e erros de registro ficam na própria tela; conclusão normal atualiza a fila sem reload; navegação é preservada somente quando a próxima etapa real é Autorização ou Pronto-Socorro.
-- O pacote empilhado de Fila Médica está no branch `feat/fila-medica-background-saves`: erros de perfil, especialidade, concorrência, atendimento e publicação da chamada ficam inline; após tomada confirmada do paciente, a interface navega para o prontuário clínico.
+- O pacote empilhado de Fila Médica está no PR #100: erros de perfil, especialidade, concorrência, atendimento e publicação da chamada ficam inline; após tomada confirmada do paciente, a interface navega para o prontuário clínico.
+- O pacote empilhado de Autorizações está no branch `feat/autorizacoes-background-saves`: biometria/token, validações e salvamento de guia usam feedback inline; após liberação confirmada, a navegação ocorre somente quando a jornada precisa seguir para Triagem, Fila Médica ou Pronto-Socorro.
 - O histórico consolidado inclui PR #84 (censo/diárias de internação), PR #86 (transições de Urgência), PR #87 (SLA/reavaliação de Urgência), PR #90 (alinhamento da migration de SLA), PR #93 (correção da fila de Auditoria), PR #95 (fundação de salvamentos sem recarga) e os pacotes posteriores ainda abertos, conforme estado confirmado no repositório e no banco.
 - O pacote de transferências interunidades originado no PR #85 permanece implementado. Homologação completa continua dependente de uma segunda unidade institucional real.
 
@@ -33,7 +34,7 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 |---|---|---|
 | Fundação / Auth / multiempresa | RBAC granular, contexto empresa/unidade, perfis, navegação setorial, RLS/FORCE RLS e helpers de autorização já sustentam os módulos operacionais. A fundação de `BackgroundActionState` + React 19 `useActionState` passou a ser o padrão para mutações sem recarga. | ampliar testes multi-tenant, break-glass clínico controlado, continuar hardening dos RPCs legados e migrar as ações legadas para o novo padrão sem reload |
 | Navegação / Central Assistencial | Navegação organizada por macroárea e perfil; `/integracoes` concentra pendências intersetoriais sem virar fonte de dados. | homologar usabilidade por perfil real e melhorar acessibilidade/atalhos |
-| Recepção / Totem / Agenda / Triagem / Fila Médica | Totem/senhas, recepção, check-in, agenda, triagem e fila médica possuem bases operacionais integradas ao atendimento. No PR #96, a Agenda salva criação, confirmação, falta, conclusão e cancelamento em segundo plano; o `check-in` continua levando à próxima etapa após confirmação do banco. No PR #98, validações e falhas de Admissão permanecem inline e somente a abertura real do RA navega. No PR #99, chamada/rechamada e registro comum da Triagem não usam reload; Autorização e Pronto-Socorro permanecem navegações semânticas pós-save. No pacote de Fila Médica, erros da tomada do paciente permanecem inline e só o sucesso confirmado abre o prontuário. | concluir gates/merge da pilha; revisar mutações restantes de Totem/senhas/recepção; evoluir recorrência, disponibilidade, lembretes, impressão e homologação do painel de chamada |
+| Recepção / Totem / Agenda / Autorizações / Triagem / Fila Médica | Totem/senhas, recepção, check-in, agenda, autorizações, triagem e fila médica possuem bases operacionais integradas ao atendimento. No PR #96, a Agenda salva criação, confirmação, falta, conclusão e cancelamento em segundo plano; o `check-in` continua levando à próxima etapa após confirmação do banco. No PR #98, validações e falhas de Admissão permanecem inline e somente a abertura real do RA navega. No PR #99, chamada/rechamada e registro comum da Triagem não usam reload. No PR #100, erros da tomada do paciente permanecem inline e só o sucesso confirmado abre o prontuário. No pacote de Autorizações, identificação e guia permanecem na própria tela e somente liberação/dispensa confirmada pode encaminhar para Triagem, Fila Médica ou Pronto-Socorro. | concluir gates/merge da pilha; revisar mutações restantes de Totem/senhas/recepção; evoluir recorrência, disponibilidade, lembretes, impressão e homologação do painel de chamada |
 | Prontuário longitudinal | Resumo, histórico, anamnese/evolução com autosave, prescrição, documentos, LIS/RIS e cirurgia compartilham o episódio. Impressão clínica e rascunho único foram endurecidos; alta e solicitação de avaliação médica já usam salvamento em segundo plano. | adendos/assinaturas adicionais, protocolos, migração das ações legadas restantes e homologação clínica/regulatória |
 | Farmácia / Enfermagem / medicamentos | FEFO, validação, dispensação, administração, devolução, estoque e produção estão correlacionados pela integração ponta a ponta. Divergências históricas não são corrigidas artificialmente. | saneamento rastreável do legado, regras clínicas adicionais, migração das mutações legadas sem reload e homologação farmacêutica/assistencial |
 | Laboratório / LIS | Pedido, accession, coleta, cadeia de custódia, resultados, críticos, validação e laudo longitudinal estão implementados; anexos GED podem acompanhar laudos liberados. | interfaces reais com equipamentos, protocolos de bancada, migração de mutações legadas sem reload e homologação laboratorial |
@@ -81,7 +82,7 @@ Além das migrations históricas já versionadas, o projeto conectado contém, e
 - `20260830231419_urgencia_sla_historico_longitudinal`
 - `20260831035056_auditoria_autorizacao_unificada`
 
-A lista do banco é a referência para confirmar aplicação; nomes/versões descritos em PRs antigos não substituem o estado conectado atual. Os pacotes atuais de Agenda, Admissão, Triagem e Fila Médica não alteram schema e não adicionam migration.
+A lista do banco é a referência para confirmar aplicação; nomes/versões descritos em PRs antigos não substituem o estado conectado atual. Os pacotes atuais de Agenda, Admissão, Triagem, Fila Médica e Autorizações não alteram schema e não adicionam migration.
 
 ## Transferências interunidades — garantias atuais
 
@@ -103,7 +104,8 @@ Já convertidos e protegidos contra regressão:
 - confirmação, falta, conclusão e cancelamento de agendamento;
 - validações e falhas de abertura da Admissão/Recepção;
 - chamada/rechamada e registro da Triagem;
-- tomada de paciente na Fila Médica.
+- tomada de paciente na Fila Médica;
+- identificação do beneficiário e atualização de Autorizações.
 
 A Agenda preserva dois redirects semânticos de `check-in`: atendimento comum segue para abertura do atendimento e cirurgia eletiva segue para Centro Cirúrgico. Eles não são usados como mecanismo de feedback de salvamento.
 
@@ -112,6 +114,8 @@ A Admissão preserva a navegação somente após o banco confirmar a criação r
 A Triagem permanece na própria página para chamada/rechamada, erros e conclusão comum. Após confirmação do save, a interface só navega quando o fluxo assistencial exige Autorização ou Pronto-Socorro.
 
 A Fila Médica mantém erros e concorrência no próprio cartão do paciente. O componente cliente só abre o prontuário após a action confirmar que o profissional assumiu o encaminhamento e o atendimento foi atualizado.
+
+Autorizações mantém biometria/token, validações e edição da guia na própria tela. A interface só navega após uma liberação/dispensa confirmada quando a próxima etapa assistencial for Triagem, Fila Médica ou Pronto-Socorro; falha posterior de encaminhamento não apaga nem mascara uma guia já persistida.
 
 A migração do restante do sistema continua incremental. Não declarar todos os módulos convertidos até que as ações legadas tenham sido inventariadas e removidas da lista.
 
