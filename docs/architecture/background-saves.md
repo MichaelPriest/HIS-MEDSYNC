@@ -34,6 +34,8 @@ Em Autorizações, biometria/token, validações e salvamento de guia permanecem
 
 Na Enfermagem, evolução assistencial e administração à beira-leito permanecem na própria tela. A checagem de medicamentos continua usando o RPC `registrar_administracao_beira_leito` como autoridade para prescrição ativa, validação farmacêutica, identificação do paciente, dispensação, lote, contingência sem etiqueta e dupla checagem; apenas o feedback deixou de depender de redirect/reload.
 
+Na Farmácia, conciliação medicamentosa, validação farmacêutica, dispensação FEFO do item principal e de componentes e devolução permanecem na própria tela. Os RPCs `validar_prescricao_farmaceutica`, `dispensar_medicamento_prescricao_fefo`, `dispensar_componente_prescricao_fefo`, `devolver_medicamento_dispensacao` e `registrar_conciliacao_medicamentosa` continuam como autoridades transacionais; a migração não introduz DML paralelo nem altera FEFO, lote ou saldo.
+
 ## Migração
 
 Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
@@ -49,6 +51,7 @@ Convertidos:
 - tomada de paciente na Fila Médica, com erros inline e navegação para o prontuário somente depois da confirmação da operação;
 - identificação do beneficiário e atualização de Autorizações, com feedback inline e navegação somente para continuidade assistencial real;
 - evolução de Enfermagem em Andares e Pronto-Socorro;
-- administração de medicamentos à beira-leito, preservando o RPC e todos os campos de rastreabilidade clínica/farmacêutica.
+- administração de medicamentos à beira-leito, preservando o RPC e todos os campos de rastreabilidade clínica/farmacêutica;
+- conciliação medicamentosa, validação farmacêutica, dispensação FEFO principal/componente e devolução na Farmácia.
 
-Os testes `tests/unit/background-save-policy.test.ts` e `tests/unit/enfermagem-background-saves.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
+Os testes `tests/unit/background-save-policy.test.ts`, `tests/unit/enfermagem-background-saves.test.ts` e `tests/unit/farmacia-background-actions.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
