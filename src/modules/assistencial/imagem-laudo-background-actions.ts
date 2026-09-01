@@ -89,9 +89,6 @@ export async function registrarCriticidadeLaudoImagemBackground(
 
   const achadoCritico = formData.get("achado_critico") === "on";
   const comunicadaA = txt(formData, "comunicada_a");
-  if (achadoCritico && !comunicadaA) {
-    return failure("comunicacao-critica", "Informe a pessoa comunicada quando houver achado crítico.");
-  }
 
   const { error } = await supabase.rpc("registrar_criticidade_laudo_imagem", {
     p_laudo_id: laudoId,
@@ -107,10 +104,13 @@ export async function registrarCriticidadeLaudoImagemBackground(
     return failure("criticidade", "Não foi possível registrar a criticidade/comunicação clínica.", error);
   }
 
-  return success(
-    achadoCritico ? "Criticidade e comunicação clínica registradas." : "Criticidade do laudo atualizada.",
-    laudoId,
-  );
+  const message = achadoCritico
+    ? comunicadaA
+      ? "Criticidade e comunicação clínica registradas."
+      : "Achado crítico registrado; a comunicação clínica permanece pendente antes da liberação."
+    : "Criticidade do laudo atualizada.";
+
+  return success(message, laudoId);
 }
 
 export async function liberarLaudoImagemBackground(
