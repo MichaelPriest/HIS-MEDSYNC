@@ -1,10 +1,12 @@
 import { CalendarClock, CheckCircle2, Contrast, ImageIcon, Radiation, ScanLine } from "lucide-react";
+import { RadiologyBackgroundForm } from "@/components/imagem/radiology-background-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import { agendarImagem, atualizarAgendaImagem, concluirExecucaoImagem, iniciarExecucaoImagem, liberarLaudoImagem, registrarContrasteImagem, registrarDoseImagem, salvarLaudoImagem } from "@/modules/assistencial/imagem-actions";
+import { liberarLaudoImagem, salvarLaudoImagem } from "@/modules/assistencial/imagem-actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
 const one = (v: any) => Array.isArray(v) ? v[0] ?? null : v;
 const fmt = (v?: string | null) => v ? new Date(v).toLocaleString("pt-BR") : "—";
 
@@ -17,34 +19,194 @@ export default async function ImagemPage({ searchParams }: { searchParams: Promi
     supabase.from("imagem_execucoes").select("id,solicitacao_id,atendimento_id,agendamento_id,protocolo_id,accession_number,sala,equipamento,engenharia_equipamento_id,status,iniciado_em,finalizado_em,study_instance_uid,series_instance_uid,pacs_url,solicitacao:solicitacoes_exames(exame),atendimento:atendimentos(numero_atendimento,paciente:pacientes(nome_completo)),engenharia:engenharia_equipamentos(patrimonio,nome,status)").eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(120),
     supabase.from("imagem_protocolos").select("id,codigo,nome,modalidade,contraste_padrao,requer_funcao_renal,requer_consentimento").eq("empresa_id", empresaId).eq("ativo", true).order("nome").limit(500),
     supabase.from("imagem_laudos").select("id,execucao_id,atendimento_id,tecnica,conclusao,status,liberado_em,revisao,retificado,created_at,atendimento:atendimentos(numero_atendimento,paciente:pacientes(nome_completo))").eq("unidade_id", unidadeId).order("created_at", { ascending: false }).limit(100),
-    supabase.from("engenharia_equipamentos").select("id,patrimonio,nome,categoria,status,localizacao").eq("empresa_id",empresaId).eq("unidade_id",unidadeId).in("status",["operacional","reserva"]).order("nome").limit(500),
+    supabase.from("engenharia_equipamentos").select("id,patrimonio,nome,categoria,status,localizacao").eq("empresa_id", empresaId).eq("unidade_id", unidadeId).in("status", ["operacional", "reserva"]).order("nome").limit(500),
   ]);
-  const solicitacoes=(solReq.data??[]) as any[]; const agenda=(agendaReq.data??[]) as any[]; const execucoes=(execReq.data??[]) as any[]; const protocolos=(protoReq.data??[]) as any[]; const laudos=(laudoReq.data??[]) as any[]; const equipamentos=(equipReq.data??[]) as any[];
-  const emExecucao=execucoes.filter((e)=>e.status==="em_execucao");
 
-  return <SectionPage eyebrow="Assistencial / Apoio diagnóstico" title="Diagnóstico por Imagem" description="Agenda e execução transacionais, equipamento patrimonial, protocolo técnico, accession, PACS/DICOM, contraste, dose de radiação e laudo assinado no mesmo fluxo.">
-    {sp.sucesso?<div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Operação concluída: {sp.sucesso}.</div>:null}
-    {sp.erro?<div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Falha: {decodeURIComponent(sp.erro)}.</div>:null}
+  const solicitacoes = (solReq.data ?? []) as any[];
+  const agenda = (agendaReq.data ?? []) as any[];
+  const execucoes = (execReq.data ?? []) as any[];
+  const protocolos = (protoReq.data ?? []) as any[];
+  const laudos = (laudoReq.data ?? []) as any[];
+  const equipamentos = (equipReq.data ?? []) as any[];
+  const emExecucao = execucoes.filter((e) => e.status === "em_execucao");
 
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{[["Aguardando agenda",solicitacoes.length,ScanLine],["Agenda",agenda.filter((a)=>!["cancelado","faltou","concluido"].includes(a.status)).length,CalendarClock],["Em execução",emExecucao.length,ImageIcon],["Equipamentos disponíveis",equipamentos.length,ScanLine],["Laudos pendentes",laudos.filter((l)=>l.status!=="liberado").length,CheckCircle2]].map(([label,value,Icon]:any)=><div key={label} className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</p><Icon className="size-5 text-brand-600"/></div><p className="mt-2 text-3xl font-black text-brand-950">{value}</p></div>)}</section>
+  return (
+    <SectionPage
+      eyebrow="Assistencial / Apoio diagnóstico"
+      title="Diagnóstico por Imagem"
+      description="Agenda e execução transacionais, equipamento patrimonial, protocolo técnico, accession, PACS/DICOM, contraste, dose de radiação e laudo assinado no mesmo fluxo."
+    >
+      {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Operação de laudo concluída: {sp.sucesso}.</div> : null}
+      {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Falha no laudo: {decodeURIComponent(sp.erro)}.</div> : null}
 
-    <section className="mt-5 grid gap-5 xl:grid-cols-2">
-      <div className="his-card p-6"><div className="mb-4 flex items-center gap-3"><CalendarClock className="size-5 text-brand-700"/><div><h2 className="font-black">Agendar exame</h2><p className="text-sm text-slate-500">Uma solicitação sai desta fila assim que o agendamento é confirmado no banco.</p></div></div><div className="space-y-3">{solicitacoes.length ? solicitacoes.slice(0,30).map((s)=>{const at=one(s.atendimento);const p=one(at?.paciente);return <form key={s.id} action={agendarImagem} className="rounded-2xl border border-slate-100 p-4"><input type="hidden" name="solicitacao_id" value={s.id}/><p className="font-black">{s.exame}</p><p className="mb-3 text-xs text-slate-500">{p?.nome_completo??"Paciente"} · Atend. #{at?.numero_atendimento??"—"} · {s.prioridade}</p><div className="grid gap-2 sm:grid-cols-2"><input name="agendado_em" type="datetime-local" required className="ui-input"/><input name="duracao_minutos" type="number" min="5" defaultValue="30" className="ui-input"/><select name="protocolo_id" defaultValue="" className="ui-input"><option value="">Sem protocolo</option>{protocolos.map((pr)=><option key={pr.id} value={pr.id}>{pr.codigo} · {pr.nome}</option>)}</select><input name="sala" className="ui-input" placeholder="Sala"/><select name="engenharia_equipamento_id" required defaultValue="" className="ui-input sm:col-span-2"><option value="">Selecione o equipamento *</option>{equipamentos.map((eq)=><option key={eq.id} value={eq.id}>{eq.patrimonio} · {eq.nome} · {eq.categoria}{eq.localizacao?` · ${eq.localizacao}`:""}</option>)}</select><input name="observacoes" className="ui-input sm:col-span-2" placeholder="Observações"/></div><button className="ui-button-primary mt-3">Agendar</button></form>;}) : <p className="py-8 text-center text-sm text-slate-500">Nenhuma solicitação aguardando agendamento.</p>}</div></div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          ["Aguardando agenda", solicitacoes.length, ScanLine],
+          ["Agenda", agenda.filter((a) => !["cancelado", "faltou", "concluido"].includes(a.status)).length, CalendarClock],
+          ["Em execução", emExecucao.length, ImageIcon],
+          ["Equipamentos disponíveis", equipamentos.length, ScanLine],
+          ["Laudos pendentes", laudos.filter((l) => l.status !== "liberado").length, CheckCircle2],
+        ].map(([label, value, Icon]: any) => (
+          <div key={label} className="his-kpi">
+            <div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</p><Icon className="size-5 text-brand-600" /></div>
+            <p className="mt-2 text-3xl font-black text-brand-950">{value}</p>
+          </div>
+        ))}
+      </section>
 
-      <div className="his-card p-6"><h2 className="font-black">Agenda operacional</h2><p className="mt-1 text-sm text-slate-500">Confirmação, chegada, falta, cancelamento e início da execução avançam o mesmo pedido sem gerar duplicidade.</p><div className="mt-4 space-y-3">{agenda.slice(0,40).map((a)=>{const at=one(a.atendimento);const p=one(at?.paciente);const sol=one(a.solicitacao);const eq=one(a.engenharia);return <div key={a.id} className="rounded-2xl border border-slate-100 p-4"><div className="flex flex-wrap justify-between gap-2"><div><p className="font-black">{sol?.exame??"Exame"}</p><p className="text-xs text-slate-500">{p?.nome_completo??"Paciente"} · {fmt(a.agendado_em)} · {a.sala??"Sem sala"}</p><p className="mt-1 text-xs font-bold text-brand-700">{eq?`${eq.patrimonio} · ${eq.nome} · ${eq.status}`:a.equipamento??"Equipamento não definido"}</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">{a.status}</span></div><div className="mt-3 flex flex-wrap gap-2">{!["cancelado","faltou","concluido","em_execucao"].includes(a.status)?<form action={atualizarAgendaImagem} className="flex flex-wrap gap-2"><input type="hidden" name="agendamento_id" value={a.id}/>{a.status==="agendado"?<button name="status" value="confirmado" className="ui-button-secondary">Confirmar</button>:null}{["agendado","confirmado"].includes(a.status)?<button name="status" value="chegou" className="ui-button-secondary">Chegou</button>:null}<button name="status" value="faltou" className="ui-button-secondary">Faltou</button><button name="status" value="cancelado" className="ui-button-secondary">Cancelar agenda</button></form>:null}{!["concluido","cancelado","faltou","em_execucao"].includes(a.status)?<form action={iniciarExecucaoImagem}><input type="hidden" name="agendamento_id" value={a.id}/><input type="hidden" name="solicitacao_id" value={a.solicitacao_id}/><input type="hidden" name="protocolo_id" value={a.protocolo_id??""}/><input type="hidden" name="sala" value={a.sala??""}/><input type="hidden" name="engenharia_equipamento_id" value={a.engenharia_equipamento_id??""}/><button className="ui-button-primary">Iniciar execução</button></form>:null}</div></div>;})}</div></div>
-    </section>
+      <section className="mt-5 grid gap-5 xl:grid-cols-2">
+        <div className="his-card p-6">
+          <div className="mb-4 flex items-center gap-3"><CalendarClock className="size-5 text-brand-700" /><div><h2 className="font-black">Agendar exame</h2><p className="text-sm text-slate-500">Uma solicitação sai desta fila assim que o agendamento é confirmado no banco.</p></div></div>
+          <div className="space-y-3">
+            {solicitacoes.length ? solicitacoes.slice(0, 30).map((s) => {
+              const at = one(s.atendimento);
+              const p = one(at?.paciente);
+              return (
+                <RadiologyBackgroundForm key={s.id} kind="schedule" className="rounded-2xl border border-slate-100 p-4" resetOnSuccess>
+                  <input type="hidden" name="solicitacao_id" value={s.id} />
+                  <p className="font-black">{s.exame}</p>
+                  <p className="mb-3 text-xs text-slate-500">{p?.nome_completo ?? "Paciente"} · Atend. #{at?.numero_atendimento ?? "—"} · {s.prioridade}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input name="agendado_em" type="datetime-local" required className="ui-input" />
+                    <input name="duracao_minutos" type="number" min="5" defaultValue="30" className="ui-input" />
+                    <select name="protocolo_id" defaultValue="" className="ui-input"><option value="">Sem protocolo</option>{protocolos.map((pr) => <option key={pr.id} value={pr.id}>{pr.codigo} · {pr.nome}</option>)}</select>
+                    <input name="sala" className="ui-input" placeholder="Sala" />
+                    <select name="engenharia_equipamento_id" required defaultValue="" className="ui-input sm:col-span-2"><option value="">Selecione o equipamento *</option>{equipamentos.map((eq) => <option key={eq.id} value={eq.id}>{eq.patrimonio} · {eq.nome} · {eq.categoria}{eq.localizacao ? ` · ${eq.localizacao}` : ""}</option>)}</select>
+                    <input name="observacoes" className="ui-input sm:col-span-2" placeholder="Observações" />
+                  </div>
+                  <button className="ui-button-primary mt-3">Agendar</button>
+                </RadiologyBackgroundForm>
+              );
+            }) : <p className="py-8 text-center text-sm text-slate-500">Nenhuma solicitação aguardando agendamento.</p>}
+          </div>
+        </div>
 
-    <section className="mt-5 grid gap-5 xl:grid-cols-2">
-      <div className="his-card p-6"><h2 className="font-black">Execuções / PACS</h2><div className="mt-4 space-y-4">{execucoes.slice(0,30).map((e)=>{const at=one(e.atendimento);const p=one(at?.paciente);const sol=one(e.solicitacao);const eq=one(e.engenharia);return <div key={e.id} className="rounded-2xl border border-slate-100 p-4"><div className="flex flex-wrap justify-between gap-2"><div><p className="font-black">{sol?.exame??"Exame"} · {e.accession_number??"sem accession"}</p><p className="text-xs text-slate-500">{p?.nome_completo??"Paciente"} · {e.sala??"Sem sala"} · início {fmt(e.iniciado_em)}</p><p className="mt-1 text-xs font-bold text-brand-700">{eq?`${eq.patrimonio} · ${eq.nome}`:e.equipamento??"—"}</p></div><span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700">{e.status}</span></div>{e.status==="em_execucao"?<form action={concluirExecucaoImagem} className="mt-3 grid gap-2"><input type="hidden" name="execucao_id" value={e.id}/><input name="study_instance_uid" className="ui-input" placeholder="Study Instance UID"/><input name="series_instance_uid" className="ui-input" placeholder="Series Instance UID"/><input name="pacs_url" className="ui-input" placeholder="Referência/URL PACS"/><textarea name="intercorrencias" rows={2} className="ui-input" placeholder="Intercorrências"/><button className="ui-button-primary justify-self-end">Concluir execução</button></form>:<div className="mt-2 text-xs text-slate-500">Study: {e.study_instance_uid??"—"} · PACS: {e.pacs_url??"—"}</div>}</div>;})}</div></div>
+        <div className="his-card p-6">
+          <h2 className="font-black">Agenda operacional</h2>
+          <p className="mt-1 text-sm text-slate-500">Confirmação, chegada, falta, cancelamento e início da execução avançam o mesmo pedido sem gerar duplicidade.</p>
+          <div className="mt-4 space-y-3">
+            {agenda.slice(0, 40).map((a) => {
+              const at = one(a.atendimento);
+              const p = one(at?.paciente);
+              const sol = one(a.solicitacao);
+              const eq = one(a.engenharia);
+              return (
+                <div key={a.id} className="rounded-2xl border border-slate-100 p-4">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <div><p className="font-black">{sol?.exame ?? "Exame"}</p><p className="text-xs text-slate-500">{p?.nome_completo ?? "Paciente"} · {fmt(a.agendado_em)} · {a.sala ?? "Sem sala"}</p><p className="mt-1 text-xs font-bold text-brand-700">{eq ? `${eq.patrimonio} · ${eq.nome} · ${eq.status}` : a.equipamento ?? "Equipamento não definido"}</p></div>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">{a.status}</span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {!["cancelado", "faltou", "concluido", "em_execucao"].includes(a.status) ? (
+                      <RadiologyBackgroundForm kind="schedule-status" className="flex flex-wrap gap-2">
+                        <input type="hidden" name="agendamento_id" value={a.id} />
+                        {a.status === "agendado" ? <button name="status" value="confirmado" className="ui-button-secondary">Confirmar</button> : null}
+                        {["agendado", "confirmado"].includes(a.status) ? <button name="status" value="chegou" className="ui-button-secondary">Chegou</button> : null}
+                        <button name="status" value="faltou" className="ui-button-secondary">Faltou</button>
+                        <button name="status" value="cancelado" className="ui-button-secondary">Cancelar agenda</button>
+                      </RadiologyBackgroundForm>
+                    ) : null}
+                    {!["concluido", "cancelado", "faltou", "em_execucao"].includes(a.status) ? (
+                      <RadiologyBackgroundForm kind="start">
+                        <input type="hidden" name="agendamento_id" value={a.id} />
+                        <input type="hidden" name="solicitacao_id" value={a.solicitacao_id} />
+                        <input type="hidden" name="protocolo_id" value={a.protocolo_id ?? ""} />
+                        <input type="hidden" name="sala" value={a.sala ?? ""} />
+                        <input type="hidden" name="engenharia_equipamento_id" value={a.engenharia_equipamento_id ?? ""} />
+                        <button className="ui-button-primary">Iniciar execução</button>
+                      </RadiologyBackgroundForm>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
-      <div className="space-y-5"><form action={registrarContrasteImagem} className="his-card p-6"><div className="mb-4 flex items-center gap-2"><Contrast className="size-5 text-violet-700"/><h2 className="font-black">Contraste e segurança</h2></div><div className="grid gap-3"><select name="execucao_id" required defaultValue="" className="ui-input"><option value="">Selecione a execução</option>{execucoes.filter((e)=>["em_execucao","concluido"].includes(e.status)).map((e)=><option key={e.id} value={e.id}>{e.accession_number} · {one(e.solicitacao)?.exame}</option>)}</select><div className="grid gap-2 sm:grid-cols-2"><input name="contraste" required className="ui-input" placeholder="Contraste"/><input name="volume_ml" inputMode="decimal" className="ui-input" placeholder="Volume mL"/><input name="lote" className="ui-input" placeholder="Lote"/><input name="validade" type="date" className="ui-input"/><input name="via" className="ui-input" placeholder="Via"/><input name="creatinina" inputMode="decimal" className="ui-input" placeholder="Creatinina"/><input name="egfr" inputMode="decimal" className="ui-input" placeholder="eGFR"/></div><div className="grid gap-2 sm:grid-cols-2">{[["alergia_questionada","Alergia questionada"],["alergia_negada","Alergia negada"],["funcao_renal_verificada","Função renal verificada"],["consentimento_confirmado","Consentimento confirmado"]].map(([n,l])=><label key={n} className="rounded-xl border border-slate-200 p-3 text-sm font-semibold"><input type="checkbox" name={n} className="mr-2"/>{l}</label>)}</div><textarea name="reacao_adversa" className="ui-input" rows={2} placeholder="Reação adversa, se houver"/><textarea name="conduta_reacao" className="ui-input" rows={2} placeholder="Conduta"/><button className="ui-button-primary justify-self-end">Registrar contraste</button></div></form>
+      <section className="mt-5 grid gap-5 xl:grid-cols-2">
+        <div className="his-card p-6">
+          <h2 className="font-black">Execuções / PACS</h2>
+          <div className="mt-4 space-y-4">
+            {execucoes.slice(0, 30).map((e) => {
+              const at = one(e.atendimento);
+              const p = one(at?.paciente);
+              const sol = one(e.solicitacao);
+              const eq = one(e.engenharia);
+              return (
+                <div key={e.id} className="rounded-2xl border border-slate-100 p-4">
+                  <div className="flex flex-wrap justify-between gap-2"><div><p className="font-black">{sol?.exame ?? "Exame"} · {e.accession_number ?? "sem accession"}</p><p className="text-xs text-slate-500">{p?.nome_completo ?? "Paciente"} · {e.sala ?? "Sem sala"} · início {fmt(e.iniciado_em)}</p><p className="mt-1 text-xs font-bold text-brand-700">{eq ? `${eq.patrimonio} · ${eq.nome}` : e.equipamento ?? "—"}</p></div><span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700">{e.status}</span></div>
+                  {e.status === "em_execucao" ? (
+                    <RadiologyBackgroundForm kind="finish" className="mt-3 grid gap-2">
+                      <input type="hidden" name="execucao_id" value={e.id} />
+                      <input name="study_instance_uid" className="ui-input" placeholder="Study Instance UID" />
+                      <input name="series_instance_uid" className="ui-input" placeholder="Series Instance UID" />
+                      <input name="pacs_url" className="ui-input" placeholder="Referência/URL PACS" />
+                      <textarea name="intercorrencias" rows={2} className="ui-input" placeholder="Intercorrências" />
+                      <button className="ui-button-primary justify-self-end">Concluir execução</button>
+                    </RadiologyBackgroundForm>
+                  ) : <div className="mt-2 text-xs text-slate-500">Study: {e.study_instance_uid ?? "—"} · PACS: {e.pacs_url ?? "—"}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-      <form action={registrarDoseImagem} className="his-card p-6"><div className="mb-4 flex items-center gap-2"><Radiation className="size-5 text-amber-600"/><h2 className="font-black">Dose de radiação</h2></div><div className="grid gap-3"><select name="execucao_id" required defaultValue="" className="ui-input"><option value="">Selecione a execução</option>{execucoes.map((e)=><option key={e.id} value={e.id}>{e.accession_number} · {one(e.solicitacao)?.exame}</option>)}</select><div className="grid gap-2 sm:grid-cols-3"><input name="modalidade" className="ui-input" placeholder="Modalidade"/><input name="ctdivol" className="ui-input" placeholder="CTDIvol"/><input name="dlp" className="ui-input" placeholder="DLP"/><input name="dap" className="ui-input" placeholder="DAP"/><input name="dose_mgy" className="ui-input" placeholder="Dose mGy"/><input name="tempo_fluoroscopia_segundos" className="ui-input" placeholder="Fluoroscopia (s)"/></div><button className="ui-button-primary justify-self-end">Registrar dose</button></div></form></div>
-    </section>
+        <div className="space-y-5">
+          <RadiologyBackgroundForm kind="contrast" className="his-card p-6" resetOnSuccess>
+            <div className="mb-4 flex items-center gap-2"><Contrast className="size-5 text-violet-700" /><h2 className="font-black">Contraste e segurança</h2></div>
+            <div className="grid gap-3">
+              <select name="execucao_id" required defaultValue="" className="ui-input"><option value="">Selecione a execução</option>{execucoes.filter((e) => ["em_execucao", "concluido"].includes(e.status)).map((e) => <option key={e.id} value={e.id}>{e.accession_number} · {one(e.solicitacao)?.exame}</option>)}</select>
+              <div className="grid gap-2 sm:grid-cols-2"><input name="contraste" required className="ui-input" placeholder="Contraste" /><input name="volume_ml" inputMode="decimal" className="ui-input" placeholder="Volume mL" /><input name="lote" className="ui-input" placeholder="Lote" /><input name="validade" type="date" className="ui-input" /><input name="via" className="ui-input" placeholder="Via" /><input name="creatinina" inputMode="decimal" className="ui-input" placeholder="Creatinina" /><input name="egfr" inputMode="decimal" className="ui-input" placeholder="eGFR" /></div>
+              <div className="grid gap-2 sm:grid-cols-2">{[["alergia_questionada", "Alergia questionada"], ["alergia_negada", "Alergia negada"], ["funcao_renal_verificada", "Função renal verificada"], ["consentimento_confirmado", "Consentimento confirmado"]].map(([n, l]) => <label key={n} className="rounded-xl border border-slate-200 p-3 text-sm font-semibold"><input type="checkbox" name={n} className="mr-2" />{l}</label>)}</div>
+              <textarea name="reacao_adversa" className="ui-input" rows={2} placeholder="Reação adversa, se houver" />
+              <textarea name="conduta_reacao" className="ui-input" rows={2} placeholder="Conduta" />
+              <button className="ui-button-primary justify-self-end">Registrar contraste</button>
+            </div>
+          </RadiologyBackgroundForm>
 
-    <section className="mt-5 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-      <form action={salvarLaudoImagem} className="his-card p-6"><h2 className="font-black">Laudar exame</h2><div className="mt-4 grid gap-3"><select name="execucao_id" required defaultValue="" className="ui-input"><option value="">Selecione execução concluída</option>{execucoes.filter((e)=>e.status==="concluido").map((e)=><option key={e.id} value={e.id}>{e.accession_number} · {one(e.solicitacao)?.exame}</option>)}</select><textarea name="tecnica" rows={2} className="ui-input" placeholder="Técnica"/><textarea name="achados" rows={5} className="ui-input" placeholder="Achados"/><textarea name="conclusao" rows={3} className="ui-input" placeholder="Conclusão"/><textarea name="recomendacoes" rows={2} className="ui-input" placeholder="Recomendações"/><button className="ui-button-primary justify-self-end">Salvar rascunho</button></div></form>
-      <div className="his-card overflow-hidden"><div className="border-b border-slate-100 p-5"><h2 className="font-black">Laudos recentes</h2></div><div className="divide-y divide-slate-100">{laudos.map((l)=>{const at=one(l.atendimento);const p=one(at?.paciente);return <div key={l.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-black">{p?.nome_completo??"Paciente"} · revisão {l.revisao}</p><p className="mt-1 text-sm text-slate-600">{l.conclusao??"Sem conclusão"}</p><p className="mt-1 text-xs text-slate-400">{l.retificado?"Retificado · ":""}{fmt(l.created_at)}</p></div>{l.status!=="liberado"?<form action={liberarLaudoImagem}><input type="hidden" name="laudo_id" value={l.id}/><button className="ui-button-primary">Liberar / assinar</button></form>:<span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Liberado {fmt(l.liberado_em)}</span>}</div></div>;})}</div></div>
-    </section>
-  </SectionPage>;
+          <RadiologyBackgroundForm kind="dose" className="his-card p-6" resetOnSuccess>
+            <div className="mb-4 flex items-center gap-2"><Radiation className="size-5 text-amber-600" /><h2 className="font-black">Dose de radiação</h2></div>
+            <div className="grid gap-3">
+              <select name="execucao_id" required defaultValue="" className="ui-input"><option value="">Selecione a execução</option>{execucoes.map((e) => <option key={e.id} value={e.id}>{e.accession_number} · {one(e.solicitacao)?.exame}</option>)}</select>
+              <div className="grid gap-2 sm:grid-cols-3"><input name="modalidade" className="ui-input" placeholder="Modalidade" /><input name="ctdivol" className="ui-input" placeholder="CTDIvol" /><input name="dlp" className="ui-input" placeholder="DLP" /><input name="dap" className="ui-input" placeholder="DAP" /><input name="dose_mgy" className="ui-input" placeholder="Dose mGy" /><input name="tempo_fluoroscopia_segundos" className="ui-input" placeholder="Fluoroscopia (s)" /></div>
+              <button className="ui-button-primary justify-self-end">Registrar dose</button>
+            </div>
+          </RadiologyBackgroundForm>
+        </div>
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <form action={salvarLaudoImagem} className="his-card p-6">
+          <h2 className="font-black">Laudar exame</h2>
+          <div className="mt-4 grid gap-3">
+            <select name="execucao_id" required defaultValue="" className="ui-input"><option value="">Selecione execução concluída</option>{execucoes.filter((e) => e.status === "concluido").map((e) => <option key={e.id} value={e.id}>{e.accession_number} · {one(e.solicitacao)?.exame}</option>)}</select>
+            <textarea name="tecnica" rows={2} className="ui-input" placeholder="Técnica" />
+            <textarea name="achados" rows={5} className="ui-input" placeholder="Achados" />
+            <textarea name="conclusao" rows={3} className="ui-input" placeholder="Conclusão" />
+            <textarea name="recomendacoes" rows={2} className="ui-input" placeholder="Recomendações" />
+            <button className="ui-button-primary justify-self-end">Salvar rascunho</button>
+          </div>
+        </form>
+
+        <div className="his-card overflow-hidden">
+          <div className="border-b border-slate-100 p-5"><h2 className="font-black">Laudos recentes</h2></div>
+          <div className="divide-y divide-slate-100">
+            {laudos.map((l) => {
+              const at = one(l.atendimento);
+              const p = one(at?.paciente);
+              return (
+                <div key={l.id} className="p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div><p className="font-black">{p?.nome_completo ?? "Paciente"} · revisão {l.revisao}</p><p className="mt-1 text-sm text-slate-600">{l.conclusao ?? "Sem conclusão"}</p><p className="mt-1 text-xs text-slate-400">{l.retificado ? "Retificado · " : ""}{fmt(l.created_at)}</p></div>
+                    {l.status !== "liberado" ? <form action={liberarLaudoImagem}><input type="hidden" name="laudo_id" value={l.id} /><button className="ui-button-primary">Liberar / assinar</button></form> : <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Liberado {fmt(l.liberado_em)}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    </SectionPage>
+  );
 }

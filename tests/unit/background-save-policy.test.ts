@@ -11,6 +11,7 @@ const migratedServerActions = [
   "src/modules/fila-medica/actions.ts",
   "src/modules/autorizacoes/actions.ts",
   "src/modules/assistencial/medicamentos-background-actions.ts",
+  "src/modules/assistencial/imagem-background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -25,6 +26,7 @@ const backgroundForms = [
   "src/components/enfermagem/nursing-evolution-background-form.tsx",
   "src/components/enfermagem/medication-administration-background-form.tsx",
   "src/components/farmacia/pharmacy-background-form.tsx",
+  "src/components/imagem/radiology-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -191,5 +193,26 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).not.toContain("dispensarPrescricaoAction");
     expect(page).not.toContain("dispensarComponentePrescricaoAction");
     expect(page).not.toContain("devolverMedicamentoAction");
+  });
+
+  it("mantém a operação RIS nos formulários de segundo plano sem actions legadas na página", () => {
+    const actions = read("src/modules/assistencial/imagem-background-actions.ts");
+    const page = read("src/app/(painel)/assistencial/imagem/page.tsx");
+
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(page).toContain("RadiologyBackgroundForm");
+    expect(page).toContain('kind="schedule"');
+    expect(page).toContain('kind="schedule-status"');
+    expect(page).toContain('kind="start"');
+    expect(page).toContain('kind="finish"');
+    expect(page).toContain('kind="contrast"');
+    expect(page).toContain('kind="dose"');
+    expect(page).not.toContain("agendarImagem,");
+    expect(page).not.toContain("atualizarAgendaImagem,");
+    expect(page).not.toContain("iniciarExecucaoImagem,");
+    expect(page).not.toContain("concluirExecucaoImagem,");
+    expect(page).not.toContain("registrarContrasteImagem,");
+    expect(page).not.toContain("registrarDoseImagem,");
   });
 });

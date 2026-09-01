@@ -38,6 +38,8 @@ Na Farmácia, conciliação medicamentosa, validação farmacêutica, dispensaç
 
 No Laboratório/LIS, preparo e accession da amostra, cadeia de custódia, encaminhamento para setor/bancada, registro de resultado, validação técnica e comunicação de resultado crítico permanecem na mesma tela. O editor de laudos também salva rascunho, valida analito, registra crítico, assina/libera e abre retificação sem reload. Os RPCs laboratoriais continuam sendo a autoridade para rastreabilidade, equipamento, criticidade, liberação, assinatura, versão e read-back. A única navegação deliberada ocorre ao **iniciar um laudo novo**: após o RPC confirmar a criação, o cliente abre o editor daquele laudo.
 
+No Diagnóstico por Imagem/RIS, agendamento, confirmação/chegada/falta/cancelamento, início e conclusão da execução, registro de contraste e registro de dose permanecem na mesma tela com feedback inline. Os RPCs `agendar_exame_imagem_operacional`, `atualizar_agendamento_imagem_operacional`, `iniciar_execucao_imagem_operacional` e `concluir_execucao_imagem_operacional` continuam como autoridades das transições operacionais. Contraste e dose mantêm as escritas já existentes sob o escopo empresa/unidade e RLS; esta conversão não cria schema, migration nem caminho paralelo de autorização. O editor/liberação de laudos RIS é um pacote separado e continua pendente até sua própria conversão.
+
 ## Migração
 
 Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
@@ -56,6 +58,7 @@ Convertidos:
 - administração de medicamentos à beira-leito, preservando o RPC e todos os campos de rastreabilidade clínica/farmacêutica;
 - conciliação medicamentosa, validação farmacêutica, dispensação FEFO principal/componente e devolução na Farmácia;
 - bancada Laboratório/LIS: preparo de amostra, status/cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico;
-- laudos Laboratório/LIS: abertura com navegação pós-criação confirmada e editor com rascunho, validação, comunicação crítica, liberação e retificação inline.
+- laudos Laboratório/LIS: abertura com navegação pós-criação confirmada e editor com rascunho, validação, comunicação crítica, liberação e retificação inline;
+- operação Diagnóstico por Imagem/RIS: agenda, transições da agenda, início/conclusão de execução, contraste e dose.
 
-Os testes `tests/unit/background-save-policy.test.ts`, `tests/unit/enfermagem-background-saves.test.ts`, `tests/unit/farmacia-background-actions.test.ts`, `tests/unit/laboratorio-background-saves.test.ts` e `tests/unit/laboratorio-laudo-background-saves.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
+Os testes `tests/unit/background-save-policy.test.ts`, `tests/unit/enfermagem-background-saves.test.ts`, `tests/unit/farmacia-background-actions.test.ts`, `tests/unit/laboratorio-background-saves.test.ts`, `tests/unit/laboratorio-laudo-background-saves.test.ts` e `tests/unit/imagem-background-saves.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
