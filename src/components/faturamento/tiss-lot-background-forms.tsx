@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeDollarSign, FileCode2, Send, Upload, WalletCards } from "lucide-react";
+import { BadgeDollarSign, FileCode2, Send, ShieldCheck, Upload, WalletCards } from "lucide-react";
 import { useActionState } from "react";
 import { BillingModal } from "@/components/faturamento/billing-modal";
 import type { BackgroundActionState } from "@/lib/actions/background-action";
@@ -10,6 +10,7 @@ import {
   registrarEnvioManualTissBackground,
   registrarGlosaTissBackground,
   registrarProtocoloTissBackground,
+  validarXmlLoteTissBackground,
   type TissLotActionData,
 } from "@/modules/tiss/lote-background-actions";
 
@@ -31,7 +32,19 @@ export function TissPreliminaryXmlForm({ loteId }: { loteId: string }) {
   const action = gerarXmlPreliminarTissBackground.bind(null, loteId);
   const [state, formAction, pending] = useActionState(action, initialState);
   return <form action={formAction} className="space-y-1">
-    <button disabled={pending} className="ui-button-secondary disabled:opacity-60"><FileCode2 className="size-4" />Gerar XML preliminar</button>
+    <button disabled={pending} className="ui-button-secondary disabled:opacity-60"><FileCode2 className="size-4" />Gerar artefato preliminar</button>
+    <Feedback state={state} pending={pending} />
+  </form>;
+}
+
+export function TissXmlXsdValidationForm({ loteId, xmlId }: { loteId: string; xmlId: string }) {
+  const action = validarXmlLoteTissBackground.bind(null, loteId, xmlId);
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return <form action={formAction} className="space-y-1">
+    <button disabled={pending} className="ui-button-secondary disabled:cursor-not-allowed disabled:opacity-60">
+      <ShieldCheck className="size-4" />Validar XSD ANS
+    </button>
     <Feedback state={state} pending={pending} />
   </form>;
 }
@@ -41,7 +54,7 @@ export function TissManualSendModal({ loteId, xmls }: { loteId: string; xmls: Va
   const [state, formAction, pending] = useActionState(action, initialState);
   return <BillingModal
     title="Registrar envio manual"
-    description="Use somente após enviar externamente um XML já validado pelo XSD aplicável."
+    description="Use somente após enviar externamente um XML já validado pelo XSD oficial aplicável."
     trigger={<><Send className="size-4" />Registrar envio</>}
     triggerClassName="ui-button-secondary"
     size="lg"
@@ -61,7 +74,7 @@ export function TissManualImportModal({ loteId }: { loteId: string }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   return <BillingModal
     title="Importar XML da operadora"
-    description="O arquivo entra como pendente de validação/processamento; a importação não o considera automaticamente válido."
+    description="O arquivo é validado no servidor contra o XSD ANS 04.03.00. Mesmo inválido, permanece registrado com a trilha de erros para correção e auditoria."
     trigger={<><Upload className="size-4" />Importar XML</>}
     triggerClassName="ui-button-secondary"
     size="lg"
@@ -72,7 +85,7 @@ export function TissManualImportModal({ loteId }: { loteId: string }) {
       <input name="protocolo_externo" className="ui-input" placeholder="Protocolo relacionado (opcional)" />
       <textarea name="observacoes" rows={3} className="ui-input" placeholder="Observações da importação" />
       <Feedback state={state} pending={pending} />
-      <button disabled={pending} className="ui-button-primary w-full disabled:opacity-60"><Upload className="size-4" />Importar XML</button>
+      <button disabled={pending} className="ui-button-primary w-full disabled:opacity-60"><Upload className="size-4" />Importar e validar XML</button>
     </form>
   </BillingModal>;
 }
