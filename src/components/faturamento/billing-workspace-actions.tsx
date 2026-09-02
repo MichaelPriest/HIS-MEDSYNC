@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, Boxes, FilePlus2, Plus } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, Boxes, FilePlus2, Plus, RefreshCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { EncounterPicker } from "@/components/atendimentos/encounter-picker";
 import { BillingModal } from "@/components/faturamento/billing-modal";
 import type { BackgroundActionState } from "@/lib/actions/background-action";
+import { sincronizarProducaoBackground } from "@/modules/faturamento/producao-background-actions";
 import {
   abrirContaFaturamentoBackground,
   criarLoteTissBackground,
@@ -15,6 +16,7 @@ import {
 } from "@/modules/faturamento/workspace-background-actions";
 
 const initialState: BackgroundActionState<BillingNavigationData> = { status: "idle" };
+const simpleInitialState: BackgroundActionState = { status: "idle" };
 
 type Encounter = {
   id: string;
@@ -30,6 +32,7 @@ type Encounter = {
 
 type Convenio = { id: string; nome_fantasia: string; registro_ans: string | null };
 type FiscalLot = { id: string; numero_lote: string; competencia: string | null; valor_total: number | null; convenio_nome: string };
+type ProductionEncounter = { id: string; numero: string | number; paciente: string; status: string };
 
 function useNavigateOnSuccess(state: BackgroundActionState<BillingNavigationData>) {
   const router = useRouter();
@@ -38,7 +41,7 @@ function useNavigateOnSuccess(state: BackgroundActionState<BillingNavigationData
   }, [router, state]);
 }
 
-function Feedback({ state, pending }: { state: BackgroundActionState<BillingNavigationData>; pending: boolean }) {
+function Feedback({ state, pending }: { state: BackgroundActionState<unknown>; pending: boolean }) {
   return <div aria-live="polite" className="min-h-6 text-sm">
     {pending ? <span className="font-semibold text-brand-700">Salvando…</span> : null}
     {!pending && state.status === "error" ? <span className="font-semibold text-rose-700">{state.message}</span> : null}
@@ -162,6 +165,31 @@ export function NewNfseModal({ lotes }: { lotes: FiscalLot[] }) {
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Criar o rascunho não significa emitir a nota. Emissão automática só deve ocorrer quando o conector municipal/nacional estiver homologado.</div>
       <Feedback state={state} pending={pending} />
       <div className="flex justify-end"><button disabled={pending} className="ui-button-primary disabled:opacity-60">Criar rascunho <ArrowRight className="size-4" /></button></div>
+    </form>
+  </BillingModal>;
+}
+
+export function ProductionSyncModal({ atendimentos }: { atendimentos: ProductionEncounter[] }) {
+  const [state, action, pending] = useActionState(sincronizarProducaoBackground, simpleInitialState);
+
+  return <BillingModal
+    title="Sincronizar produção"
+    description="Use apenas como contingência para recuperar um episódio antigo ou repetir a captura idempotente após correção operacional."
+    trigger={<><RefreshCcw className="size-4" />Sincronizar produção</>}
+    triggerClassName="ui-button-secondary"
+    size="lg"
+  >
+    <form action={action} className="space-y-5">
+      <label className="block space-y-1.5 text-sm font-semibold text-slate-700">
+        <span>Atendimento *</span>
+        <select name="atendimento_id" required defaultValue="" className="ui-input">
+          <option value="">Selecione um atendimento</option>
+          {atendimentos.map((item) => <option key={item.id} value={item.id}>#{item.numero} · {item.paciente} · {item.status.replaceAll("_", " ")}</option>)}
+        </select>
+      </label>
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">A sincronização não cria fato clínico fictício. Ela reaplica a captura idempotente sobre eventos já existentes no episódio.</div>
+      <Feedback state={state} pending={pending} />
+      <div className="flex justify-end"><button disabled={pending} className="ui-button-primary disabled:opacity-60">Sincronizar <RefreshCcw className="size-4" /></button></div>
     </form>
   </BillingModal>;
 }
