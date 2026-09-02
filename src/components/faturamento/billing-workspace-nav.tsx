@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import Link from "next/link";
 import {
   BadgeDollarSign,
@@ -11,10 +12,18 @@ import {
   ReceiptText,
   ScrollText,
   WalletCards,
+  type LucideIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-const items = [
+type BillingWorkspaceItem = {
+  href: Route;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+};
+
+const items: BillingWorkspaceItem[] = [
   { href: "/faturamento", label: "Visão geral", icon: LayoutDashboard, exact: true },
   { href: "/faturamento/producao", label: "Produção", icon: ScrollText },
   { href: "/faturamento/guias", label: "Guias TISS", icon: FileCheck2 },
@@ -24,7 +33,7 @@ const items = [
   { href: "/financeiro/recebiveis", label: "Recebíveis", icon: WalletCards },
   { href: "/financeiro/notas-fiscais", label: "Notas fiscais", icon: ReceiptText },
   { href: "/financeiro", label: "Financeiro", icon: Banknote, exact: true },
-] as const;
+];
 
 export function BillingWorkspaceNav() {
   const pathname = usePathname();
