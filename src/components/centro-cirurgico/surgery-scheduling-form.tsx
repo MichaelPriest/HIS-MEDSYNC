@@ -1,10 +1,12 @@
 "use client";
 
 import { AlertTriangle, Plus, Search, ShieldCheck, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { EncounterPicker } from "@/components/atendimentos/encounter-picker";
+import { SurgicalActionFeedback } from "@/components/centro-cirurgico/surgical-background-form";
 import { ProfessionalRemotePicker } from "@/components/profissionais/professional-remote-picker";
 import { createClient } from "@/lib/supabase/client";
+import { agendarCirurgiaBackground, type SurgicalActionState } from "@/modules/centro-cirurgico/background-actions";
 
 type Encounter = {
   id: string;
@@ -47,14 +49,17 @@ type ProcedimentoContrato = {
 };
 
 type Props = {
-  action: (formData: FormData) => void | Promise<void>;
   empresaId: string;
   encounters: Encounter[];
   salas: Sala[];
 };
 
-export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: Props) {
+const INITIAL_STATE: SurgicalActionState = { status: "idle" };
+
+export function SurgerySchedulingForm({ empresaId, encounters, salas }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const [state, formAction, pending] = useActionState(agendarCirurgiaBackground, INITIAL_STATE);
+  const [formVersion, setFormVersion] = useState(0);
   const [atendimentoId, setAtendimentoId] = useState("");
   const [query, setQuery] = useState("");
   const [procedimentos, setProcedimentos] = useState<ProcedimentoContrato[]>([]);
@@ -73,6 +78,16 @@ export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: 
     setProcedimentos([]);
     setSearchError(null);
   }, [atendimentoId]);
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    setAtendimentoId("");
+    setQuery("");
+    setProcedimentos([]);
+    setSelecionados([]);
+    setSearchError(null);
+    setFormVersion((current) => current + 1);
+  }, [state.status]);
 
   useEffect(() => {
     if (!atendimentoId || !conveniado) return;
@@ -113,7 +128,7 @@ export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: 
     setProcedimentos([]);
   }
 
-  return <form action={action} className="grid gap-4 lg:grid-cols-4">
+  return <form key={formVersion} action={formAction} className="grid gap-4 lg:grid-cols-4" aria-busy={pending}>
     <div className="lg:col-span-4">
       <EncounterPicker encounters={encounters} name="atendimento_id" onChange={setAtendimentoId} />
     </div>
@@ -166,6 +181,7 @@ export function SurgerySchedulingForm({ action, empresaId, encounters, salas }: 
     <div className="lg:col-span-2"><ProfessionalRemotePicker empresaId={empresaId} name="cirurgiao_id" label="Cirurgião responsável" /></div>
     <div className="lg:col-span-2"><ProfessionalRemotePicker empresaId={empresaId} name="anestesista_id" label="Anestesista" /></div>
     <label className="space-y-2 text-sm font-medium text-slate-700 lg:col-span-3"><span>Diagnóstico pré-operatório</span><input name="diagnostico_pre" className="ui-input" placeholder="Diagnóstico / indicação clínica" /></label>
-    <button disabled={!atendimentoId || (Boolean(conveniado) && !procedimento)} className="ui-button-primary self-end disabled:cursor-not-allowed disabled:opacity-50">Registrar agendamento</button>
+    <button disabled={pending || !atendimentoId || (Boolean(conveniado) && !procedimento)} className="ui-button-primary self-end disabled:cursor-not-allowed disabled:opacity-50">Registrar agendamento</button>
+    <div className="lg:col-span-4"><SurgicalActionFeedback state={state} pending={pending} /></div>
   </form>;
 }
