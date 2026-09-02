@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeDollarSign, Boxes, Plus } from "lucide-react";
+import { ArrowRight, BadgeDollarSign, Boxes, FilePlus2, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { EncounterPicker } from "@/components/atendimentos/encounter-picker";
@@ -9,6 +9,7 @@ import type { BackgroundActionState } from "@/lib/actions/background-action";
 import {
   abrirContaFaturamentoBackground,
   criarLoteTissBackground,
+  criarNfseLoteBackground,
   criarRecursoGlosaBackground,
   type BillingNavigationData,
 } from "@/modules/faturamento/workspace-background-actions";
@@ -28,6 +29,7 @@ type Encounter = {
 };
 
 type Convenio = { id: string; nome_fantasia: string; registro_ans: string | null };
+type FiscalLot = { id: string; numero_lote: string; competencia: string | null; valor_total: number | null; convenio_nome: string };
 
 function useNavigateOnSuccess(state: BackgroundActionState<BillingNavigationData>) {
   const router = useRouter();
@@ -128,6 +130,38 @@ export function GlosaAppealModal({
       </label>
       <Feedback state={state} pending={pending} />
       <div className="flex justify-end"><button disabled={pending} className="ui-button-primary disabled:opacity-60">Criar e acompanhar <ArrowRight className="size-4" /></button></div>
+    </form>
+  </BillingModal>;
+}
+
+export function NewNfseModal({ lotes }: { lotes: FiscalLot[] }) {
+  const [state, action, pending] = useActionState(criarNfseLoteBackground, initialState);
+  useNavigateOnSuccess(state);
+
+  return <BillingModal
+    title="Criar rascunho de NFS-e"
+    description="Selecione um lote elegível. O RPC fiscal impede duplicidade ativa para o mesmo lote."
+    trigger={<><FilePlus2 className="size-4" />Nova NFS-e</>}
+    size="lg"
+  >
+    <form action={action} className="space-y-5">
+      <label className="block space-y-1.5 text-sm font-semibold text-slate-700">
+        <span>Lote TISS *</span>
+        <select name="lote_id" required defaultValue="" className="ui-input">
+          <option value="">Selecione o lote</option>
+          {lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.numero_lote} · {lote.convenio_nome} · {lote.competencia ?? "—"} · {Number(lote.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</option>)}
+        </select>
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="space-y-1.5 text-sm font-semibold text-slate-700"><span>Número RPS</span><input name="numero_rps" className="ui-input" /></label>
+        <label className="space-y-1.5 text-sm font-semibold text-slate-700"><span>Série RPS</span><input name="serie_rps" className="ui-input" /></label>
+        <label className="space-y-1.5 text-sm font-semibold text-slate-700"><span>Alíquota ISS %</span><input name="aliquota_iss" inputMode="decimal" className="ui-input" /></label>
+        <label className="space-y-1.5 text-sm font-semibold text-slate-700"><span>Valor ISS</span><input name="valor_iss" inputMode="decimal" defaultValue="0,00" className="ui-input" /></label>
+        <label className="space-y-1.5 text-sm font-semibold text-slate-700 sm:col-span-2"><span>Deduções</span><input name="valor_deducoes" inputMode="decimal" defaultValue="0,00" className="ui-input" /></label>
+      </div>
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Criar o rascunho não significa emitir a nota. Emissão automática só deve ocorrer quando o conector municipal/nacional estiver homologado.</div>
+      <Feedback state={state} pending={pending} />
+      <div className="flex justify-end"><button disabled={pending} className="ui-button-primary disabled:opacity-60">Criar rascunho <ArrowRight className="size-4" /></button></div>
     </form>
   </BillingModal>;
 }
