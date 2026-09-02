@@ -53,6 +53,23 @@ function lot(guide: TissFinalGuide040300): TissFinalLot040300 {
   };
 }
 
+function sadtGuide(overrides: Partial<TissFinalGuide040300> = {}) {
+  return baseGuide({
+    tipo_guia: "sp_sadt",
+    carater_atendimento: "1",
+    tipo_atendimento_tuss50_codigo: "04",
+    tipo_consulta_tuss52_codigo: null,
+    solicitante_codigo_prestador_snapshot: "PRESTSOL001",
+    solicitante_nome_contratado_snapshot: "HOSPITAL SOLICITANTE",
+    solicitante_nome_profissional_snapshot: "MEDICO SOLICITANTE",
+    solicitante_codigo_conselho_ans_snapshot: "06",
+    solicitante_numero_conselho_snapshot: "99999",
+    solicitante_uf_conselho_snapshot: "SP",
+    solicitante_cbo_snapshot: "225125",
+    ...overrides,
+  });
+}
+
 async function expectOfficialXsd(xml: string) {
   const validation = await validateTissXmlXsd(xml);
   expect(validation.errors).toEqual([]);
@@ -68,6 +85,8 @@ describe("mensagem final TISS 4.03.00", () => {
     expect(serialized.xml).toContain("<ans:tipoTransacao>ENVIO_LOTE_GUIAS</ans:tipoTransacao>");
     expect(serialized.xml).toContain("<ans:Padrao>4.03.00</ans:Padrao>");
     expect(serialized.xml).toContain("<ans:contratadoExecutante><ans:cnpjContratado>12345678000195</ans:cnpjContratado><ans:CNES>1234567</ans:CNES></ans:contratadoExecutante>");
+    expect(serialized.xml).toContain("<ans:UF>35</ans:UF>");
+    expect(serialized.xml).not.toContain("<ans:UF>SP</ans:UF>");
     expect(serialized.hashTissMd5).toMatch(/^[0-9A-F]{32}$/);
     expect(serialized.hashSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(serialized.xml).toContain(`<ans:epilogo><ans:hash>${serialized.hashTissMd5}</ans:hash></ans:epilogo>`);
@@ -76,18 +95,7 @@ describe("mensagem final TISS 4.03.00", () => {
   });
 
   it("serializa SP/SADT com procedimento e despesa e passa no XSD oficial", async () => {
-    const guide = baseGuide({
-      tipo_guia: "sp_sadt",
-      carater_atendimento: "1",
-      tipo_atendimento_tuss50_codigo: "05",
-      tipo_consulta_tuss52_codigo: null,
-      solicitante_codigo_prestador_snapshot: "PRESTSOL001",
-      solicitante_nome_contratado_snapshot: "HOSPITAL SOLICITANTE",
-      solicitante_nome_profissional_snapshot: "MEDICO SOLICITANTE",
-      solicitante_codigo_conselho_ans_snapshot: "06",
-      solicitante_numero_conselho_snapshot: "99999",
-      solicitante_uf_conselho_snapshot: "SP",
-      solicitante_cbo_snapshot: "225125",
+    const guide = sadtGuide({
       itens: [
         {
           sequencial: 1,
@@ -123,6 +131,7 @@ describe("mensagem final TISS 4.03.00", () => {
     expect(procedure).toContain("<ans:quantidadeExecutada>1</ans:quantidadeExecutada>");
     expect(procedure).toContain("<ans:reducaoAcrescimo>1.00</ans:reducaoAcrescimo>");
     expect(procedure).not.toContain("<ans:unidadeMedida>");
+    expect(serialized.xml.match(/<ans:UF>35<\/ans:UF>/g)).toHaveLength(2);
     expect(serialized.xml).toContain("<ans:codigoDespesa>02</ans:codigoDespesa>");
     expect(serialized.xml).toContain("<ans:unidadeMedida>001</ans:unidadeMedida>");
 
@@ -166,17 +175,13 @@ describe("mensagem final TISS 4.03.00", () => {
     await expectOfficialXsd(serialized.xml);
   });
 
+  it("bloqueia domínios de UF e tipo de atendimento não aceitos pela Comunicação 4.03.00", () => {
+    expect(() => serializeTissWireLoteGuias040300(lot(baseGuide({ profissional_uf_conselho_snapshot: "XX" })))).toThrow("TISS040300_UF_INVALIDA");
+    expect(() => serializeTissWireLoteGuias040300(lot(sadtGuide({ tipo_atendimento_tuss50_codigo: "05" })))).toThrow("TISS040300_TIPO_ATENDIMENTO_INVALIDO");
+  });
+
   it("bloqueia despesa sem unidade TISS e lotes mistos", () => {
-    const expenseWithoutUnit = baseGuide({
-      tipo_guia: "sp_sadt",
-      carater_atendimento: "1",
-      tipo_atendimento_tuss50_codigo: "05",
-      solicitante_codigo_prestador_snapshot: "PRESTSOL001",
-      solicitante_nome_contratado_snapshot: "HOSPITAL SOLICITANTE",
-      solicitante_codigo_conselho_ans_snapshot: "06",
-      solicitante_numero_conselho_snapshot: "99999",
-      solicitante_uf_conselho_snapshot: "SP",
-      solicitante_cbo_snapshot: "225125",
+    const expenseWithoutUnit = sadtGuide({
       itens: [{
         sequencial: 1,
         data_execucao: "2026-09-02",
@@ -194,7 +199,7 @@ describe("mensagem final TISS 4.03.00", () => {
 
     const mixed: TissFinalLot040300 = {
       ...lot(baseGuide()),
-      guias: [baseGuide(), baseGuide({ id: "00000000-0000-0000-0000-000000000002", tipo_guia: "sp_sadt" })],
+      guias: [baseGuide(), sadtGuide({ id: "00000000-0000-0000-0000-000000000002" })],
     };
     expect(() => serializeTissWireLoteGuias040300(mixed)).toThrow("TISS040300_LOTE_MISTURA_TIPOS_GUIA");
   });
