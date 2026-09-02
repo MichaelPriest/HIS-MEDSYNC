@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { digits, getCadastroContext, optional } from "@/modules/cadastros/context";
 import { uploadFotoCadastro } from "@/modules/cadastros/fotos";
 import { parseAddresses, parseEmails, parsePhones, validateRequiredContacts } from "@/modules/cadastros/parse-contact-sections";
+import { councilAbbreviation, isBrazilUf } from "@/modules/cadastros/regulatory-domains";
 
 export async function criarProfissional(formData: FormData) {
   const { supabase, user, empresaId } = await getCadastroContext();
@@ -39,31 +40,45 @@ export async function criarProfissional(formData: FormData) {
       .eq("tipo", "tipo_profissional")
       .eq("ativo", true)
       .maybeSingle();
-
     if (tipoError || !tipoCatalogo) redirect("/profissionais/novo?erro=tipo-invalido");
     tipoProfissionalCatalogoId = tipoCatalogo.id;
 
-    // Mantém a coluna legada preenchida quando o código empresarial coincide com
-    // um tipo global antigo. Tipos personalizados continuam válidos apenas pelo catálogo.
-    const { data: legado } = await supabase
-      .from("tipos_profissional")
-      .select("id")
-      .eq("codigo", tipoCatalogo.codigo)
-      .eq("ativo", true)
-      .maybeSingle();
+    const { data: legado } = await supabase.from("tipos_profissional").select("id").eq("codigo", tipoCatalogo.codigo).eq("ativo", true).maybeSingle();
     tipoProfissionalLegadoId = legado?.id ?? null;
   } else if (tipoProfissionalRef.startsWith("legado:")) {
     const legadoId = tipoProfissionalRef.slice("legado:".length);
-    const { data: legado, error: legadoError } = await supabase
-      .from("tipos_profissional")
-      .select("id")
-      .eq("id", legadoId)
-      .eq("ativo", true)
-      .maybeSingle();
+    const { data: legado, error: legadoError } = await supabase.from("tipos_profissional").select("id").eq("id", legadoId).eq("ativo", true).maybeSingle();
     if (legadoError || !legado) redirect("/profissionais/novo?erro=tipo-invalido");
     tipoProfissionalLegadoId = legado.id;
   } else {
     redirect("/profissionais/novo?erro=tipo-invalido");
+  }
+
+  const habilitadoTiss = formData.get("habilitado_tiss") === "true";
+  let cbo: string | null = null;
+  let especialidade: string | null = null;
+  let codigoConselhoAns: string | null = null;
+  let conselho: string | null = null;
+  let numeroConselho: string | null = null;
+  let ufConselho: string | null = null;
+
+  if (habilitadoTiss) {
+    cbo = digits(formData.get("cbo")) || null;
+    codigoConselhoAns = digits(formData.get("codigo_conselho_ans")) || null;
+    numeroConselho = optional(formData.get("numero_conselho"));
+    ufConselho = optional(formData.get("uf_conselho"))?.toUpperCase() ?? null;
+    if (!cbo || !codigoConselhoAns || !numeroConselho || !ufConselho) redirect("/profissionais/novo?erro=habilitacao-tiss-incompleta");
+    if (!isBrazilUf(ufConselho)) redirect("/profissionais/novo?erro=uf-conselho-invalida");
+
+    const [{ data: cboRef }, { data: councilRef }] = await Promise.all([
+      supabase.from("ans_fhir_dominios_ativos").select("codigo,display").eq("tabela", 24).eq("codigo", cbo).maybeSingle(),
+      supabase.from("ans_fhir_dominios_ativos").select("codigo,display").eq("tabela", 26).eq("codigo", codigoConselhoAns).maybeSingle(),
+    ]);
+    if (!cboRef || cbo === "999999") redirect("/profissionais/novo?erro=cbo-invalido");
+    if (!councilRef) redirect("/profissionais/novo?erro=conselho-invalido");
+    conselho = councilAbbreviation(codigoConselhoAns);
+    if (!conselho) redirect("/profissionais/novo?erro=conselho-invalido");
+    especialidade = cboRef.display;
   }
 
   let fotoPath: string | null = null;
@@ -85,11 +100,13 @@ export async function criarProfissional(formData: FormData) {
     sexo: optional(formData.get("sexo")),
     tipo_profissional_id: tipoProfissionalLegadoId,
     tipo_profissional_catalogo_id: tipoProfissionalCatalogoId,
-    conselho: optional(formData.get("conselho"))?.toUpperCase() ?? null,
-    numero_conselho: optional(formData.get("numero_conselho")),
-    uf_conselho: optional(formData.get("uf_conselho"))?.toUpperCase() ?? null,
-    especialidade: optional(formData.get("especialidade")),
-    cbo: digits(formData.get("cbo")) || null,
+    habilitado_tiss: habilitadoTiss,
+    codigo_conselho_ans: codigoConselhoAns,
+    conselho,
+    numero_conselho: numeroConselho,
+    uf_conselho: ufConselho,
+    especialidade,
+    cbo,
     telefone: phones[0]?.telefone ?? null,
     email: emails[0]?.email ?? null,
     foto_path: fotoPath,
@@ -98,14 +115,7 @@ export async function criarProfissional(formData: FormData) {
   }).select("id").single();
 
   if (error || !profissional) {
-    console.error("[profissionais.criar] Falha no INSERT", {
-      userId: user.id,
-      empresaId,
-      code: error?.code,
-      message: error?.message,
-      details: error?.details,
-      hint: error?.hint,
-    });
+    console.error("[profissionais.criar] Falha no INSERT", { userId: user.id, empresaId, code: error?.code, message: error?.message, details: error?.details, hint: error?.hint });
     if (fotoPath) await supabase.storage.from("cadastros-fotos").remove([fotoPath]);
     redirect(`/profissionais/novo?erro=${error?.code === "23505" ? "duplicado" : error?.code === "42501" ? "sem-permissao" : "falha-cadastro"}`);
   }
