@@ -25,19 +25,23 @@ describe("Centro Cirúrgico sem reload", () => {
     expect(actions).not.toMatch(/\bredirect\s*\(/);
   });
 
-  it("usa useActionState no agendamento, procedimentos e equipe", () => {
+  it("usa useActionState nos formulários especializados e delega o feedback inline", () => {
     const scheduling = read("src/components/centro-cirurgico/surgery-scheduling-form.tsx");
     const addProcedure = read("src/components/centro-cirurgico/surgery-procedure-add-form.tsx");
     const team = read("src/components/centro-cirurgico/procedure-team-form.tsx");
     const wrapper = read("src/components/centro-cirurgico/surgical-background-form.tsx");
 
-    for (const source of [scheduling, addProcedure, team, wrapper]) {
+    for (const source of [scheduling, addProcedure, team]) {
       expect(source).toContain("useActionState");
-      expect(source).toContain('aria-live="polite"');
-      expect(source).toContain("Salvando…");
+      expect(source).toContain("SurgicalActionFeedback");
       expect(source).not.toContain("router.refresh");
       expect(source).not.toContain("window.location");
     }
+    expect(wrapper).toContain("useActionState");
+    expect(wrapper).toContain('aria-live="polite"');
+    expect(wrapper).toContain("Salvando…");
+    expect(wrapper).not.toContain("router.refresh");
+    expect(wrapper).not.toContain("window.location");
   });
 
   it("remove actions legadas do workspace principal", () => {
