@@ -105,5 +105,5 @@ export async function recalcularGrupoAtoBackground(contaId:string,_previous:Back
   if(error)return {status:"error",code:"grupo-ato",message:"Não foi possível consultar os itens do ato."};
   for(const item of itens??[]){const {error:repriceError}=await ctx.supabase.rpc("recalcular_item_contratual_avancado",{p_item_id:item.id});if(repriceError)return {status:"error",code:"recalculo-contratual",message:"Não foi possível recalcular todos os itens do ato."};}
   refresh(contaId);
-  return {status:"success",code:"ato-recalculado",message:"Itens do ato recalculados pelas regras comerciais do contrato.",data:{kind:"reprice",groupId}};
+  return {status:"success",code:"ato-recalculado",message:"Itens do ato recalculados pelas regras comerciais do contrato.",data:{kind:"reprice",groupId:grupoId}};
 }
