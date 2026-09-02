@@ -53,6 +53,12 @@ function lot(guide: TissFinalGuide040300): TissFinalLot040300 {
   };
 }
 
+async function expectOfficialXsd(xml: string) {
+  const validation = await validateTissXmlXsd(xml);
+  expect(validation.errors).toEqual([]);
+  expect(validation.valid).toBe(true);
+}
+
 describe("mensagem final TISS 4.03.00", () => {
   it("serializa Guia de Consulta no wire-format e passa no XSD oficial", async () => {
     const serialized = serializeTissWireLoteGuias040300(lot(baseGuide()));
@@ -66,12 +72,10 @@ describe("mensagem final TISS 4.03.00", () => {
     expect(serialized.hashSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(serialized.xml).toContain(`<ans:epilogo><ans:hash>${serialized.hashTissMd5}</ans:hash></ans:epilogo>`);
 
-    const validation = await validateTissXmlXsd(serialized.xml);
-    expect(validation.errors).toEqual([]);
-    expect(validation.valid).toBe(true);
+    await expectOfficialXsd(serialized.xml);
   });
 
-  it("normaliza procedimento SP/SADT conforme ct_procedimentoExecutadoSadt", () => {
+  it("serializa SP/SADT com procedimento e despesa e passa no XSD oficial", async () => {
     const guide = baseGuide({
       tipo_guia: "sp_sadt",
       carater_atendimento: "1",
@@ -121,6 +125,45 @@ describe("mensagem final TISS 4.03.00", () => {
     expect(procedure).not.toContain("<ans:unidadeMedida>");
     expect(serialized.xml).toContain("<ans:codigoDespesa>02</ans:codigoDespesa>");
     expect(serialized.xml).toContain("<ans:unidadeMedida>001</ans:unidadeMedida>");
+
+    await expectOfficialXsd(serialized.xml);
+  });
+
+  it("serializa Resumo de Internação e passa no XSD oficial", async () => {
+    const guide = baseGuide({
+      tipo_guia: "resumo_internacao",
+      numero_solicitacao_internacao: "SOLINT0001",
+      data_autorizacao: "2026-09-01",
+      senha_autorizacao: "SENHA001",
+      carater_atendimento: "1",
+      tipo_faturamento_tiss: "4",
+      data_inicio_faturamento: "2026-09-01",
+      hora_inicio_faturamento: "08:00:00",
+      data_fim_faturamento: "2026-09-02",
+      hora_fim_faturamento: "12:00:00",
+      tipo_internacao_tiss: "2",
+      regime_internacao_tiss: "1",
+      motivo_encerramento_tiss: "11",
+      itens: [{
+        sequencial: 1,
+        data_execucao: "2026-09-02",
+        tabela: "22",
+        codigo_procedimento: "10101012",
+        descricao: "PROCEDIMENTO INTERNACAO",
+        quantidade: 1,
+        valor_unitario: 120,
+        valor_total: 120,
+        reducao_acrescimo: 1,
+        origem_tipo: "procedimento",
+      }],
+    });
+    const serialized = serializeTissWireLoteGuias040300(lot(guide));
+
+    expect(serialized.xml).toContain("<ans:guiaResumoInternacao>");
+    expect(serialized.xml).toContain("<ans:numeroGuiaSolicitacaoInternacao>SOLINT0001</ans:numeroGuiaSolicitacaoInternacao>");
+    expect(serialized.xml).toContain("<ans:motivoEncerramento>11</ans:motivoEncerramento>");
+
+    await expectOfficialXsd(serialized.xml);
   });
 
   it("bloqueia despesa sem unidade TISS e lotes mistos", () => {
