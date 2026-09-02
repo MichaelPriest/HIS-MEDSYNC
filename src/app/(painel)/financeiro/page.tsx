@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Banknote, CalendarClock, CircleDollarSign, ReceiptText, WalletCards } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
@@ -86,7 +87,7 @@ export default async function FinanceiroPage() {
             const convenio = one(item.convenio);
             const restante = Math.max(0, Number(item.valor_liquido_previsto ?? 0) - Number(item.valor_recebido ?? 0));
             const overdue = Boolean(item.previsao_pagamento && item.previsao_pagamento < hoje && restante > 0.01 && !["recebido", "cancelado"].includes(String(item.status)));
-            return <Link key={item.id} href={`/financeiro/recebiveis/${item.id}`} className={`grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[1fr_auto_auto] sm:items-center ${overdue ? "bg-amber-50/40" : ""}`}>
+            return <Link key={item.id} href={`/financeiro/recebiveis/${item.id}` as Route} className={`grid gap-3 px-5 py-4 transition hover:bg-slate-50 sm:grid-cols-[1fr_auto_auto] sm:items-center ${overdue ? "bg-amber-50/40" : ""}`}>
               <div><p className="font-black text-slate-900">{lote ? `Lote ${lote.numero_lote}` : "Recebível"}</p><p className="mt-1 text-xs text-slate-500">{convenio?.nome_fantasia ?? "—"} · Comp. {item.competencia ?? "—"}</p></div>
               <div className="text-left sm:text-right"><p className={`text-xs font-black ${overdue ? "text-amber-700" : "text-slate-500"}`}>{fmtDate(item.previsao_pagamento)}</p><p className="mt-1 text-[10px] uppercase text-slate-400">Previsão</p></div>
               <div className="text-left sm:min-w-32 sm:text-right"><p className={`font-black ${overdue ? "text-amber-700" : "text-slate-900"}`}>{brl(restante)}</p><p className="mt-1 text-[10px] uppercase text-slate-400">Saldo</p></div>
@@ -103,7 +104,7 @@ function Kpi({ icon: Icon, label, value, detail, tone = "default" }: { icon: typ
   return <div className="his-kpi"><div className="flex items-center justify-between gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${tones[tone]}`}><Icon className="size-5" /></span><span className="text-lg font-black text-slate-950">{value}</span></div><p className="mt-3 text-xs font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-1 text-[11px] font-semibold text-slate-500">{detail}</p></div>;
 }
 
-function Priority({ href, icon: Icon, title, value, detail, tone }: { href: string; icon: typeof Banknote; title: string; value: number; detail: string; tone: "default" | "warning" | "danger" }) {
+function Priority({ href, icon: Icon, title, value, detail, tone }: { href: Route; icon: typeof Banknote; title: string; value: number; detail: string; tone: "default" | "warning" | "danger" }) {
   const tones = { default: "bg-brand-50 text-brand-700", warning: "bg-amber-50 text-amber-700", danger: "bg-rose-50 text-rose-700" };
   return <Link href={href} className="flex items-center gap-3 rounded-2xl border border-slate-200 p-3 transition hover:border-brand-200 hover:bg-slate-50"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${tones[tone]}`}><Icon className="size-5" /></span><span className="min-w-0 flex-1"><strong className="block text-sm text-slate-900">{title}</strong><span className="mt-0.5 block text-xs text-slate-500">{detail}</span></span><span className="text-xl font-black text-slate-950">{value}</span></Link>;
 }
