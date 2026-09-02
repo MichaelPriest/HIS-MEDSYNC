@@ -23,7 +23,9 @@ const strictBackgroundServerActions = [
   "src/modules/faturamento/producao-background-actions.ts",
   "src/modules/faturamento/conta-background-actions.ts",
   "src/modules/tiss/guia-background-actions.ts",
+  "src/modules/tiss/guia-complement-background-actions.ts",
   "src/modules/tiss/lote-background-actions.ts",
+  "src/modules/tiss/mensagem-final-background-actions.ts",
   "src/modules/financeiro/background-actions.ts",
 ];
 
@@ -51,7 +53,10 @@ const backgroundForms = [
   "src/components/faturamento/billing-workspace-actions.tsx",
   "src/components/faturamento/account-background-forms.tsx",
   "src/components/faturamento/guide-validation-background-form.tsx",
+  "src/components/faturamento/tiss-guide-communication-form.tsx",
+  "src/components/faturamento/tiss-item-complement-form.tsx",
   "src/components/faturamento/tiss-lot-background-forms.tsx",
+  "src/components/faturamento/tiss-final-message-form.tsx",
   "src/components/financeiro/receivable-background-forms.tsx",
 ];
 
@@ -238,13 +243,29 @@ describe("política de salvamento em segundo plano", () => {
     expect(account).toContain("AccountBackgroundForm");
     expect(account).toContain("AccountItemDeleteButton");
     expect(guide).toContain("GuideValidationBackgroundForm");
+    expect(guide).toContain("TissGuideCommunicationForm");
+    expect(guide).toContain("TissItemComplementForm");
     expect(guide).not.toContain("validarGuiaTiss");
     expect(lot).toContain("TissProtocolModal");
     expect(lot).toContain("TissDenialModal");
     expect(lot).toContain("TissManualImportModal");
     expect(lot).toContain("TissManualSendModal");
+    expect(lot).toContain("TissPreliminaryXmlForm");
     expect(lot).toContain("enviarLoteWebservice");
     expect(lot).not.toContain("registrarProtocolo.bind");
     expect(lot).not.toContain("registrarGlosa.bind");
+  });
+
+  it("mantém geração final TISS sem redirect e só promove após XSD", () => {
+    const action = read("src/modules/tiss/mensagem-final-background-actions.ts");
+    const form = read("src/components/faturamento/tiss-final-message-form.tsx");
+    const lotForms = read("src/components/faturamento/tiss-lot-background-forms.tsx");
+    expect(action).toContain("serializeTissWireLoteGuias040300");
+    expect(action).toContain("validateTissXmlXsd");
+    expect(action).toContain("salvar_xml_candidato_tiss_operacional");
+    expect(action).toContain("registrar_validacao_xsd_tiss_operacional");
+    expect(action).not.toContain("redirect(");
+    expect(form).toContain("gerarMensagemTissFinalBackground");
+    expect(lotForms).toContain("<TissFinalMessageForm loteId={loteId} />");
   });
 });
