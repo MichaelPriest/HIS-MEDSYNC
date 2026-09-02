@@ -37,4 +37,11 @@ describe("alta médica com encaminhamentos assistenciais", () => {
     expect(assume).toContain("profissional_id: profissionalId");
     expect(assume).toContain('.eq("status", "aguardando_profissional")');
   });
+
+  it("antecipa encaminhamentos ativos no contexto assistencial do episódio", () => {
+    const context = read("src/components/prontuario/episodio-contexto-assistencial.tsx");
+    expect(context).toContain('from("encaminhamentos_assistenciais")');
+    expect(context).toContain("Encaminhamentos ativos no episódio");
+    expect(context).toContain("encaminhamentosAtivos");
+  });
 });
