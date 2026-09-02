@@ -21,6 +21,8 @@ O contrato compartilhado está em `src/lib/actions/background-action.ts`, com `B
 
 Navegação automática só é válida quando representa uma transição real de trabalho. Exemplos já preservados: check-in da Agenda para Admissão/Centro Cirúrgico, abertura do RA para a próxima etapa assistencial, tomada do paciente para o prontuário e criação confirmada de um novo laudo LIS/RIS para abrir o editor. Erro ou sucesso de uma gravação comum nunca é motivo suficiente para navegar.
 
+Filtros e buscas que alteram deliberadamente a consulta também podem continuar na URL. No NIR, `q`, `risco` e `setor` permanecem como parâmetros de consulta; `sucesso`/`erro` não são mais usados como feedback de alocação.
+
 ## Módulos convertidos
 
 - Prontuário: alta médica e avaliações interprofissionais.
@@ -33,6 +35,15 @@ Navegação automática só é válida quando representa uma transição real de
 - Laboratório/LIS: bancada, cadeia de custódia, resultados, validação, críticos e editor de laudo sem reload; criação do laudo pode abrir o editor após confirmação.
 - Diagnóstico por Imagem/RIS: agenda, execução, contraste, dose e editor de laudos sem reload; criação do laudo pode abrir o editor após confirmação.
 - GED: assinatura e status inline, com SHA-256 do arquivo privado validado antes de `assinar_documento_ged`.
+- Internação/NIR: alocação de leito na fila regulatória inline, preservando filtros de consulta.
+
+## Internação / NIR
+
+A alocação de leito usa `BackgroundActionState` + `useActionState` em cada paciente da fila. O RPC `movimentar_internacao_leito` continua como autoridade final; a compatibilidade calculada na tela é apenas recomendação de regulação e não substitui a validação transacional.
+
+A transação do banco mantém lock da internação e do leito, status ativo da internação, disponibilidade/ocupação concorrente, escopo empresa/unidade, permissões, isolamento, restrição de sexo, acomodação e reserva específica do atendimento. Se o leito for reservado, somente a reserva ativa do mesmo atendimento pode ser consumida. Ao alocar, o banco ocupa o novo leito, consome a reserva quando aplicável, atualiza internação/atendimento e registra `movimentacoes_leitos`; em transferência futura, o leito anterior entra em higienização pelo mesmo núcleo transacional.
+
+Após sucesso, NIR, painel da Internação, mapa de leitos e prontuário do atendimento são revalidados. Se outro operador ocupar o leito antes da confirmação, o conflito é mostrado inline e a tela não inventa uma alocação bem-sucedida.
 
 ## Centro Cirúrgico e CME
 
@@ -44,36 +55,20 @@ Se o agendamento principal for confirmado e um procedimento adicional falhar, a 
 
 ### Anestesia e RPA
 
-O autosave continua com debounce de 1,2 segundo, agora por Server Actions + `useActionState`, sem RPC direto no browser e sem `router.refresh()`. Os RPCs `centro_cirurgico_salvar_anestesia_operacional` e `centro_cirurgico_salvar_rpa_operacional` continuam como autoridade. Início/fim da anestesia e alta da RPA usam `inicio_em`, `fim_em`, `status` e `alta_em` relidos do banco, em vez de fabricar horários locais. Rascunhos automáticos não executam `revalidatePath` a cada ciclo; a revalidação ocorre nas transições temporais reais.
+O autosave continua com debounce de 1,2 segundo, agora por Server Actions + `useActionState`, sem RPC direto no browser e sem `router.refresh()`. Os RPCs `centro_cirurgico_salvar_anestesia_operacional` e `centro_cirurgico_salvar_rpa_operacional` continuam como autoridade. Início/fim da anestesia e alta da RPA usam `inicio_em`, `fim_em`, `status` e `alta_em` relidos do banco, em vez de fabricar horários locais.
 
 ### Suprimentos
 
-Requisição, confirmação de recebimento, consumo físico por lote e estorno permanecem no workspace da cirurgia com `useActionState` e feedback inline. Continuam canônicos `centro_cirurgico_requisitar_suprimentos_operacional`, `centro_cirurgico_receber_suprimentos_operacional`, `centro_cirurgico_consumir_suprimento_operacional` e `centro_cirurgico_estornar_consumo_operacional`.
-
-A requisição pode conter material, OPME, medicamento e gás medicinal porque a separação permanece setorial. A **baixa direta no ato cirúrgico continua proibida para medicamento**: medicamento segue Prescrição → Farmácia → Dispensação → Administração. Consumo direto continua restrito a material, OPME e gás medicinal, exige cirurgia em andamento, lote real disponível, validade e saldo. Vínculo com item de requisição respeita produto/local/quantidade atendida. OPME preserva catálogo, série única e estorno integral. Após conclusão/cancelamento, estorno continua exigindo Auditoria. Nenhum lote, saldo, local ou produto fictício é criado pela interface.
+Requisição, confirmação de recebimento, consumo físico por lote e estorno permanecem no workspace da cirurgia com `useActionState`. A baixa direta no ato cirúrgico continua proibida para medicamento: Prescrição → Farmácia → Dispensação → Administração. Material, OPME e gás medicinal preservam lote, validade, saldo, requisição, catálogo/série e regras de estorno.
 
 ### CME dedicada
 
-Criação, atualização, conclusão, reprovação e liberação definitiva de ciclos permanecem no workspace CME com `useActionState`. O RPC `cme_salvar_ciclo_operacional` continua como única autoridade de escrita para permissão `cme.gerenciar`, escopo empresa/unidade, status, indicadores, profissional responsável e imutabilidade após liberação.
+Criação, atualização, conclusão, reprovação e liberação definitiva de ciclos permanecem no workspace CME com `useActionState`. O RPC `cme_salvar_ciclo_operacional` continua como única autoridade de escrita para permissão `cme.gerenciar`, escopo empresa/unidade, status, indicadores, profissional responsável e imutabilidade após liberação. Após o RPC, `status`, `inicio_em`, `fim_em` e `liberado_em` são relidos do banco antes do feedback final.
 
-A interface mantém as validações anteriores: liberação exige resultado técnico e pelo menos um indicador marcado como conforme. Após o RPC, a camada de servidor relê `status`, `inicio_em`, `fim_em` e `liberado_em`; o formulário só apresenta liberação definitiva e bloqueia novas edições quando o estado persistido confirma `liberado`. Ciclos já liberados continuam protegidos também pelo banco. Para novos ciclos, o formulário é limpo apenas após criação confirmada. Não há redirect/query string para feedback e não há schema ou RPC novo.
-
-Com este pacote, os workspaces Centro Cirúrgico/CME mapeados nesta frente deixam de ter mutações de feedback por reload. Isso **não** representa homologação presencial dos protocolos, equipamentos, indicadores ou rotinas locais.
+Os workspaces Centro Cirúrgico/CME mapeados nesta frente deixaram de depender de redirect/query string/router.refresh para feedback operacional. Isso não representa homologação presencial dos protocolos, equipamentos, indicadores ou rotinas locais.
 
 ## Regressão
 
-A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem:
-
-- `tests/unit/enfermagem-background-saves.test.ts`;
-- `tests/unit/farmacia-background-actions.test.ts`;
-- `tests/unit/laboratorio-background-saves.test.ts`;
-- `tests/unit/laboratorio-laudo-background-saves.test.ts`;
-- `tests/unit/imagem-background-saves.test.ts`;
-- `tests/unit/imagem-laudo-background-saves.test.ts`;
-- `tests/unit/ged-background-saves.test.ts`;
-- `tests/unit/centro-cirurgico-background-saves.test.ts`;
-- `tests/unit/centro-cirurgico-anestesia-rpa-background-saves.test.ts`;
-- `tests/unit/centro-cirurgico-suprimentos-background-saves.test.ts`;
-- `tests/unit/centro-cirurgico-cme-background-saves.test.ts`.
+A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem os testes de Enfermagem, Farmácia, LIS, RIS, GED, Centro Cirúrgico/CME e `tests/unit/internacao-nir-background-saves.test.ts`.
 
 A conversão global do HIS continua incremental. Não declarar o sistema inteiro convertido enquanto existirem mutações legadas fora das exceções de navegação justificadas acima.
