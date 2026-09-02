@@ -20,6 +20,8 @@ function communicationMessage(message?: string | null) {
   if (value.includes("TISS_GUIA_NAO_EDITAVEL")) return ["nao-editavel", "A guia já entrou em uma etapa que não permite alterar o complemento de comunicação."] as const;
   if (value.includes("TISS_GUIA_SEM_PERMISSAO") || value.includes("TISS_GUIA_NAO_AUTENTICADO")) return ["permissao", "Seu perfil não possui permissão para alterar o complemento TISS."] as const;
   if (value.includes("TISS_GUIA_NAO_LOCALIZADA")) return ["nao-localizada", "A guia não foi localizada no escopo atual."] as const;
+  if (value.includes("TISS_ITEM_NAO_LOCALIZADO")) return ["item-nao-localizado", "O item da guia não foi localizado."] as const;
+  if (value.includes("TISS_UNIDADE_MEDIDA_INVALIDA")) return ["unidade", "A unidade de medida deve ser um código TISS de 3 dígitos."] as const;
   if (value.includes("check constraint") || value.includes("violates check constraint")) return ["dominio", "Um dos códigos informados não pertence ao domínio permitido pela Comunicação TISS 04.03.00."] as const;
   return ["falha", "Não foi possível salvar o complemento de comunicação. Os campos foram preservados."] as const;
 }
@@ -62,20 +64,42 @@ export async function salvarComplementoComunicacaoTissBackground(
     return { status: "error", code, message };
   }
 
+  return successState(guiaId, data);
+}
+
+export async function salvarItemComplementoTissBackground(
+  guiaId: string,
+  itemId: string,
+  _previous: BackgroundActionState<TissGuideCommunicationData>,
+  formData: FormData,
+): Promise<BackgroundActionState<TissGuideCommunicationData>> {
+  const { supabase } = await getAssistencialContext();
+  const { data, error } = await supabase.rpc("salvar_item_complemento_tiss_040300_operacional", {
+    p_guia_id: guiaId,
+    p_item_id: itemId,
+    p_unidade_medida: text(formData, "unidade_medida_tiss"),
+  });
+  if (error) {
+    const [code, message] = communicationMessage(error.message);
+    console.error("[tiss.guia.item] falha ao salvar complemento", { code: error.code, category: code, itemId });
+    return { status: "error", code, message };
+  }
+  return successState(guiaId, data, "Unidade TISS salva e guia revalidada.");
+}
+
+function successState(guiaId: string, data: unknown, explicitMessage?: string): BackgroundActionState<TissGuideCommunicationData> {
   const result = (data ?? {}) as { status?: string; erros?: number };
   const status = String(result.status ?? "rascunho");
   const errors = Number(result.erros ?? 0);
-
   revalidatePath("/faturamento/guias");
   revalidatePath(`/faturamento/guias/${guiaId}`);
   revalidatePath("/faturamento/lotes");
-
   return {
     status: "success",
     code: errors > 0 ? "complemento-com-criticas" : "complemento-pronto",
-    message: errors > 0
+    message: explicitMessage ?? (errors > 0
       ? `Complemento salvo. A guia continua bloqueada por ${errors} crítica(s); revise a validação acima.`
-      : "Complemento salvo e revalidado. A guia está pronta para composição do XML TISS.",
+      : "Complemento salvo e revalidado. A guia está pronta para composição do XML TISS."),
     data: { guiaId, status, errors },
   };
 }
