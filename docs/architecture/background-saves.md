@@ -4,75 +4,76 @@
 
 Salvamentos e mutações operacionais normais do MedSync HIS devem acontecer sem navegação automática e sem recarga completa da página.
 
-O padrão obrigatório é:
+Padrão obrigatório:
 
-1. a tela envia a operação em segundo plano por Server Action;
-2. o usuário recebe estado visual imediato (`Salvando…`);
-3. sucesso e erro são exibidos no próprio contexto do formulário;
-4. erro não apaga os dados digitados;
-5. o banco/RPC continua sendo a autoridade para validação, RBAC, RLS e transação;
-6. após sucesso, dados dependentes podem ser invalidados com `revalidatePath`, recebendo atualização por resposta RSC, sem `redirect`, `window.location` ou `router.refresh` usado apenas para refletir o save;
-7. operações clínicas/financeiras críticas não devem mostrar sucesso otimista antes da confirmação do banco.
+1. enviar a mutação por Server Action;
+2. mostrar `Salvando…` imediatamente;
+3. exibir sucesso/erro no contexto do formulário;
+4. preservar campos em caso de erro;
+5. manter banco/RPC como autoridade para validação, RBAC, RLS e transação;
+6. usar `revalidatePath` após sucesso quando dados dependentes precisam ser atualizados;
+7. não usar `redirect()`, `window.location` ou `router.refresh()` apenas para refletir uma gravação;
+8. não mostrar sucesso otimista para operações clínicas, financeiras ou de estoque antes da confirmação do banco.
 
-## Contrato
+O contrato compartilhado está em `src/lib/actions/background-action.ts`, com `BackgroundActionState` (`idle | success | error`). Formulários interativos usam React 19 `useActionState` e feedback acessível por `aria-live`.
 
-O contrato compartilhado está em `src/lib/actions/background-action.ts` e usa `BackgroundActionState` (`idle | success | error`). Formulários interativos usam React 19 `useActionState` e feedback acessível por `aria-live`.
+## Navegação permitida
 
-## Exceções
+Navegação automática só é válida quando representa uma transição real de trabalho. Exemplos já preservados: check-in da Agenda para Admissão/Centro Cirúrgico, abertura do RA para a próxima etapa assistencial, tomada do paciente para o prontuário e criação confirmada de um novo laudo LIS/RIS para abrir o editor. Erro ou sucesso de uma gravação comum nunca é motivo suficiente para navegar.
 
-Navegação continua permitida quando ela é a própria intenção explícita do usuário, por exemplo login, seleção de contexto ou botão que leva a uma etapa/tela distinta. Não usar navegação como mecanismo de feedback de um salvamento comum.
+## Módulos convertidos
 
-Na Agenda, o `check-in` é uma exceção deliberada: após o banco confirmar a transição, a aplicação abre a próxima etapa operacional (`/atendimentos/novo` para atendimento comum ou Centro Cirúrgico para cirurgia eletiva). Confirmação, falta, conclusão e cancelamento permanecem na própria Agenda.
+- Prontuário: alta médica e avaliações interprofissionais.
+- Agenda: criação e ações de confirmação/falta/conclusão/cancelamento; check-in navega apenas para a próxima etapa real.
+- Admissão/Recepção: validações e falhas permanecem inline; após criação real do atendimento/RA, segue para Autorização ou Triagem.
+- Triagem e Fila Médica: feedback inline; navegação somente em mudança assistencial real.
+- Autorizações: identificação, validação e guia inline; próxima etapa só abre após operação confirmada.
+- Enfermagem: evolução e administração à beira-leito sem reload, mantendo `registrar_administracao_beira_leito` como autoridade.
+- Farmácia: conciliação, validação farmacêutica, dispensação FEFO principal/componentes e devolução, preservando RPCs, lotes e saldos.
+- Laboratório/LIS: bancada, cadeia de custódia, resultados, validação, críticos e editor de laudo sem reload; criação do laudo pode abrir o editor após confirmação.
+- Diagnóstico por Imagem/RIS: agenda, execução, contraste, dose e editor de laudos sem reload; criação do laudo pode abrir o editor após confirmação.
+- GED: assinatura e status inline, com SHA-256 do arquivo privado validado antes de `assinar_documento_ged`.
 
-Na Admissão, erros de paciente, cobertura, TISS, identificação do beneficiário e falhas transacionais permanecem no próprio formulário. Após a abertura real do atendimento/RA ser confirmada pelo banco, a navegação continua obrigatória porque representa a próxima etapa operacional: Autorização para convênio ou Triagem para particular.
+## Centro Cirúrgico
 
-Na Triagem, chamar/rechamar o paciente e falhas de registro permanecem na própria tela. A conclusão comum atualiza a fila sem reload. A navegação só ocorre após salvamento confirmado quando o fluxo realmente exige mudança de setor para Autorização ou Pronto-Socorro.
+### Núcleo operacional
 
-Na Fila Médica, erros de perfil profissional, especialidade, concorrência, atendimento e publicação da fila permanecem inline. Após a tomada do encaminhamento e atualização assistencial serem confirmadas, a aplicação navega para o prontuário clínico porque essa abertura representa a continuidade real do atendimento pelo profissional que venceu a disputa.
+Agendamento/classificação ANS, transições, checklist de cirurgia segura, OPME, vínculo de ciclo CME liberado, movimentação para ala, múltiplos procedimentos, composição de equipe e início/fim de procedimentos usam feedback inline. Permanecem canônicos os RPCs `centro_cirurgico_classificar_internacao_ans`, `centro_cirurgico_agendar_operacional`, `centro_cirurgico_transicionar_operacional`, `centro_cirurgico_salvar_checklist_operacional`, `centro_cirurgico_registrar_opme_operacional`, `centro_cirurgico_vincular_ciclo_cme_operacional`, `centro_cirurgico_movimentar_para_ala_operacional`, `centro_cirurgico_adicionar_procedimento_operacional`, `centro_cirurgico_salvar_membro_equipe_operacional` e `centro_cirurgico_acionar_procedimento_operacional`.
 
-Em Autorizações, biometria/token, validações e salvamento de guia permanecem na mesma tela. Navegação só ocorre depois de uma liberação/dispensa confirmada quando a jornada realmente precisa seguir para Triagem, Fila Médica ou Pronto-Socorro. Se a guia for salva mas o encaminhamento posterior falhar, a tela informa essa condição sem ocultar que a autorização já foi persistida.
+Se o agendamento principal for confirmado e um procedimento adicional falhar, a interface informa persistência parcial e mantém a cirurgia disponível para correção; não apresenta a operação inteira como se tivesse falhado.
 
-Na Enfermagem, evolução assistencial e administração à beira-leito permanecem na própria tela. A checagem de medicamentos continua usando o RPC `registrar_administracao_beira_leito` como autoridade para prescrição ativa, validação farmacêutica, identificação do paciente, dispensação, lote, contingência sem etiqueta e dupla checagem; apenas o feedback deixou de depender de redirect/reload.
+### Anestesia e RPA
 
-Na Farmácia, conciliação medicamentosa, validação farmacêutica, dispensação FEFO do item principal e de componentes e devolução permanecem na própria tela. Os RPCs `validar_prescricao_farmaceutica`, `dispensar_medicamento_prescricao_fefo`, `dispensar_componente_prescricao_fefo`, `devolver_medicamento_dispensacao` e `registrar_conciliacao_medicamentosa` continuam como autoridades transacionais; a migração não introduz DML paralelo nem altera FEFO, lote ou saldo.
+O autosave continua com debounce de 1,2 segundo, agora por Server Actions + `useActionState`, sem RPC direto no browser e sem `router.refresh()`. Os RPCs `centro_cirurgico_salvar_anestesia_operacional` e `centro_cirurgico_salvar_rpa_operacional` continuam como autoridade. Início/fim da anestesia e alta da RPA usam `inicio_em`, `fim_em`, `status` e `alta_em` relidos do banco, em vez de fabricar horários locais. Rascunhos automáticos não executam `revalidatePath` a cada ciclo; a revalidação ocorre nas transições temporais reais.
 
-No Laboratório/LIS, preparo e accession da amostra, cadeia de custódia, encaminhamento para setor/bancada, registro de resultado, validação técnica e comunicação de resultado crítico permanecem na mesma tela. O editor de laudos também salva rascunho, valida analito, registra crítico, assina/libera e abre retificação sem reload. Os RPCs laboratoriais continuam sendo a autoridade para rastreabilidade, equipamento, criticidade, liberação, assinatura, versão e read-back. A única navegação deliberada ocorre ao **iniciar um laudo novo**: após o RPC confirmar a criação, o cliente abre o editor daquele laudo.
+### Suprimentos
 
-No Diagnóstico por Imagem/RIS, agendamento, confirmação/chegada/falta/cancelamento, início e conclusão da execução, registro de contraste e registro de dose permanecem na mesma tela com feedback inline. Os RPCs `agendar_exame_imagem_operacional`, `atualizar_agendamento_imagem_operacional`, `iniciar_execucao_imagem_operacional` e `concluir_execucao_imagem_operacional` continuam como autoridades das transições operacionais. Contraste e dose mantêm as escritas já existentes sob o escopo empresa/unidade e RLS; esta conversão não cria schema, migration nem caminho paralelo de autorização.
+Requisição, confirmação de recebimento, consumo físico por lote e estorno permanecem no workspace da cirurgia com `useActionState` e feedback inline. Continuam canônicos:
 
-O editor de laudos RIS segue a mesma regra: `salvar_laudo_imagem`, `registrar_criticidade_laudo_imagem`, `liberar_laudo_imagem` e `abrir_retificacao_laudo_imagem` continuam sendo as autoridades. Rascunho, criticidade/comunicação, assinatura/liberação e abertura de retificação permanecem no editor com feedback inline. Marcar um achado crítico sem destinatário continua permitido para preservar o estado clínico real, mas a interface mantém a liberação bloqueada enquanto a comunicação estiver pendente. A única navegação automática do pacote ocorre ao **iniciar um laudo novo**: depois que `salvar_laudo_imagem` confirma o identificador, o cliente abre o editor daquele laudo.
+- `centro_cirurgico_requisitar_suprimentos_operacional`;
+- `centro_cirurgico_receber_suprimentos_operacional`;
+- `centro_cirurgico_consumir_suprimento_operacional`;
+- `centro_cirurgico_estornar_consumo_operacional`.
 
-No GED, arquivar, reativar, cancelar e assinar documentos permanecem na própria tela do documento. A assinatura continua baixando o arquivo do Storage privado e recalculando o SHA-256 antes de chamar `assinar_documento_ged`; qualquer divergência de integridade bloqueia a assinatura e é exibida inline. Mudanças de status continuam sob o RPC `atualizar_status_documento_ged`. O upload e a criação de nova versão mantêm o fluxo próprio de Storage/versionamento já existente; esta conversão não altera schema, RLS ou RPCs.
+A requisição pode conter material, OPME, medicamento e gás medicinal porque a separação permanece setorial. A **baixa direta no ato cirúrgico continua proibida para medicamento**: medicamento segue Prescrição → Farmácia → Dispensação → Administração. Consumo direto continua restrito a material, OPME e gás medicinal, exige cirurgia em andamento, lote real disponível, validade e saldo. Vínculo com item de requisição respeita produto/local/quantidade atendida. OPME preserva catálogo, série única e estorno integral. Após conclusão/cancelamento, estorno continua exigindo Auditoria. Nenhum lote, saldo, local ou produto fictício é criado pela interface.
 
-No Centro Cirúrgico, o núcleo do workspace e a operação dos procedimentos usam feedback inline para agendamento, classificação ANS da internação, transições do ato, checklist de cirurgia segura, OPME, vínculo de ciclo CME liberado, movimentação pós-operatória para ala, inclusão de procedimentos, composição da equipe e início/finalização de cada procedimento. Os RPCs `centro_cirurgico_classificar_internacao_ans`, `centro_cirurgico_agendar_operacional`, `centro_cirurgico_transicionar_operacional`, `centro_cirurgico_salvar_checklist_operacional`, `centro_cirurgico_registrar_opme_operacional`, `centro_cirurgico_vincular_ciclo_cme_operacional`, `centro_cirurgico_movimentar_para_ala_operacional`, `centro_cirurgico_adicionar_procedimento_operacional`, `centro_cirurgico_salvar_membro_equipe_operacional` e `centro_cirurgico_acionar_procedimento_operacional` continuam sendo as autoridades. Quando o agendamento principal é confirmado mas um procedimento adicional falha, a interface informa explicitamente a persistência parcial e mantém a cirurgia visível para correção, em vez de apresentar uma falha genérica.
+### Pendência cirúrgica
 
-Anestesia e RPA mantêm o autosave com debounce de 1,2 segundo, agora submetido por Server Actions com `useActionState`, sem RPC direto do browser e sem `router.refresh()`. Os RPCs `centro_cirurgico_salvar_anestesia_operacional` e `centro_cirurgico_salvar_rpa_operacional` permanecem como autoridades para permissões, imutabilidade e eventos. Após registrar início/fim da anestesia ou alta da RPA, a camada de servidor relê o registro persistido e devolve `inicio_em`, `fim_em`, `status` e `alta_em` confirmados pelo banco; a interface não fabrica horários locais como substituto. Rascunhos automáticos não disparam `revalidatePath` a cada 1,2 segundo; a revalidação dos painéis dependentes ocorre nas transições temporais reais. O domínio cirúrgico ainda **não** está totalmente convertido: Suprimentos e o workspace próprio da CME permanecem com mutações legadas e serão tratados em pacotes separados.
+O workspace dedicado da CME ainda possui mutações legadas e deve ser convertido em pacote próprio antes de declarar o domínio cirúrgico inteiro concluído.
 
-## Migração
+## Regressão
 
-Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
+A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem, entre outras:
 
-Convertidos:
+- `tests/unit/enfermagem-background-saves.test.ts`;
+- `tests/unit/farmacia-background-actions.test.ts`;
+- `tests/unit/laboratorio-background-saves.test.ts`;
+- `tests/unit/laboratorio-laudo-background-saves.test.ts`;
+- `tests/unit/imagem-background-saves.test.ts`;
+- `tests/unit/imagem-laudo-background-saves.test.ts`;
+- `tests/unit/ged-background-saves.test.ts`;
+- `tests/unit/centro-cirurgico-background-saves.test.ts`;
+- `tests/unit/centro-cirurgico-anestesia-rpa-background-saves.test.ts`;
+- `tests/unit/centro-cirurgico-suprimentos-background-saves.test.ts`.
 
-- alta médica ambulatorial;
-- solicitação de avaliação médica interprofissional;
-- criação de agendamento;
-- confirmação, falta, conclusão e cancelamento de agendamento;
-- validações e falhas de abertura da Admissão/Recepção, preservando navegação apenas após criação efetiva do atendimento;
-- chamada/rechamada e registro da Triagem, com feedback inline e navegação somente para transições setoriais reais;
-- tomada de paciente na Fila Médica, com erros inline e navegação para o prontuário somente depois da confirmação da operação;
-- identificação do beneficiário e atualização de Autorizações, com feedback inline e navegação somente para continuidade assistencial real;
-- evolução de Enfermagem em Andares e Pronto-Socorro;
-- administração de medicamentos à beira-leito, preservando o RPC e todos os campos de rastreabilidade clínica/farmacêutica;
-- conciliação medicamentosa, validação farmacêutica, dispensação FEFO principal/componente e devolução na Farmácia;
-- bancada Laboratório/LIS: preparo de amostra, status/cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico;
-- laudos Laboratório/LIS: abertura com navegação pós-criação confirmada e editor com rascunho, validação, comunicação crítica, liberação e retificação inline;
-- operação Diagnóstico por Imagem/RIS: agenda, transições da agenda, início/conclusão de execução, contraste e dose;
-- laudos Diagnóstico por Imagem/RIS: criação com navegação pós-confirmação e editor com rascunho, criticidade/comunicação, liberação e retificação inline;
-- governança do GED: assinatura com validação SHA-256 e alterações de status com feedback inline, preservando Storage privado e RPCs canônicos;
-- Centro Cirúrgico — núcleo do workspace: agendamento/classificação ANS, transições do ato, checklist, OPME, vínculo CME, movimentação para ala, procedimentos e equipe sem reload;
-- Centro Cirúrgico — Anestesia/RPA: rascunho autosave, início/fim da anestesia e alta da recuperação via `useActionState`, com horários/status reconciliados do banco e sem `router.refresh()`.
-
-Ainda pendentes no Centro Cirúrgico: Suprimentos e o workspace dedicado da CME.
-
-Os testes `tests/unit/background-save-policy.test.ts`, `tests/unit/enfermagem-background-saves.test.ts`, `tests/unit/farmacia-background-actions.test.ts`, `tests/unit/laboratorio-background-saves.test.ts`, `tests/unit/laboratorio-laudo-background-saves.test.ts`, `tests/unit/imagem-background-saves.test.ts`, `tests/unit/imagem-laudo-background-saves.test.ts`, `tests/unit/ged-background-saves.test.ts`, `tests/unit/centro-cirurgico-background-saves.test.ts` e `tests/unit/centro-cirurgico-anestesia-rpa-background-saves.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
+A conversão é incremental. Não declarar o sistema inteiro convertido enquanto existirem mutações legadas fora das exceções de navegação justificadas acima.
