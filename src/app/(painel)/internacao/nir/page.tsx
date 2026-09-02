@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { Route } from "next";
+import Link from "next/link";
 import {
   AlertTriangle,
   BedDouble,
@@ -14,21 +14,16 @@ import {
   Sparkles,
   UserRoundCheck,
 } from "lucide-react";
+import { NirBedAllocationBackgroundForm } from "@/components/internacao/nir-bed-allocation-background-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { requireAnyPermission } from "@/lib/permissions/server";
-import { alocarLeitoNir } from "@/modules/internacao/nir-actions";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type Rel<T> = T | T[] | null;
-type Patient = {
-  nome_completo: string | null;
-  ra: string | null;
-  numero_registro: number | null;
-  sexo: string | null;
-};
-type Encounter = {
-  numero_atendimento: string | number | null;
-  paciente: Rel<Patient>;
-};
+type Patient = { nome_completo: string | null; ra: string | null; numero_registro: number | null; sexo: string | null };
+type Encounter = { numero_atendimento: string | number | null; paciente: Rel<Patient> };
 type Admission = {
   id: string;
   atendimento_id: string;
@@ -56,42 +51,13 @@ type Bed = {
   status: string;
   estrutura: Rel<Structure>;
 };
-type Emergency = {
-  atendimento_id: string;
-  classificacao_risco: string | null;
-  status: string;
-  reavaliacao_em: string | null;
-};
-type Triage = {
-  atendimento_id: string;
-  classificacao_risco: string | null;
-  updated_at: string;
-};
-type Params = {
-  sucesso?: string;
-  erro?: string;
-  q?: string;
-  risco?: string;
-  setor?: string;
-};
+type Emergency = { atendimento_id: string; classificacao_risco: string | null; status: string; reavaliacao_em: string | null };
+type Triage = { atendimento_id: string; classificacao_risco: string | null; updated_at: string };
+type Params = { q?: string; risco?: string; setor?: string };
 type CompatibilityReason = "status" | "acomodacao" | "sexo" | "isolamento";
+type Compatibility = { compatible: boolean; reasons: CompatibilityReason[] };
 
-type Compatibility = {
-  compatible: boolean;
-  reasons: CompatibilityReason[];
-};
-
-function one<T>(value: Rel<T>): T | null {
-  return Array.isArray(value) ? value[0] ?? null : value;
-}
-
-const riskWeight: Record<string, number> = {
-  vermelho: 0,
-  laranja: 1,
-  amarelo: 2,
-  verde: 3,
-  azul: 4,
-};
+const riskWeight: Record<string, number> = { vermelho: 0, laranja: 1, amarelo: 2, verde: 3, azul: 4 };
 const riskStyle: Record<string, string> = {
   vermelho: "bg-rose-100 text-rose-800",
   laranja: "bg-orange-100 text-orange-800",
@@ -99,28 +65,11 @@ const riskStyle: Record<string, string> = {
   verde: "bg-emerald-100 text-emerald-800",
   azul: "bg-blue-100 text-blue-800",
 };
-const errorMessages: Record<string, string> = {
-  campos: "Informe a internação e o leito.",
-  internacao: "A internação não está disponível para alocação.",
-  "internacao-ja-alocada": "O paciente já recebeu um leito. A fila foi atualizada.",
-  "leito-indisponivel": "O leito deixou de estar disponível. Escolha outro leito.",
-  "leito-reservado": "O leito está reservado para outro atendimento.",
-  "incompativel-isolamento": "O paciente necessita isolamento e o leito selecionado não é compatível.",
-  "incompativel-sexo": "O leito possui restrição de sexo incompatível com o paciente.",
-  "incompativel-acomodacao": "A acomodação do leito não corresponde à necessidade da internação.",
-  "sem-permissao": "Seu perfil não possui permissão para alocar este leito.",
-  alocacao: "A alocação não pôde ser concluída. A disponibilidade foi revalidada no banco.",
-};
 
-function areaName(bed: Bed) {
-  return one(bed.estrutura)?.nome ?? bed.setor ?? "Sem área definida";
-}
-
-function waitTone(minutes: number) {
-  if (minutes >= 120) return "bg-rose-50 text-rose-700";
-  if (minutes >= 60) return "bg-amber-50 text-amber-800";
-  return "bg-slate-100 text-slate-600";
-}
+function one<T>(value: Rel<T>): T | null { return Array.isArray(value) ? value[0] ?? null : value; }
+function areaName(bed: Bed) { return one(bed.estrutura)?.nome ?? bed.setor ?? "Sem área definida"; }
+function waitTone(minutes: number) { return minutes >= 120 ? "bg-rose-50 text-rose-700" : minutes >= 60 ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-600"; }
+function fmt(value?: string | null) { return value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "—"; }
 
 function normalizeAccommodation(value?: string | null) {
   const normalized = value?.trim().toLowerCase();
@@ -141,48 +90,31 @@ function normalizeSexRestriction(value?: string | null) {
 }
 
 function bedCompatibility(admission: Admission, bed: Bed): Compatibility {
-  const encounter = one(admission.atendimento);
-  const patient = one(encounter?.paciente ?? null);
+  const patient = one(one(admission.atendimento)?.paciente ?? null);
   const reasons: CompatibilityReason[] = [];
-
   if (bed.status !== "livre") reasons.push("status");
   if (admission.isolamento && !bed.isolamento_capaz) reasons.push("isolamento");
-
-  const requestedAccommodation = normalizeAccommodation(admission.acomodacao);
-  const bedAccommodation = normalizeAccommodation(bed.acomodacao);
-  if (requestedAccommodation && bedAccommodation && requestedAccommodation !== bedAccommodation) {
-    reasons.push("acomodacao");
-  }
-
+  const requested = normalizeAccommodation(admission.acomodacao);
+  const available = normalizeAccommodation(bed.acomodacao);
+  if (requested && available && requested !== available) reasons.push("acomodacao");
   const restriction = normalizeSexRestriction(bed.sexo_restricao);
   const patientSex = patient?.sexo?.trim().toLowerCase() ?? null;
   if (restriction && patientSex !== restriction) reasons.push("sexo");
-
   return { compatible: reasons.length === 0, reasons };
 }
 
 function bedScore(admission: Admission, bed: Bed) {
   let score = 0;
   if (admission.setor && areaName(bed).toLowerCase().includes(admission.setor.toLowerCase())) score += 5;
-  if (
-    normalizeAccommodation(admission.acomodacao)
-    && normalizeAccommodation(admission.acomodacao) === normalizeAccommodation(bed.acomodacao)
-  ) score += 3;
+  if (normalizeAccommodation(admission.acomodacao) && normalizeAccommodation(admission.acomodacao) === normalizeAccommodation(bed.acomodacao)) score += 3;
   if (admission.isolamento && bed.isolamento_capaz) score += 4;
   else if (bed.isolamento_capaz) score += 1;
   return score;
 }
 
 function incompatibilitySummary(admission: Admission, beds: Bed[]) {
-  const counts: Record<CompatibilityReason, number> = {
-    status: 0,
-    acomodacao: 0,
-    sexo: 0,
-    isolamento: 0,
-  };
-  for (const bed of beds) {
-    for (const reason of bedCompatibility(admission, bed).reasons) counts[reason] += 1;
-  }
+  const counts: Record<CompatibilityReason, number> = { status: 0, acomodacao: 0, sexo: 0, isolamento: 0 };
+  for (const bed of beds) for (const reason of bedCompatibility(admission, bed).reasons) counts[reason] += 1;
   return counts;
 }
 
@@ -197,39 +129,23 @@ export default async function NirPage({ searchParams }: { searchParams: Promise<
   if (!unidadeId) return null;
 
   const [waitReq, bedsReq, emergencyReq, triageReq] = await Promise.all([
-    supabase
-      .from("internacoes")
+    supabase.from("internacoes")
       .select("id,atendimento_id,leito_id,setor,acomodacao,motivo,previsao_alta,data_internacao,status,isolamento,tipo_isolamento,atendimento:atendimentos(numero_atendimento,paciente:pacientes(nome_completo,ra,numero_registro,sexo))")
-      .eq("empresa_id", empresaId)
-      .eq("unidade_id", unidadeId)
+      .eq("empresa_id", empresaId).eq("unidade_id", unidadeId)
       .in("status", ["aguardando_leito", "internado", "transferido"])
-      .is("leito_id", null)
-      .order("data_internacao", { ascending: true })
-      .limit(300),
-    supabase
-      .from("leitos")
+      .is("leito_id", null).order("data_internacao", { ascending: true }).limit(300),
+    supabase.from("leitos")
       .select("id,setor,quarto,codigo,tipo,acomodacao,sexo_restricao,isolamento_capaz,status,estrutura:estruturas_fisicas(id,nome,tipo)")
-      .eq("empresa_id", empresaId)
-      .eq("unidade_id", unidadeId)
-      .eq("ativo", true)
-      .order("setor")
-      .order("codigo")
-      .limit(1000),
-    supabase
-      .from("emergencia_registros")
+      .eq("empresa_id", empresaId).eq("unidade_id", unidadeId).eq("ativo", true)
+      .order("setor").order("codigo").limit(1000),
+    supabase.from("emergencia_registros")
       .select("atendimento_id,classificacao_risco,status,reavaliacao_em")
-      .eq("empresa_id", empresaId)
-      .eq("unidade_id", unidadeId)
-      .neq("status", "encerrado")
-      .order("created_at", { ascending: false })
-      .limit(500),
-    supabase
-      .from("triagens")
+      .eq("empresa_id", empresaId).eq("unidade_id", unidadeId).neq("status", "encerrado")
+      .order("created_at", { ascending: false }).limit(500),
+    supabase.from("triagens")
       .select("atendimento_id,classificacao_risco,updated_at")
-      .eq("empresa_id", empresaId)
-      .eq("unidade_id", unidadeId)
-      .order("updated_at", { ascending: false })
-      .limit(1000),
+      .eq("empresa_id", empresaId).eq("unidade_id", unidadeId)
+      .order("updated_at", { ascending: false }).limit(1000),
   ]);
 
   const admissions = (waitReq.data ?? []) as Admission[];
@@ -250,20 +166,8 @@ export default async function NirPage({ searchParams }: { searchParams: Promise<
     const compatible = freeBeds
       .filter((bed) => bedCompatibility(admission, bed).compatible)
       .sort((a, b) => bedScore(admission, b) - bedScore(admission, a) || areaName(a).localeCompare(areaName(b), "pt-BR"));
-    const incompatibilities = incompatibilitySummary(admission, freeBeds);
-    return {
-      admission,
-      risk,
-      weight: riskWeight[risk] ?? 99,
-      emergency,
-      waitMinutes,
-      compatible,
-      incompatibilities,
-    };
-  }).sort((a, b) =>
-    a.weight - b.weight
-    || new Date(a.admission.data_internacao).getTime() - new Date(b.admission.data_internacao).getTime(),
-  );
+    return { admission, risk, weight: riskWeight[risk] ?? 99, emergency, waitMinutes, compatible, incompatibilities: incompatibilitySummary(admission, freeBeds) };
+  }).sort((a, b) => a.weight - b.weight || new Date(a.admission.data_internacao).getTime() - new Date(b.admission.data_internacao).getTime());
 
   const query = sp.q?.trim().toLowerCase() ?? "";
   const riskFilter = sp.risco?.trim().toLowerCase() ?? "";
@@ -271,18 +175,11 @@ export default async function NirPage({ searchParams }: { searchParams: Promise<
   const sectors = [...new Set(beds.map(areaName))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const queue = rawQueue.filter((item) => {
     if (riskFilter && item.risk !== riskFilter) return false;
-    if (
-      sectorFilter
-      && item.admission.setor !== sectorFilter
-      && !item.compatible.some((bed) => areaName(bed) === sectorFilter)
-    ) return false;
-    if (query) {
-      const encounter = one(item.admission.atendimento);
-      const patient = one(encounter?.paciente ?? null);
-      const haystack = `${patient?.nome_completo ?? ""} ${patient?.ra ?? ""} ${encounter?.numero_atendimento ?? ""}`.toLowerCase();
-      if (!haystack.includes(query)) return false;
-    }
-    return true;
+    if (sectorFilter && item.admission.setor !== sectorFilter && !item.compatible.some((bed) => areaName(bed) === sectorFilter)) return false;
+    if (!query) return true;
+    const encounter = one(item.admission.atendimento);
+    const patient = one(encounter?.paciente ?? null);
+    return `${patient?.nome_completo ?? ""} ${patient?.ra ?? ""} ${encounter?.numero_atendimento ?? ""}`.toLowerCase().includes(query);
   });
 
   const highRisk = rawQueue.filter((item) => item.weight <= 1).length;
@@ -300,170 +197,52 @@ export default async function NirPage({ searchParams }: { searchParams: Promise<
     areaStats.set(key, current);
   }
 
-  return (
-    <SectionPage
-      eyebrow="Internação / NIR"
-      title="NIR · Central de Gestão de Leitos"
-      description="Regulação interna com fila priorizada, compatibilidade assistencial e alocação transacional de leitos."
-      actions={(
-        <div className="flex flex-wrap gap-2">
-          <Link href="/internacao/leitos" className="ui-button-primary"><BedDouble className="size-4" />Mapa de leitos</Link>
-          <Link href="/internacao/altas" className="ui-button-secondary">Central de altas</Link>
-          <Link href="/internacao" className="ui-button-secondary">Painel da internação</Link>
-        </div>
-      )}
-    >
-      {sp.sucesso ? (
-        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-          Leito alocado e censo atualizado.
-        </div>
-      ) : null}
-      {sp.erro ? (
-        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
-          {errorMessages[sp.erro] ?? "Não foi possível concluir a alocação."}
-        </div>
-      ) : null}
+  return <SectionPage
+    eyebrow="Internação / NIR"
+    title="NIR · Central de Gestão de Leitos"
+    description="Regulação interna com fila priorizada, compatibilidade assistencial e alocação transacional de leitos."
+    actions={<div className="flex flex-wrap gap-2"><Link href="/internacao/leitos" className="ui-button-primary"><BedDouble className="size-4" />Mapa de leitos</Link><Link href="/internacao/altas" className="ui-button-secondary">Central de altas</Link><Link href="/internacao" className="ui-button-secondary">Painel da internação</Link></div>}
+  >
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+      <Kpi label="Aguardando leito" value={rawQueue.length} icon={<Clock3 className="size-5 text-amber-600" />} />
+      <Kpi label="Alta prioridade" value={highRisk} icon={<HeartPulse className="size-5 text-rose-600" />} />
+      <Kpi label="Leitos livres" value={freeBeds.length} icon={<DoorOpen className="size-5 text-emerald-600" />} />
+      <Kpi label="Ocupados" value={occupiedBeds.length} icon={<UserRoundCheck className="size-5 text-blue-600" />} />
+      <Kpi label="Em giro" value={hygieneBeds.length} icon={<Sparkles className="size-5 text-amber-600" />} />
+      <Kpi label="Sem compatível" value={noCompatible} icon={<AlertTriangle className="size-5 text-rose-600" />} />
+      <div className="his-kpi"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Ocupação</p><p className="mt-2 text-3xl font-black text-brand-950">{occupancy}%</p><p className="mt-1 text-[11px] font-semibold text-slate-400">Maior espera: {oldestMinutes} min</p></div>
+    </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-        <Kpi label="Aguardando leito" value={rawQueue.length} icon={<Clock3 className="size-5 text-amber-600" />} />
-        <Kpi label="Alta prioridade" value={highRisk} icon={<HeartPulse className="size-5 text-rose-600" />} />
-        <Kpi label="Leitos livres" value={freeBeds.length} icon={<DoorOpen className="size-5 text-emerald-600" />} />
-        <Kpi label="Ocupados" value={occupiedBeds.length} icon={<UserRoundCheck className="size-5 text-blue-600" />} />
-        <Kpi label="Em giro" value={hygieneBeds.length} icon={<Sparkles className="size-5 text-amber-600" />} />
-        <Kpi label="Sem compatível" value={noCompatible} icon={<AlertTriangle className="size-5 text-rose-600" />} />
-        <div className="his-kpi">
-          <p className="text-xs font-black uppercase tracking-wider text-slate-400">Ocupação</p>
-          <p className="mt-2 text-3xl font-black text-brand-950">{occupancy}%</p>
-          <p className="mt-1 text-[11px] font-semibold text-slate-400">Maior espera: {oldestMinutes} min</p>
-        </div>
-      </section>
+    <section className="mt-5 his-card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Censo por área</p><h2 className="mt-1 font-black text-slate-950">Disponibilidade por ala / UTI</h2></div><Link href="/internacao/nir" className="ui-button-secondary"><RefreshCw className="size-4" />Atualizar</Link></div>
+      <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{[...areaStats.entries()].map(([area, stat]) => {
+        const areaOccupancy = stat.total ? Math.round((stat.ocupado / stat.total) * 100) : 0;
+        return <article key={area} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-black text-slate-950">{area}</p><p className="mt-1 text-[11px] text-slate-400">{stat.total} leitos cadastrados</p></div><Building2 className="size-4 text-brand-600" /></div><div className="mt-3 grid grid-cols-4 gap-1 text-center text-[10px] font-black"><span className="rounded-lg bg-emerald-50 px-1 py-2 text-emerald-700">{stat.livre}<small className="block font-semibold">livres</small></span><span className="rounded-lg bg-blue-50 px-1 py-2 text-blue-700">{stat.ocupado}<small className="block font-semibold">ocup.</small></span><span className="rounded-lg bg-amber-50 px-1 py-2 text-amber-700">{stat.giro}<small className="block font-semibold">giro</small></span><span className="rounded-lg bg-rose-50 px-1 py-2 text-rose-700">{stat.bloqueado}<small className="block font-semibold">bloq.</small></span></div><div className="mt-3 flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, areaOccupancy)}%` }} /></div><span className="text-[10px] font-black text-slate-500">{areaOccupancy}%</span></div></article>;
+      })}</div>
+    </section>
 
-      <section className="mt-5 his-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Censo por área</p>
-            <h2 className="mt-1 font-black text-slate-950">Disponibilidade por ala / UTI</h2>
-          </div>
-          <Link href="/internacao/nir" className="ui-button-secondary"><RefreshCw className="size-4" />Atualizar</Link>
-        </div>
-        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {[...areaStats.entries()].map(([area, stat]) => {
-            const areaOccupancy = stat.total ? Math.round((stat.ocupado / stat.total) * 100) : 0;
-            return (
-              <article key={area} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div><p className="text-xs font-black text-slate-950">{area}</p><p className="mt-1 text-[11px] text-slate-400">{stat.total} leitos cadastrados</p></div>
-                  <Building2 className="size-4 text-brand-600" />
-                </div>
-                <div className="mt-3 grid grid-cols-4 gap-1 text-center text-[10px] font-black">
-                  <span className="rounded-lg bg-emerald-50 px-1 py-2 text-emerald-700">{stat.livre}<small className="block font-semibold">livres</small></span>
-                  <span className="rounded-lg bg-blue-50 px-1 py-2 text-blue-700">{stat.ocupado}<small className="block font-semibold">ocup.</small></span>
-                  <span className="rounded-lg bg-amber-50 px-1 py-2 text-amber-700">{stat.giro}<small className="block font-semibold">giro</small></span>
-                  <span className="rounded-lg bg-rose-50 px-1 py-2 text-rose-700">{stat.bloqueado}<small className="block font-semibold">bloq.</small></span>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, areaOccupancy)}%` }} /></div>
-                  <span className="text-[10px] font-black text-slate-500">{areaOccupancy}%</span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
+    <section className="mt-5">
+      <div className="mb-3"><h2 className="text-lg font-black text-slate-950">Fila regulatória</h2><p className="text-sm text-slate-500">Inclui toda internação ativa sem leito, priorizada por risco e tempo de espera.</p></div>
+      <form className="his-card mb-4 grid gap-3 p-4 md:grid-cols-[1fr_190px_220px_auto]"><label className="relative"><Search className="absolute left-3 top-3 size-4 text-slate-400" /><input name="q" defaultValue={sp.q ?? ""} placeholder="Paciente, RA ou atendimento..." className="ui-input pl-9" /></label><select name="risco" defaultValue={riskFilter} className="ui-input"><option value="">Todos os riscos</option>{["vermelho", "laranja", "amarelo", "verde", "azul"].map((risk) => <option key={risk} value={risk}>{risk}</option>)}</select><select name="setor" defaultValue={sectorFilter} className="ui-input"><option value="">Todas as alas/UTI</option>{sectors.map((sector) => <option key={sector} value={sector}>{sector}</option>)}</select><button className="ui-button-secondary"><Filter className="size-4" />Filtrar</button></form>
 
-      <section className="mt-5">
-        <div className="mb-3">
-          <h2 className="text-lg font-black text-slate-950">Fila regulatória</h2>
-          <p className="text-sm text-slate-500">Inclui toda internação ativa sem leito, priorizada por risco e tempo de espera.</p>
-        </div>
-        <form className="his-card mb-4 grid gap-3 p-4 md:grid-cols-[1fr_190px_220px_auto]">
-          <label className="relative"><Search className="absolute left-3 top-3 size-4 text-slate-400" /><input name="q" defaultValue={sp.q ?? ""} placeholder="Paciente, RA ou atendimento..." className="ui-input pl-9" /></label>
-          <select name="risco" defaultValue={riskFilter} className="ui-input"><option value="">Todos os riscos</option>{["vermelho", "laranja", "amarelo", "verde", "azul"].map((risk) => <option key={risk} value={risk}>{risk}</option>)}</select>
-          <select name="setor" defaultValue={sectorFilter} className="ui-input"><option value="">Todas as alas/UTI</option>{sectors.map((sector) => <option key={sector} value={sector}>{sector}</option>)}</select>
-          <button className="ui-button-secondary"><Filter className="size-4" />Filtrar</button>
-        </form>
+      <div className="space-y-3">{queue.length ? queue.map(({ admission, risk, emergency, waitMinutes, compatible, incompatibilities }, index) => {
+        const encounter = one(admission.atendimento);
+        const patient = one(encounter?.paciente ?? null);
+        const prontuarioHref = `/prontuario/${admission.atendimento_id}` as Route;
+        const urgencyHref = `/assistencial/urgencia?atendimento=${admission.atendimento_id}` as Route;
+        const recommendations = compatible.slice(0, 6);
+        const options = compatible.map((bed) => ({ id: bed.id, label: `${areaName(bed)} · ${bed.quarto ? `${bed.quarto} · ` : ""}${bed.codigo}${bed.acomodacao ? ` · ${bed.acomodacao}` : ""}${bed.isolamento_capaz ? " · isolamento" : ""}` }));
+        return <article key={admission.id} className="his-card overflow-hidden"><div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(420px,.8fr)]">
+          <div className="p-5"><div className="flex flex-wrap items-center gap-2"><span className="grid size-7 place-items-center rounded-full bg-brand-950 text-xs font-black text-white">{index + 1}</span><span className={`rounded-full px-2.5 py-1 text-xs font-black capitalize ${riskStyle[risk] ?? "bg-slate-100 text-slate-700"}`}>{risk}</span><span className={`rounded-full px-2.5 py-1 text-xs font-black ${waitTone(waitMinutes)}`}>{waitMinutes} min de espera</span>{admission.isolamento ? <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-black text-violet-700">Isolamento{admission.tipo_isolamento ? ` · ${admission.tipo_isolamento}` : ""}</span> : null}{!compatible.length ? <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700"><AlertTriangle className="mr-1 inline size-3" />Sem leito compatível</span> : null}</div><h3 className="mt-3 text-lg font-black text-slate-950">{patient?.nome_completo ?? "Paciente"}</h3><p className="mt-1 text-xs text-slate-500">Atend. #{encounter?.numero_atendimento ?? "—"} · RA {patient?.ra ?? "—"} · Registro #{patient?.numero_registro ?? "—"}</p><div className="mt-4 grid gap-2 sm:grid-cols-4"><Mini label="Setor solicitado" value={admission.setor ?? "—"} /><Mini label="Acomodação" value={admission.acomodacao ?? "—"} /><Mini label="Sexo" value={patient?.sexo ?? "não informado"} /><Mini label="Motivo" value={admission.motivo ?? "—"} /></div>{emergency?.reavaliacao_em ? <p className="mt-3 text-xs font-semibold text-amber-700">Reavaliação clínica prevista: {fmt(emergency.reavaliacao_em)}</p> : null}<div className="mt-4 flex flex-wrap gap-2"><Link href={prontuarioHref} className="ui-button-secondary">Prontuário</Link><Link href={urgencyHref} className="ui-button-secondary">Urgência</Link></div></div>
+          <div className="border-t border-slate-100 bg-slate-50/70 p-5 xl:border-l xl:border-t-0"><div className="flex items-center justify-between gap-2"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Regulação NIR</p><h4 className="mt-1 font-black text-slate-950">Selecionar leito</h4></div><span className="rounded-lg bg-white px-2.5 py-1 text-xs font-black text-slate-500 ring-1 ring-slate-200">{compatible.length} compatíveis</span></div>{recommendations.length ? <div className="mt-3 flex flex-wrap gap-1.5">{recommendations.map((bed) => <span key={bed.id} className="rounded-lg bg-white px-2 py-1 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">{areaName(bed)} · {bed.quarto ? `${bed.quarto}/` : ""}{bed.codigo}{bed.isolamento_capaz ? " · isolamento" : ""}</span>)}</div> : <div className="mt-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-800"><strong>Nenhum leito livre atende aos critérios.</strong><div className="mt-2 flex flex-wrap gap-1.5">{incompatibilities.acomodacao ? <Reason>{incompatibilities.acomodacao} por acomodação</Reason> : null}{incompatibilities.isolamento ? <Reason>{incompatibilities.isolamento} por isolamento</Reason> : null}{incompatibilities.sexo ? <Reason>{incompatibilities.sexo} por sexo</Reason> : null}</div></div>}<NirBedAllocationBackgroundForm internacaoId={admission.id} beds={options} /></div>
+        </div></article>;
+      }) : <div className="his-card p-12 text-center"><BedDouble className="mx-auto size-10 text-slate-300" /><p className="mt-3 font-black text-slate-700">Nenhum paciente aguardando leito</p><p className="mt-1 text-sm text-slate-500">Toda internação ativa sem leito aparecerá automaticamente nesta fila.</p></div>}</div>
+    </section>
 
-        <div className="space-y-3">
-          {queue.length ? queue.map(({ admission, risk, emergency, waitMinutes, compatible, incompatibilities }, index) => {
-            const encounter = one(admission.atendimento);
-            const patient = one(encounter?.paciente ?? null);
-            const prontuarioHref = `/prontuario/${admission.atendimento_id}` as Route;
-            const urgencyHref = `/assistencial/urgencia?atendimento=${admission.atendimento_id}` as Route;
-            const recommendations = compatible.slice(0, 6);
-            return (
-              <article key={admission.id} className="his-card overflow-hidden">
-                <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(420px,.8fr)]">
-                  <div className="p-5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="grid size-7 place-items-center rounded-full bg-brand-950 text-xs font-black text-white">{index + 1}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-black capitalize ${riskStyle[risk] ?? "bg-slate-100 text-slate-700"}`}>{risk}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-black ${waitTone(waitMinutes)}`}>{waitMinutes} min de espera</span>
-                      {admission.isolamento ? <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-black text-violet-700">Isolamento{admission.tipo_isolamento ? ` · ${admission.tipo_isolamento}` : ""}</span> : null}
-                      {!compatible.length ? <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700"><AlertTriangle className="mr-1 inline size-3" />Sem leito compatível</span> : null}
-                    </div>
-                    <h3 className="mt-3 text-lg font-black text-slate-950">{patient?.nome_completo ?? "Paciente"}</h3>
-                    <p className="mt-1 text-xs text-slate-500">Atend. #{encounter?.numero_atendimento ?? "—"} · RA {patient?.ra ?? "—"} · Registro #{patient?.numero_registro ?? "—"}</p>
-                    <div className="mt-4 grid gap-2 sm:grid-cols-4">
-                      <Mini label="Setor solicitado" value={admission.setor ?? "—"} />
-                      <Mini label="Acomodação" value={admission.acomodacao ?? "—"} />
-                      <Mini label="Sexo" value={patient?.sexo ?? "não informado"} />
-                      <Mini label="Motivo" value={admission.motivo ?? "—"} />
-                    </div>
-                    {emergency?.reavaliacao_em ? <p className="mt-3 text-xs font-semibold text-amber-700">Reavaliação clínica prevista: {new Date(emergency.reavaliacao_em).toLocaleString("pt-BR")}</p> : null}
-                    <div className="mt-4 flex flex-wrap gap-2"><Link href={prontuarioHref} className="ui-button-secondary">Prontuário</Link><Link href={urgencyHref} className="ui-button-secondary">Urgência</Link></div>
-                  </div>
-
-                  <div className="border-t border-slate-100 bg-slate-50/70 p-5 xl:border-l xl:border-t-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Regulação NIR</p><h4 className="mt-1 font-black text-slate-950">Selecionar leito</h4></div>
-                      <span className="rounded-lg bg-white px-2.5 py-1 text-xs font-black text-slate-500 ring-1 ring-slate-200">{compatible.length} compatíveis</span>
-                    </div>
-                    {recommendations.length ? (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {recommendations.map((bed) => <span key={bed.id} className="rounded-lg bg-white px-2 py-1 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">{areaName(bed)} · {bed.quarto ? `${bed.quarto}/` : ""}{bed.codigo}{bed.isolamento_capaz ? " · isolamento" : ""}</span>)}
-                      </div>
-                    ) : (
-                      <div className="mt-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-800">
-                        <strong>Nenhum leito livre atende aos critérios.</strong>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {incompatibilities.acomodacao ? <Reason>{incompatibilities.acomodacao} por acomodação</Reason> : null}
-                          {incompatibilities.isolamento ? <Reason>{incompatibilities.isolamento} por isolamento</Reason> : null}
-                          {incompatibilities.sexo ? <Reason>{incompatibilities.sexo} por sexo</Reason> : null}
-                        </div>
-                      </div>
-                    )}
-                    <form action={alocarLeitoNir} className="mt-4 grid gap-2">
-                      <input type="hidden" name="internacao_id" value={admission.id} />
-                      <select name="leito_id" required defaultValue="" className="ui-input">
-                        <option value="">Selecione o leito...</option>
-                        {compatible.map((bed) => <option key={bed.id} value={bed.id}>{areaName(bed)} · {bed.quarto ? `${bed.quarto} · ` : ""}{bed.codigo}{bed.acomodacao ? ` · ${bed.acomodacao}` : ""}{bed.isolamento_capaz ? " · isolamento" : ""}</option>)}
-                      </select>
-                      <input name="motivo" className="ui-input" placeholder="Justificativa / observação do NIR" />
-                      <button disabled={!compatible.length} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">Alocar leito</button>
-                    </form>
-                  </div>
-                </div>
-              </article>
-            );
-          }) : (
-            <div className="his-card p-12 text-center"><BedDouble className="mx-auto size-10 text-slate-300" /><p className="mt-3 font-black text-slate-700">Nenhum paciente aguardando leito</p><p className="mt-1 text-sm text-slate-500">Toda internação ativa sem leito aparecerá automaticamente nesta fila.</p></div>
-          )}
-        </div>
-      </section>
-
-      {unavailableBeds.length ? <p className="mt-4 text-xs text-slate-400"><ShieldCheck className="mr-1 inline size-3" />{unavailableBeds.length} leito(s) bloqueados ou em manutenção não entram nas sugestões.</p> : null}
-    </SectionPage>
-  );
+    {unavailableBeds.length ? <p className="mt-4 text-xs text-slate-400"><ShieldCheck className="mr-1 inline size-3" />{unavailableBeds.length} leito(s) bloqueados ou em manutenção não entram nas sugestões.</p> : null}
+  </SectionPage>;
 }
 
-function Kpi({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
-  return <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</p>{icon}</div><p className="mt-2 text-3xl font-black text-brand-950">{value}</p></div>;
-}
-
-function Mini({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl bg-slate-50 px-3 py-2"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-0.5 line-clamp-2 text-xs font-semibold capitalize text-slate-700">{value}</p></div>;
-}
-
-function Reason({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-md bg-white/80 px-2 py-1 text-[10px] font-bold text-rose-700">{children}</span>;
-}
+function Kpi({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) { return <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">{label}</p>{icon}</div><p className="mt-2 text-3xl font-black text-brand-950">{value}</p></div>; }
+function Mini({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-slate-50 px-3 py-2"><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p><p className="mt-0.5 line-clamp-2 text-xs font-semibold capitalize text-slate-700">{value}</p></div>; }
+function Reason({ children }: { children: React.ReactNode }) { return <span className="rounded-md bg-white/80 px-2 py-1 text-[10px] font-bold text-rose-700">{children}</span>; }
