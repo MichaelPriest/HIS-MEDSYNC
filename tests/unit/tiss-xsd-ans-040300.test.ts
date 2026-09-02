@@ -50,9 +50,10 @@ describe("contrato XSD ANS TISS 04.03.00", () => {
     expect(actions).toContain("registrar_envio_manual_tiss_operacional");
   });
 
-  it("mantém a autoridade transacional da validação no Supabase", () => {
+  it("mantém a autoridade transacional da validação e dos domínios no Supabase", () => {
     const migration = read("supabase/migrations/20260902144511_tiss_xsd_ans_040300.sql");
     const fixMigration = read("supabase/migrations/20260902153013_tiss_xsd_ans_040300_fix_lote_columns.sql");
+    const domainsMigration = read("supabase/migrations/20260902191102_tiss_dominios_wire_040300.sql");
     expect(migration).toContain("security definer");
     expect(migration).toContain("TISS_XSD_VERSAO_DIVERGENTE");
     expect(migration).toContain("TISS_XML_PRELIMINAR_NAO_VALIDAVEL");
@@ -66,6 +67,13 @@ describe("contrato XSD ANS TISS 04.03.00", () => {
     expect(fixMigration).not.toContain("updated_at = now()");
     expect(fixMigration).not.toContain("updated_by = v_user");
     expect(fixMigration).toContain("grant execute");
+
+    expect(domainsMigration).toContain("uf_ans_tiss_040300");
+    expect(domainsMigration).toContain("XSD040300-UF-EXEC");
+    expect(domainsMigration).toContain("XSD040300-SADT-SOL-UF");
+    expect(domainsMigration).toContain("XSD040300-SADT-TIPO");
+    expect(domainsMigration).toContain("XSD040300-CONS-TIPO");
+    expect(domainsMigration).toContain("array['01','02','03','04','08','09','10','13','23']");
   });
 
   it("instala o motor no runtime e sincroniza schemas antes dos testes e build", () => {
