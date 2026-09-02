@@ -52,12 +52,20 @@ describe("contrato XSD ANS TISS 04.03.00", () => {
 
   it("mantém a autoridade transacional da validação no Supabase", () => {
     const migration = read("supabase/migrations/20260902144511_tiss_xsd_ans_040300.sql");
+    const fixMigration = read("supabase/migrations/20260902153013_tiss_xsd_ans_040300_fix_lote_columns.sql");
     expect(migration).toContain("security definer");
     expect(migration).toContain("TISS_XSD_VERSAO_DIVERGENTE");
     expect(migration).toContain("TISS_XML_PRELIMINAR_NAO_VALIDAVEL");
     expect(migration).toContain("TISS_XSD_RESULTADO_INCONSISTENTE");
-    expect(migration).toContain("xsd_validado = coalesce(p_xsd_validado,false)");
     expect(migration).toContain("grant execute");
+
+    expect(fixMigration).toContain("jsonb_typeof(v_erros) <> 'array'");
+    expect(fixMigration).toContain("TISS_XSD_HASH_INVALIDO");
+    expect(fixMigration).toContain("TISS_XSD_HASH_OBRIGATORIO");
+    expect(fixMigration).toContain("xsd_validado = coalesce(p_xsd_validado,false)");
+    expect(fixMigration).not.toContain("updated_at = now()");
+    expect(fixMigration).not.toContain("updated_by = v_user");
+    expect(fixMigration).toContain("grant execute");
   });
 
   it("instala o motor no runtime e sincroniza schemas antes do build", () => {
