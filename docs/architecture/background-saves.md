@@ -35,7 +35,7 @@ Filtros e buscas que alteram deliberadamente a consulta podem continuar na URL. 
 - GED: assinatura e status inline, com SHA-256 antes de `assinar_documento_ged`.
 - Internação/NIR: alocação de leito inline.
 - Centro Cirúrgico/CME: núcleo, procedimentos, Anestesia/RPA, Suprimentos e CME.
-- Ciclo da Receita: entradas, ledger financeiro, ações principais da conta, Guia TISS, Lote TISS, complementos de Comunicação, complemento de item e geração/validação XSD da mensagem final.
+- Ciclo da Receita: entradas, ledger financeiro, conta hospitalar incluindo lançamentos e Atos/SADT, Guia TISS, Lote TISS, complementos de Comunicação, complemento de item e geração/validação XSD da mensagem final.
 
 ## Ciclo da Receita / Faturamento
 
@@ -55,7 +55,9 @@ Competência/desconto, sincronização de produção, recálculo contratual, val
 - `validar_conta_tiss`;
 - `excluir_item_conta_faturamento`.
 
-Adicionar/editar lançamento e grupos/atos ainda são legados por concentrarem regras comerciais extensas.
+Adicionar/editar lançamento usa `BillingItemBackgroundForm` + `salvarLancamentoContaBackground`. A resolução comercial não foi duplicada: `saveBillingAccountItem` é o serviço único que preserva `obter_valor_item_comercial`, DePara TUSS, memória de cálculo e `salvar_item_conta_faturamento`. O Catálogo da Conta e a edição da conta consomem o mesmo serviço.
+
+Atos cirúrgicos/SADT usam `BillingActBackgroundForm` para criar/editar grupos, associar lançamentos e recalcular regras contratuais. O bloqueio por conta faturada/cancelada ou Guia TISS ativa continua no servidor, e `recalcular_item_contratual_avancado` permanece autoridade do recálculo.
 
 ### Guia TISS
 
@@ -115,6 +117,6 @@ Agendamento/classificação ANS, transições, checklist, OPME, CME, múltiplos 
 
 ## Regressão
 
-A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem Enfermagem, Farmácia, LIS, RIS, GED, Centro Cirúrgico/CME, NIR, Ciclo da Receita, `tests/unit/tiss-xsd-ans-040300.test.ts` e `tests/unit/tiss-mensagem-final-040300.test.ts`.
+A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem Enfermagem, Farmácia, LIS, RIS, GED, Centro Cirúrgico/CME, NIR, Ciclo da Receita, `tests/unit/tiss-xsd-ans-040300.test.ts`, `tests/unit/tiss-mensagem-final-040300.test.ts` e `tests/unit/faturamento-lancamentos-background-saves.test.ts`.
 
 A conversão global continua incremental. Não declarar o HIS inteiro convertido enquanto existirem mutações legadas fora das exceções justificadas.
