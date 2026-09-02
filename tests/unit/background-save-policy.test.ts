@@ -21,6 +21,7 @@ const strictBackgroundServerActions = [
   "src/modules/internacao/nir-actions.ts",
   "src/modules/faturamento/workspace-background-actions.ts",
   "src/modules/faturamento/producao-background-actions.ts",
+  "src/modules/financeiro/background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -45,6 +46,7 @@ const backgroundForms = [
   "src/components/centro-cirurgico/cme-background-form.tsx",
   "src/components/internacao/nir-bed-allocation-background-form.tsx",
   "src/components/faturamento/billing-workspace-actions.tsx",
+  "src/components/financeiro/receivable-background-forms.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -204,5 +206,22 @@ describe("política de salvamento em segundo plano", () => {
     expect(production).toContain("sincronizar_producao_atendimento");
     expect(forms).toContain("router.push");
     expect(forms).not.toContain("router.refresh");
+  });
+
+  it("mantém o ledger financeiro append-only sem redirects de feedback", () => {
+    const actions = read("src/modules/financeiro/background-actions.ts");
+    const forms = read("src/components/financeiro/receivable-background-forms.tsx");
+    const detail = read("src/app/(painel)/financeiro/recebiveis/[recebivelId]/page.tsx");
+    expect(actions).toContain("registrar_recebimento_financeiro_operacional");
+    expect(actions).toContain("conciliar_recebimento_financeiro_operacional");
+    expect(actions).toContain("estornar_recebimento_financeiro_operacional");
+    expect(forms).toContain("ReceivablePaymentForm");
+    expect(forms).toContain("ReceivableLedgerActions");
+    expect(detail).toContain("ReceivablePaymentForm");
+    expect(detail).toContain("ReceivableLedgerActions");
+    expect(detail).not.toContain("registrarRecebimentoFinanceiro");
+    expect(detail).not.toContain("conciliarRecebimentoFinanceiro");
+    expect(detail).not.toContain("estornarRecebimentoFinanceiro");
+    expect(detail).not.toContain("searchParams");
   });
 });
