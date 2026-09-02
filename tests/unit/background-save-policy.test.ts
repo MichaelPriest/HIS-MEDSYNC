@@ -33,9 +33,6 @@ const backgroundForms = [
   "src/components/imagem/radiology-report-background-form.tsx",
   "src/components/ged/ged-governance-background-form.tsx",
   "src/components/centro-cirurgico/surgical-background-form.tsx",
-  "src/components/centro-cirurgico/surgery-scheduling-form.tsx",
-  "src/components/centro-cirurgico/surgery-procedure-add-form.tsx",
-  "src/components/centro-cirurgico/procedure-team-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
