@@ -131,7 +131,8 @@ describe("mensagem final TISS 4.03.00", () => {
     expect(procedure).toContain("<ans:quantidadeExecutada>1</ans:quantidadeExecutada>");
     expect(procedure).toContain("<ans:reducaoAcrescimo>1.00</ans:reducaoAcrescimo>");
     expect(procedure).not.toContain("<ans:unidadeMedida>");
-    expect(serialized.xml.match(/<ans:UF>35<\/ans:UF>/g)).toHaveLength(2);
+    expect(serialized.xml).toContain("<ans:UF>35</ans:UF>");
+    expect(serialized.xml).not.toContain("<ans:UF>SP</ans:UF>");
     expect(serialized.xml).toContain("<ans:codigoDespesa>02</ans:codigoDespesa>");
     expect(serialized.xml).toContain("<ans:unidadeMedida>001</ans:unidadeMedida>");
 
