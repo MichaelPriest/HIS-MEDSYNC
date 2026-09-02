@@ -22,7 +22,7 @@ O conjunto operacional instalado contém:
 - `tissAssinaturaDigital_v1.01.xsd`;
 - `xmldsig-core-schema.xsd`.
 
-A integridade é obrigatória. `scripts/sync-tiss-ans-xsd.mjs` materializa os arquivos no build e calcula SHA-256 antes de aceitá-los. Qualquer divergência interrompe o build.
+A integridade é obrigatória. `scripts/sync-tiss-ans-xsd.mjs` materializa os arquivos antes de `npm test` e novamente antes do build, calculando SHA-256 antes de aceitá-los. Qualquer divergência interrompe a suíte ou o build.
 
 ## Motor de validação
 
@@ -55,6 +55,8 @@ O wire-format:
 - separa procedimentos de outras despesas conforme a origem fotografada no item;
 - exige unidade de medida TISS para medicamento, material, OPME, diária, taxa e gás medicinal;
 - aplica `reducaoAcrescimo` e cardinalidades numéricas conforme o tipo de procedimento do XSD;
+- converte a sigla real da UF do conselho para o domínio numérico `dm_UF` apenas na borda (`SP` → `35`, por exemplo), sem adulterar o snapshot persistido;
+- recusa UF desconhecida e, no SP/SADT, recusa `tipoAtendimento` fora do domínio `01, 02, 03, 04, 08, 09, 10, 13, 23`;
 - calcula o MD5 TISS sobre os valores das tags, na ordem física da mensagem, em LATIN1;
 - calcula SHA-256 separado para integridade técnica da representação persistida.
 
@@ -70,9 +72,10 @@ O frontend não pode simplesmente marcar um XML como válido. A cadeia transacio
 4. versão de Comunicação compatível;
 5. lote com um único tipo de guia e até 100 guias;
 6. `ENVIO_LOTE_GUIAS` com estrutura e número do lote correspondentes;
-7. SHA-256 recalculado no banco;
-8. MD5 TISS recalculado no banco em LATIN1;
-9. resultado XSD sem erros para promoção final.
+7. domínios de Guia de Consulta/SP-SADT compatíveis antes da formação do lote;
+8. SHA-256 recalculado no banco;
+9. MD5 TISS recalculado no banco em LATIN1;
+10. resultado XSD sem erros para promoção final.
 
 `PRELIMINAR_INTERNO` nunca pode ser promovido. O envio manual também é fail-closed: `registrar_envio_manual_tiss_operacional` aceita somente `ENVIO_LOTE_GUIAS`, versão interna `04.03.00`, previamente validado pelo XSD.
 
@@ -87,7 +90,10 @@ Migrations principais desta etapa:
 - `20260902175402_tiss_guia_solicitante_validacao_integrada_040300.sql`;
 - `20260902180109_tiss_guia_item_origem_snapshot_040300.sql`;
 - `20260902180256_tiss_item_unidade_despesa_040300.sql`;
-- `20260902183026_tiss_envio_final_only_040300.sql`.
+- `20260902183026_tiss_envio_final_only_040300.sql`;
+- `20260902191102_tiss_dominios_wire_040300.sql`.
+
+A última migration adiciona `uf_ans_tiss_040300` e endurece `validar_guia_tiss_comunicacao_040300_internal` para bloquear UF inválida, tipo de consulta inválido e `tipoAtendimento` SP/SADT incompatível com o XSD. A verificação por contagem feita após a aplicação não encontrou guias reais existentes nesses três grupos de incompatibilidade.
 
 ## Fluxo operacional
 
@@ -95,17 +101,20 @@ Migrations principais desta etapa:
 
 A validação da guia inclui a camada geral e a Comunicação 04.03.00. Campos que não podem ser inferidos são preenchidos na própria tela com salvamento em segundo plano. No SP/SADT, o solicitante possui snapshot próprio e não é copiado silenciosamente do executante. Itens de despesa exibem complemento de unidade de medida TISS sem assumir um valor padrão.
 
+A guia é rebaixada para `rascunho` quando a validação encontra um domínio incompatível. A correção deve ocorrer na fonte real do dado; o sistema não cria mapeamentos arbitrários para fazer o XSD passar.
+
 ### Lote e XML gerado pelo HIS
 
 O lote permanece bloqueado enquanto houver crítica impeditiva. Ao solicitar a geração final:
 
 1. as guias e os itens reais do lote são carregados;
 2. o serializer cria `mensagemTISS/loteGuias`;
-3. o MD5 regulatório é calculado;
-4. a mensagem passa pelo XSD oficial em memória;
-5. o banco recalcula SHA-256 e MD5 no staging;
-6. o RPC de validação promove o candidato;
-7. o lote recebe `status=valido` e somente então o XML pode ser baixado/enviado.
+3. os domínios de borda são normalizados/checados;
+4. o MD5 regulatório é calculado;
+5. a mensagem passa pelo XSD oficial em memória;
+6. o banco recalcula SHA-256 e MD5 no staging;
+7. o RPC de validação promove o candidato;
+8. o lote recebe `status=valido` e somente então o XML pode ser baixado/enviado.
 
 Se inválido, os erros XSD retornam inline e o lote não é liberado para transmissão.
 
@@ -114,9 +123,15 @@ Se inválido, os erros XSD retornam inline e o lote não é liberado para transm
 A representação textual fica persistida como `text` no PostgreSQL, mas a borda respeita a declaração da mensagem. Para XML final `ISO-8859-1`:
 
 - o endpoint de download converte explicitamente para bytes LATIN1 e informa `charset=iso-8859-1`;
-- o transporte HTTP XML envia bytes LATIN1;
+- o transporte HTTP XML envia bytes LATIN1 por `ArrayBuffer`;
 - o SOAP remove a declaração XML da mensagem interna antes de envelopá-la e envia o envelope no mesmo charset;
 - caracteres fora de ISO-8859-1 são rejeitados antes da geração.
+
+### Testes de contrato
+
+`tests/unit/tiss-mensagem-final-040300.test.ts` executa o serializer contra os schemas materializados e exige validação XSD real para os três tipos atualmente suportados: Consulta, SP/SADT e Resumo de Internação. A suíte também cobre UF `SP` → `35`, domínio de `tipoAtendimento`, despesas/unidade TISS, cardinalidade SP/SADT, MD5/SHA-256 e bordas ISO-8859-1.
+
+`tests/unit/tiss-xsd-ans-040300.test.ts` protege manifesto/hashes, libxml2, sincronização `pretest`/`prebuild` e as migrations que mantêm a autoridade no banco.
 
 ### XML recebido da operadora
 
