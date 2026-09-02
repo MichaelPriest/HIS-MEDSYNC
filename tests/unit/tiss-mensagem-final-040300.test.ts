@@ -165,7 +165,9 @@ describe("mensagem final TISS 4.03.00", () => {
     ]);
     expect(route).toContain('Buffer.from(xml.xml_conteudo, latin1 ? "latin1" : "utf8")');
     expect(route).toContain('"iso-8859-1"');
+    expect(adapter).toContain("function encodeBody(value: string, latin1: boolean): ArrayBuffer");
     expect(adapter).toContain('Buffer.from(value, latin1 ? "latin1" : "utf8")');
+    expect(adapter).toContain("new Uint8Array(body).set(bytes)");
     expect(adapter).toContain("stripXmlDeclaration");
     expect(migration).toContain("v_xml.tipo_mensagem is distinct from 'ENVIO_LOTE_GUIAS'");
     expect(migration).toContain("v_xml.versao_comunicacao is distinct from '04.03.00'");
