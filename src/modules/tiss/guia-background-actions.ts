@@ -22,6 +22,8 @@ export async function validarGuiaTissBackground(
   _previous: BackgroundActionState<GuideValidationActionData>,
   _formData: FormData,
 ): Promise<BackgroundActionState<GuideValidationActionData>> {
+  void _previous;
+  void _formData;
   if (!UUID_RE.test(guiaId)) return { status: "error", code: "guia", message: "Identificador da guia inválido." };
 
   const supabase = await createClient();
