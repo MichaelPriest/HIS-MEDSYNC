@@ -13,8 +13,11 @@ function stripXmlDeclaration(xml: string) {
   return xml.replace(/^\s*<\?xml[^>]*\?>\s*/i, "");
 }
 
-function encodeBody(value: string, latin1: boolean): Uint8Array {
-  return new Uint8Array(Buffer.from(value, latin1 ? "latin1" : "utf8"));
+function encodeBody(value: string, latin1: boolean): ArrayBuffer {
+  const bytes = Buffer.from(value, latin1 ? "latin1" : "utf8");
+  const body = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(body).set(bytes);
+  return body;
 }
 
 function soapEnvelope(xml: string, config: TissWebserviceConfig, latin1: boolean) {
