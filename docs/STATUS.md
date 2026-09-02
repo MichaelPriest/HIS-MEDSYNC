@@ -9,10 +9,11 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 - `main`: `202326decbd3a2ab88196b4288d79da9d8754b18`, merge da PR #121, que consolidou a cadeia cumulativa #116–#121.
 - O head cumulativo da #121, `fe4ddccb8b39903c7bce491942631356434060d9`, passou CI #896 completamente verde e Vercel `success` antes do merge, sem reviews/threads bloqueantes.
 - A produção do merge SHA `202326de...` ainda não está confirmada: o pós-merge retornou `Deployment rate limited`. A última produção de `main` confirmada por SHA permanece `c91d2ebccb1a549b9bae8db24b24c3d6877db04c` até existir deployment de produção do merge atual ou posterior.
-- PR #122 — Internação/NIR continua aberta sobre `main`; head confirmado `1b513a0cf898728b44c894b7d322c3a58eff2768` após receber o redesign do Ciclo da Receita.
+- PR #122 — Internação/NIR continua aberta sobre `main`; head-base confirmado `1b513a0cf898728b44c894b7d322c3a58eff2768` após receber o redesign do Ciclo da Receita.
 - PR #123 — redesign do Ciclo da Receita foi mesclada na branch da #122 como merge commit `1b513a0cf898728b44c894b7d322c3a58eff2768`; portanto não deve ser mesclada separadamente em `main`.
-- PR #124 — `feat(tiss): concluir mensagem final e XSD ANS 4.03.00` está aberta e empilhada sobre a #122. O pacote implementa a mensagem final `ENVIO_LOTE_GUIAS`, MD5 TISS, XSD oficial fail-closed, staging/promoção transacional e saída ISO-8859-1. Os gates do SHA final ainda precisam concluir antes de qualquer merge.
-- O primeiro CI da #124 (#942) falhou apenas no lint por dois parâmetros não usados no novo Server Action; a correção já foi versionada. Não considerar o pacote aprovado enquanto a execução completa posterior não estiver verde.
+- PR #124 — `feat(tiss): concluir mensagem final e XSD ANS 4.03.00` está aberta e empilhada sobre a #122. O pacote implementa a mensagem final `ENVIO_LOTE_GUIAS`, MD5 TISS, XSD oficial fail-closed, staging/promoção transacional, domínios wire e saída ISO-8859-1.
+- O CI #954 chegou aos testes XSD reais e expôs duas incompatibilidades de domínio: UF do conselho em sigla versus `dm_UF` numérico e um fixture SP/SADT com `tipoAtendimento=05`, não aceito pelo schema. O wire agora converte deterministicamente UF válida (`SP → 35`) sem alterar o snapshot, recusa valores desconhecidos e o banco também bloqueia domínios inválidos. O fixture positivo foi corrigido para código aceito em vez de afrouxar o XSD.
+- Os status Vercel dos heads recentes da #124 continuam falhando somente por `build-rate-limit`; isso bloqueia merge, mas não autoriza empty commit ou promoção de um SHA diferente.
 - PR #111 permanece aberta para fallback comercial TUSS; a migration correspondente já está aplicada no Supabase e não deve ser confundida com homologação da PR.
 
 ## Princípios obrigatórios
@@ -43,14 +44,16 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 | Compras / Almoxarifado / Estoque | Cotação, pedido, recebimento, lote, saldo, inventário, reposição e transferências transacionais. | alçadas reais, curva ABC, inventários e mutações legadas |
 | Comercial / Contratos / Tabelas | Contratos, versões, itens, auditoria e AMB estruturada. | referências reais, precificação e mapeamentos |
 | Urgência / Emergência | Transições, prioridade, SLA, reavaliação e observação com base operacional. | parametrização e homologação |
-| Faturamento / TISS / Financeiro | Workspace unificado e redesign #123 incorporado à #122. A #124 implementa `mensagemTISS/ENVIO_LOTE_GUIAS`, MD5 regulatório, XSD oficial, solicitante SP/SADT separado, origem/unidade por item, staging transacional e saída ISO-8859-1. | CI/Vercel do SHA final da #124; merge cumulativo; lançamentos/grupos/atos ainda legados; homologação com operadoras |
+| Faturamento / TISS / Financeiro | Workspace unificado e redesign #123 incorporado à #122. A #124 implementa `mensagemTISS/ENVIO_LOTE_GUIAS`, MD5 regulatório, XSD oficial, solicitante SP/SADT separado, origem/unidade por item, domínios `dm_UF`/tipo atendimento, staging transacional e saída ISO-8859-1. | CI completo do candidato final; Vercel rate-limited; merge cumulativo; lançamentos/grupos/atos ainda legados; homologação com operadoras |
 | Auditoria / Contas Médicas | Fila pós-alta, revalidação e handoff corrigidos nas PRs #108/#109. | homologar ciclo pós-alta ponta a ponta |
 
 ## Supabase — referência confirmada
 
-A migration mais recente aplicada é `20260902183026_tiss_envio_final_only_040300`.
+A migration mais recente aplicada é `20260902191102_tiss_dominios_wire_040300`.
 
-Ela endurece `registrar_envio_manual_tiss_operacional`: saída manual só pode registrar um XML `ENVIO_LOTE_GUIAS`, versão interna `04.03.00`, previamente aprovado pelo XSD. Artefatos preliminares ou outros XMLs validados não podem ser usados como mensagem de envio.
+Ela instala `uf_ans_tiss_040300`, preservando a UF original no snapshot e permitindo converter apenas na borda para o domínio numérico do XSD. Também endurece `validar_guia_tiss_comunicacao_040300_internal`: UF do executante/solicitante inválida, tipo de consulta fora de `dm_tipoConsulta` e `tipoAtendimento` SP/SADT fora do domínio `01,02,03,04,08,09,10,13,23` viram críticas impeditivas.
+
+Uma verificação read-only após a migration encontrou `0` guias reais com UF do executante inválida, `0` SP/SADT com tipo de atendimento inválido e `0` com UF do solicitante inválida. Nenhum fato assistencial foi alterado para obter esse resultado.
 
 A cadeia TISS 04.03.00 aplicada nesta evolução inclui:
 
@@ -63,7 +66,8 @@ A cadeia TISS 04.03.00 aplicada nesta evolução inclui:
 - `20260902175402_tiss_guia_solicitante_validacao_integrada_040300` — solicitante SP/SADT e integração da validação 04.03.00 à validação principal;
 - `20260902180109_tiss_guia_item_origem_snapshot_040300` — origem do item para separar procedimento de despesa;
 - `20260902180256_tiss_item_unidade_despesa_040300` — unidade de medida TISS para outras despesas;
-- `20260902183026_tiss_envio_final_only_040300` — envio manual final-only.
+- `20260902183026_tiss_envio_final_only_040300` — envio manual final-only;
+- `20260902191102_tiss_dominios_wire_040300` — domínios UF/Consulta/SP-SADT alinhados ao XSD.
 
 A tabela `tiss_versoes` mantém a versão ativa Julho/2026: Organizacional `202607`, Conteúdo/Estrutura `202511`, TUSS `202607`, Segurança/Privacidade `202511`, Comunicação principal interna `04.03.00` e secundária `01.06.00`.
 
@@ -81,7 +85,7 @@ O conjunto operacional contém sete arquivos:
 - `tissAssinaturaDigital_v1.01.xsd`;
 - `xmldsig-core-schema.xsd`.
 
-Os bytes são materializados no `prebuild` por `scripts/sync-tiss-ans-xsd.mjs`. O script aceita cada arquivo somente se o SHA-256 coincidir com o manifesto; divergência interrompe o build. O pacote original de referência possui SHA-256 `db8640e1c3b87085892f54f838bfcea9934439ff365798c8428559f88c13d62d`.
+Os bytes são materializados por `scripts/sync-tiss-ans-xsd.mjs` no `pretest` e novamente no `prebuild`. O script aceita cada arquivo somente se o SHA-256 coincidir com o manifesto; divergência interrompe testes/build. O pacote original de referência possui SHA-256 `db8640e1c3b87085892f54f838bfcea9934439ff365798c8428559f88c13d62d`.
 
 A validação real está em `src/modules/tiss/xsd-validator.ts`, usando `xmllint-wasm` 5.3.0/libxml2. DTD e `ENTITY` são recusados, dependências são pré-carregadas localmente e o XML recebe SHA-256 antes da persistência do resultado.
 
@@ -93,14 +97,15 @@ O fluxo final:
 2. impede lote misto e campos obrigatórios ausentes;
 3. diferencia procedimentos e outras despesas pela origem fotografada;
 4. exige unidade TISS das despesas sem inventar unidade padrão;
-5. gera Consulta, SP/SADT ou Resumo de Internação;
-6. calcula MD5 TISS sobre valores das tags em ordem física/LATIN1;
-7. valida `mensagemTISS` contra `tissV4_03_00.xsd`;
-8. salva apenas candidato XSD válido;
-9. PostgreSQL recalcula SHA-256/MD5 e confere número/tipo de guia;
-10. promove para `ENVIO_LOTE_GUIAS` somente após o RPC de validação.
+5. normaliza UF válida apenas no wire e recusa domínios incompatíveis;
+6. gera Consulta, SP/SADT ou Resumo de Internação;
+7. calcula MD5 TISS sobre valores das tags em ordem física/LATIN1;
+8. valida `mensagemTISS` contra `tissV4_03_00.xsd`;
+9. salva apenas candidato XSD válido;
+10. PostgreSQL recalcula SHA-256/MD5 e confere número/tipo de guia;
+11. promove para `ENVIO_LOTE_GUIAS` somente após o RPC de validação.
 
-O download e o transporte HTTP/SOAP convertem para bytes ISO-8859-1 quando esse charset é declarado. O SOAP remove a declaração XML da mensagem interna antes do envelope.
+Os testes executam XSD real dos três tipos atualmente suportados. O download e o transporte HTTP/SOAP convertem para bytes ISO-8859-1 quando esse charset é declarado. O SOAP remove a declaração XML da mensagem interna antes do envelope.
 
 ## Redesign do Ciclo da Receita — PR #123 incorporada à #122
 
@@ -131,12 +136,13 @@ Novos pontos principais:
 - complementos da Guia TISS e unidades de despesa via `useActionState`;
 - serializer canônico + wire-format ANS;
 - MD5 TISS em LATIN1 e SHA-256 técnico;
+- validação de domínios em duas camadas: Guia/RPC e serializer wire;
 - XSD antes do staging e dupla conferência de hash no banco;
 - promoção `ENVIO_LOTE_GUIAS_CANDIDATO → ENVIO_LOTE_GUIAS` somente após validação;
 - download e webservice em bytes compatíveis com a declaração ISO-8859-1;
 - envio manual e webservice restritos à mensagem final validada.
 
-A PR ainda está em gate. O CI completo e o Vercel do **mesmo SHA final** precisam estar verdes antes de incorporar a #124 à #122.
+A PR ainda está em gate. O CI completo e o Vercel do **mesmo SHA final** precisam estar verdes antes de incorporar a #124 à #122. Rate limit do Vercel mantém a PR aberta mesmo se o CI concluir verde.
 
 ## Gates e critério de merge
 
