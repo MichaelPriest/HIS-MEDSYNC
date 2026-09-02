@@ -9,15 +9,15 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 - `main`: `202326decbd3a2ab88196b4288d79da9d8754b18`, merge da PR #121, que consolidou a cadeia cumulativa #116–#121.
 - O head cumulativo da #121, `fe4ddccb8b39903c7bce491942631356434060d9`, passou CI #896 completamente verde e Vercel `success` antes do merge, sem reviews/threads bloqueantes.
 - A produção do merge SHA `202326de...` ainda não está confirmada: o pós-merge retornou `Deployment rate limited`. A última produção de `main` confirmada por SHA permanece `c91d2ebccb1a549b9bae8db24b24c3d6877db04c` até existir deployment de produção do merge atual ou posterior.
-- PR #122 — Internação/NIR: head `d92c8132373d79372ed0ae89b7a4fa6d6324d30d`, CI #898 completamente verde, sem reviews/threads bloqueantes; Vercel do mesmo SHA falhou somente por rate limit. A PR permanece aberta e não recebeu empty commit para retry.
-- Pacote atual — Redesign do Ciclo da Receita: branch `feat/faturamento-redesign-workspace`, empilhada sobre a #122. A PR #123 amplia o redesign para detalhes operacionais e instala validação XSD real do Padrão TISS Comunicação 04.03.00.
-- O CI #917, no SHA `e3382e648954636871cd71e6c1a5f2f36f4ff964`, falhou somente por warnings de parâmetros não usados sob `eslint --max-warnings=0`; esses warnings foram corrigidos nos commits posteriores. O novo head ainda precisa passar o CI completo antes de merge.
+- PR #122 — Internação/NIR: head `d92c8132373d79372ed0ae89b7a4fa6d6324d30d`, CI #898 completamente verde e Vercel do mesmo SHA bloqueado somente por rate limit; permanece aberta.
+- Pacote atual — PR #123 / branch `feat/faturamento-redesign-workspace`, empilhada sobre a #122: redesign do Ciclo da Receita, expansão dos background saves e validação XSD real do Padrão TISS Comunicação 04.03.00.
+- O CI #917 falhou somente por warnings de parâmetros não usados sob `eslint --max-warnings=0`; esses pontos foram corrigidos. O SHA final da #123 ainda deve cumprir CI + Vercel + review gates antes de merge.
 - PR #111 permanece aberta para fallback comercial TUSS; a migration correspondente já está aplicada no Supabase e não deve ser confundida com homologação da PR.
 
 ## Princípios obrigatórios
 
 - Atendimento/RA e prontuário longitudinal permanecem como eixo do episódio.
-- Escritas críticas usam RPCs/transações existentes com autenticação, escopo empresa/unidade, RBAC e RLS; não reabrir DML paralelo para contornar segurança.
+- Escritas críticas usam RPCs/transações com autenticação, escopo empresa/unidade, RBAC e RLS; não abrir DML paralelo para contornar segurança.
 - Medicamentos seguem `Prescrição → Farmácia → Dispensação → Administração`.
 - Não criar pacientes, unidades, leitos, estoques, lotes, valores, autorizações, contas, glosas, NFS-e ou fatos clínicos fictícios para completar fluxo.
 - Migrations aplicadas no Supabase devem permanecer versionadas; drift deve ser explícito.
@@ -37,21 +37,25 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 | Diagnóstico por Imagem / RIS | Operação e editor/liberação de laudos consolidados em `main` pela #121. | PACS/visualizador real e homologação por modalidade |
 | Base de Conhecimento | `/manual` com 17 guias, busca, filtros, público, passos, alertas e fontes versionadas. | confirmar produção da `main`, ampliar ajuda contextual e governança |
 | GED | Storage privado, versões, hash, assinatura e mudanças de status inline consolidadas pela #121. | retenção, temporalidade e governança documental |
-| Centro Cirúrgico / CME | Núcleo/procedimentos, Anestesia/RPA, Suprimentos e CME dedicada consolidados pela #121, ligados ao mesmo RA e RPCs canônicos. | homologação presencial de cirurgia/CME, equipamentos, indicadores, termos e protocolos locais |
-| Internação / NIR | A #122 converte a alocação NIR para feedback inline e mantém `movimentar_internacao_leito` como autoridade. | Vercel/merge; depois gestão operacional de leitos, transferências e alta sem reload; homologação NIR |
+| Centro Cirúrgico / CME | Núcleo/procedimentos, Anestesia/RPA, Suprimentos e CME dedicada consolidados pela #121, ligados ao mesmo RA e RPCs canônicos. | homologação presencial de cirurgia/CME, equipamentos, indicadores e protocolos locais |
+| Internação / NIR | A #122 converte a alocação NIR para feedback inline e mantém `movimentar_internacao_leito` como autoridade. | Vercel/merge; depois transferências/alta restantes e homologação NIR |
 | Compras / Almoxarifado / Estoque | Cotação, pedido, recebimento, lote, saldo, inventário, reposição e transferências transacionais. | alçadas reais, curva ABC, inventários e mutações legadas |
 | Comercial / Contratos / Tabelas | Contratos, versões, itens, auditoria e AMB estruturada. | referências reais, precificação e mapeamentos |
 | Urgência / Emergência | Transições, prioridade, SLA, reavaliação e observação com base operacional. | parametrização e homologação |
-| Faturamento / TISS / Financeiro | Workspace unificado; ledger de recebíveis, operações principais da conta, revalidação da guia e operações de lote foram migrados para feedback inline. XSD ANS 04.03.00 foi integrado com validação libxml2/WASM e persistência transacional. | CI/Vercel do SHA final; salvar lançamentos/grupos/atos ainda legados; gerar mensagem TISS final completa; homologação com operadoras |
+| Faturamento / TISS / Financeiro | Workspace unificado; ledger de recebíveis, operações principais da conta, revalidação da guia e operações de lote migrados para feedback inline. XSD ANS 04.03.00 integrado com libxml2/WASM e persistência transacional. | CI/Vercel do SHA final; lançamentos/grupos/atos ainda legados; gerar `mensagemTISS` final completa; homologação com operadoras |
 | Auditoria / Contas Médicas | Fila pós-alta, revalidação e handoff corrigidos nas PRs #108/#109. | homologar ciclo pós-alta ponta a ponta |
 
 ## Supabase — referência confirmada
 
-A migration mais recente é `20260902144511_tiss_xsd_ans_040300`. Ela adiciona `registrar_validacao_xsd_tiss_operacional`, RPC `SECURITY DEFINER` que persiste o resultado XSD em `tiss_xmls` e `tiss_lotes`, exige escopo/permissão, confere versão e proíbe validar o artefato `PRELIMINAR_INTERNO`.
+A migration mais recente é `20260902153013_tiss_xsd_ans_040300_fix_lote_columns`.
 
-Imediatamente anteriores: `20260901225717_faturamento_fallback_comercial_tuss` e `20260901223840_auditoria_trigger_liberacao_finalizado_em`.
+Ela corrige `registrar_validacao_xsd_tiss_operacional` removendo referências indevidas a `updated_at`/`updated_by` em `tiss_lotes`, colunas que não existem, e endurece o contrato: `p_erros` deve ser array JSON, hash informado deve ser SHA-256 hexadecimal e uma aprovação XSD exige hash presente.
 
-A tabela `tiss_versoes` já possui a versão ativa `2026-07`: Organizacional `202607`, Conteúdo/Estrutura `202511`, TUSS `202607`, Segurança/Privacidade `202511`, Comunicação principal `04.03.00` e secundária `01.06.00`.
+A migration imediatamente anterior, `20260902144511_tiss_xsd_ans_040300`, instalou o RPC `SECURITY DEFINER` que persiste o resultado XSD em `tiss_xmls` e `tiss_lotes`, exige escopo/permissão, confere versão e proíbe validar o artefato `PRELIMINAR_INTERNO`.
+
+Antes delas estão `20260901225717_faturamento_fallback_comercial_tuss` e `20260901223840_auditoria_trigger_liberacao_finalizado_em`.
+
+A tabela `tiss_versoes` possui a versão ativa `2026-07`: Organizacional `202607`, Conteúdo/Estrutura `202511`, TUSS `202607`, Segurança/Privacidade `202511`, Comunicação principal `04.03.00` e secundária `01.06.00`.
 
 ## XSD ANS — Comunicação 04.03.00
 
@@ -67,28 +71,28 @@ O conjunto operacional contém sete arquivos:
 - `tissAssinaturaDigital_v1.01.xsd`;
 - `xmldsig-core-schema.xsd`.
 
-Os bytes são materializados no `prebuild` por `scripts/sync-tiss-ans-xsd.mjs`. O script aceita o arquivo somente se o SHA-256 coincidir com o manifesto; divergência interrompe o build. O pacote original de referência possui SHA-256 `db8640e1c3b87085892f54f838bfcea9934439ff365798c8428559f88c13d62d`.
+Os bytes são materializados no `prebuild` por `scripts/sync-tiss-ans-xsd.mjs`. O script aceita cada arquivo somente se o SHA-256 coincidir com o manifesto; divergência interrompe o build. O pacote original de referência possui SHA-256 `db8640e1c3b87085892f54f838bfcea9934439ff365798c8428559f88c13d62d`.
 
-A validação real está em `src/modules/tiss/xsd-validator.ts`, usando `xmllint-wasm` 5.3.0/libxml2. DTD e `ENTITY` são recusados, dependências são pré-carregadas localmente e o resultado recebe SHA-256 antes de ser persistido.
+A validação real está em `src/modules/tiss/xsd-validator.ts`, usando `xmllint-wasm` 5.3.0/libxml2. DTD e `ENTITY` são recusados, dependências são pré-carregadas localmente e o XML recebe SHA-256 antes da persistência do resultado.
 
 `xsd_validado=true` só pode ser gravado pelo fluxo transacional. `registrar_envio_manual_tiss_operacional` continua exigindo XSD válido e recusando `PRELIMINAR_INTERNO`.
 
-## Redesign do Ciclo da Receita — pacote atual
+## Redesign do Ciclo da Receita — PR #123
 
-A arquitetura visual/operacional compartilha `BillingWorkspaceNav` entre `/faturamento` e `/financeiro`, mantendo uma navegação única para Visão Geral, Produção, Guias TISS, Lotes, Glosas, Recursos, Recebíveis, Notas fiscais e Financeiro.
+A arquitetura compartilha `BillingWorkspaceNav` entre `/faturamento` e `/financeiro`, com navegação única para Visão Geral, Produção, Guias TISS, Lotes, Glosas, Recursos, Recebíveis, Notas fiscais e Financeiro.
 
-Mudanças implementadas:
+Mudanças implementadas incluem:
 
-- nova **Central do Ciclo da Receita** com KPIs, fila de ação, atalhos, lotes recentes, pós-alta pendente, busca e filtros de contas;
+- Central do Ciclo da Receita com KPIs, fila de ação, atalhos, lotes recentes, pós-alta pendente, busca e filtros de contas;
 - criação de conta em modal pesquisável por paciente/CPF/RA/registro/atendimento;
 - índices próprios para Guias, Recursos e Recebíveis;
 - Glosas, Lotes, Recursos, Guias, Produção, Recebíveis e NFS-e redesenhados;
 - Resumo Financeiro com prioridades, agenda de recebimento, glosas, saldo e NFS-e;
 - subnavegação da conta hospitalar com ícones;
 - `BillingModal` reutilizável e acessível;
-- detalhe do lote com protocolo, glosa, importação XML e registro de envio manual em modais.
+- detalhe do lote com protocolo, glosa, importação XML, validação XSD e registro de envio manual.
 
-Ações já convertidas para `BackgroundActionState` + `useActionState` incluem:
+Ações convertidas para `BackgroundActionState` + `useActionState` incluem:
 
 - abertura de conta hospitalar;
 - criação de lote;
@@ -104,6 +108,8 @@ Ações já convertidas para `BackgroundActionState` + `useActionState` incluem:
 A geração da Guia TISS e demais mudanças genuínas de etapa podem navegar após confirmação do banco. Erros de salvamento normal permanecem inline.
 
 Ainda legados no detalhe da conta: adicionar/editar lançamento e gestão dos grupos/atos, que concentram regras comerciais extensas e devem ser convertidos sem duplicar a autoridade do banco.
+
+O artefato `PRELIMINAR_INTERNO` permanece não enviável. A evolução seguinte do TISS deve gerar a mensagem final `mensagemTISS` aderente ao XSD a partir dos dados reais do lote e das guias.
 
 ## Gates e critério de merge
 
