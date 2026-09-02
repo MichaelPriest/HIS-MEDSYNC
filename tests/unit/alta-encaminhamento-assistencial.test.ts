@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { especialidadesCompativeis } from "../../src/modules/fila-medica/especialidade";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
@@ -36,6 +37,23 @@ describe("alta médica com encaminhamentos assistenciais", () => {
     expect(assume).toContain('status: "em_atendimento"');
     expect(assume).toContain("profissional_id: profissionalId");
     expect(assume).toContain('.eq("status", "aguardando_profissional")');
+    expect(assume).toContain("especialidadesCompativeis");
+  });
+
+  it("trata nomenclaturas equivalentes de clínica médica no claim", () => {
+    expect(especialidadesCompativeis("Médico clínico", "Clinica Medica")).toBe(true);
+    expect(especialidadesCompativeis("Clínico Geral", "Clínica Médica")).toBe(true);
+    expect(especialidadesCompativeis("Cardiologia", "Clínica Médica")).toBe(false);
+  });
+
+  it("bloqueia a edição clínica até o encaminhamento da triagem ser assumido", () => {
+    const layout = read("src/app/(painel)/prontuario/[atendimentoId]/clinico/layout.tsx");
+    expect(layout).toContain('eq("status", "aguardando_profissional")');
+    expect(layout).toContain('.is("profissional_id", null)');
+    expect(layout).toContain('normalizar(item.origem) === "triagem"');
+    expect(layout).toContain("especialidadesCompativeis");
+    expect(layout).toContain("AssumePatientBackgroundForm");
+    expect(layout).toContain("Assuma o atendimento antes de registrar a evolução");
   });
 
   it("antecipa encaminhamentos ativos no contexto assistencial do episódio", () => {
