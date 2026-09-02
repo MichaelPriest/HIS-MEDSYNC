@@ -42,6 +42,8 @@ No Diagnóstico por Imagem/RIS, agendamento, confirmação/chegada/falta/cancela
 
 O editor de laudos RIS segue a mesma regra: `salvar_laudo_imagem`, `registrar_criticidade_laudo_imagem`, `liberar_laudo_imagem` e `abrir_retificacao_laudo_imagem` continuam sendo as autoridades. Rascunho, criticidade/comunicação, assinatura/liberação e abertura de retificação permanecem no editor com feedback inline. Marcar um achado crítico sem destinatário continua permitido para preservar o estado clínico real, mas a interface mantém a liberação bloqueada enquanto a comunicação estiver pendente. A única navegação automática do pacote ocorre ao **iniciar um laudo novo**: depois que `salvar_laudo_imagem` confirma o identificador, o cliente abre o editor daquele laudo.
 
+No GED, arquivar, reativar, cancelar e assinar documentos permanecem na própria tela do documento. A assinatura continua baixando o arquivo do Storage privado e recalculando o SHA-256 antes de chamar `assinar_documento_ged`; qualquer divergência de integridade bloqueia a assinatura e é exibida inline. Mudanças de status continuam sob o RPC `atualizar_status_documento_ged`. O upload e a criação de nova versão mantêm o fluxo próprio de Storage/versionamento já existente; esta conversão não altera schema, RLS ou RPCs.
+
 ## Migração
 
 Esta política é global, mas a base existente possui ações legadas que ainda usam `redirect()` após mutações. A conversão será incremental e rastreável; não declarar o sistema inteiro convertido até que os módulos legados tenham sido removidos da lista.
@@ -62,6 +64,7 @@ Convertidos:
 - bancada Laboratório/LIS: preparo de amostra, status/cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico;
 - laudos Laboratório/LIS: abertura com navegação pós-criação confirmada e editor com rascunho, validação, comunicação crítica, liberação e retificação inline;
 - operação Diagnóstico por Imagem/RIS: agenda, transições da agenda, início/conclusão de execução, contraste e dose;
-- laudos Diagnóstico por Imagem/RIS: criação com navegação pós-confirmação e editor com rascunho, criticidade/comunicação, liberação e retificação inline.
+- laudos Diagnóstico por Imagem/RIS: criação com navegação pós-confirmação e editor com rascunho, criticidade/comunicação, liberação e retificação inline;
+- governança do GED: assinatura com validação SHA-256 e alterações de status com feedback inline, preservando Storage privado e RPCs canônicos.
 
-Os testes `tests/unit/background-save-policy.test.ts`, `tests/unit/enfermagem-background-saves.test.ts`, `tests/unit/farmacia-background-actions.test.ts`, `tests/unit/laboratorio-background-saves.test.ts`, `tests/unit/laboratorio-laudo-background-saves.test.ts`, `tests/unit/imagem-background-saves.test.ts` e `tests/unit/imagem-laudo-background-saves.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
+Os testes `tests/unit/background-save-policy.test.ts`, `tests/unit/enfermagem-background-saves.test.ts`, `tests/unit/farmacia-background-actions.test.ts`, `tests/unit/laboratorio-background-saves.test.ts`, `tests/unit/laboratorio-laudo-background-saves.test.ts`, `tests/unit/imagem-background-saves.test.ts`, `tests/unit/imagem-laudo-background-saves.test.ts` e `tests/unit/ged-background-saves.test.ts` impedem regressão nos fluxos já migrados. Cada pacote posterior deve ampliar essa cobertura ao converter novos módulos.
