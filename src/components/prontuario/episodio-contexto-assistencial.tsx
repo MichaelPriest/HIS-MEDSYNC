@@ -1,4 +1,4 @@
-import { Activity, ShieldCheck, Stethoscope } from "lucide-react";
+import { Activity, ShieldCheck, Stethoscope, Waypoints } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 
 function one<T>(rel: T | T[] | null): T | null {
@@ -29,7 +29,7 @@ function riskClass(risk: string | null | undefined) {
 export async function EpisodioContextoAssistencial({ atendimentoId }: { atendimentoId: string }) {
   const supabase = await createClient();
 
-  const [{ data: atendimento }, { data: triagem }, { data: guia }, { data: autorizacao }] = await Promise.all([
+  const [{ data: atendimento }, { data: triagem }, { data: guia }, { data: autorizacao }, { data: encaminhamentos }] = await Promise.all([
     supabase.from("atendimentos")
       .select("id,numero_atendimento,status,setor_atual,tipo_atendimento,cobertura,numero_carteirinha,validade_carteirinha,especialidade_destino,paciente:pacientes(nome_completo,ra,numero_registro),convenio:convenios(nome_fantasia,razao_social),plano:convenio_planos(nome,codigo)")
       .eq("id", atendimentoId)
@@ -52,6 +52,11 @@ export async function EpisodioContextoAssistencial({ atendimentoId }: { atendime
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase.from("encaminhamentos_assistenciais")
+      .select("id,origem,especialidade,status,prioridade,motivo,profissional_id,created_at")
+      .eq("atendimento_id", atendimentoId)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (!atendimento) return null;
@@ -64,6 +69,7 @@ export async function EpisodioContextoAssistencial({ atendimentoId }: { atendime
   const guiaPrestador = guia?.numero_guia_prestador ?? autorizacao?.numero_guia_prestador;
   const senha = guia?.senha ?? autorizacao?.senha_autorizacao;
   const validade = guia?.validade_senha ?? autorizacao?.validade;
+  const encaminhamentosAtivos = (encaminhamentos ?? []).filter((item) => !["concluido", "cancelado"].includes(String(item.status)));
 
   return (
     <section className="mx-auto mb-5 w-full max-w-[1600px] px-4 sm:px-6 lg:px-8">
@@ -80,6 +86,17 @@ export async function EpisodioContextoAssistencial({ atendimentoId }: { atendime
             {atendimento.especialidade_destino ? <span className="rounded-full bg-violet-50 px-2.5 py-1 font-bold text-violet-700">{atendimento.especialidade_destino}</span> : null}
           </div>
         </div>
+
+        {encaminhamentosAtivos.length ? <div className="border-b border-amber-200 bg-amber-50/70 px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-2"><Waypoints className="mt-0.5 size-4 shrink-0 text-amber-700"/><div><p className="text-xs font-black uppercase tracking-wide text-amber-900">Encaminhamentos ativos no episódio</p><p className="mt-0.5 text-xs text-amber-800">Pendências de fluxo ficam visíveis durante todo o atendimento; encaminhamentos de outro profissional/setor podem impedir a alta.</p></div></div>
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800">{encaminhamentosAtivos.length} ativo(s)</span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {encaminhamentosAtivos.slice(0, 4).map((item) => <span key={item.id} className="rounded-xl border border-amber-200 bg-white/80 px-3 py-2 text-xs text-slate-700"><b>{item.origem ?? "origem"} → {item.especialidade ?? "assistencial"}</b><span className="ml-2 text-slate-500">{text(item.status).replaceAll("_", " ")}{item.motivo ? ` · ${item.motivo}` : ""}</span></span>)}
+            {encaminhamentosAtivos.length > 4 ? <span className="rounded-xl border border-amber-200 bg-white/80 px-3 py-2 text-xs font-semibold text-amber-800">+{encaminhamentosAtivos.length - 4} encaminhamento(s)</span> : null}
+          </div>
+        </div> : null}
 
         <div className="grid gap-0 lg:grid-cols-3">
           <div className="border-b border-slate-100 p-4 sm:p-5 lg:border-b-0 lg:border-r">
