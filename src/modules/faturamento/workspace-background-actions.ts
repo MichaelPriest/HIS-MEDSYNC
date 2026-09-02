@@ -19,6 +19,13 @@ function money(formData: FormData, key: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function nullableMoney(formData: FormData, key: string) {
+  const raw = text(formData, key);
+  if (!raw) return null;
+  const value = Number(raw.replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(value) ? value : null;
+}
+
 function competenciaAtual() {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Sao_Paulo",
@@ -217,5 +224,51 @@ export async function criarRecursoGlosaBackground(
     code: "recurso-criado",
     message: "Recurso criado. Abrindo o acompanhamento.",
     data: { id: recursoId, redirectTo: `/faturamento/recursos/${recursoId}` },
+  };
+}
+
+function nfseError(message?: string | null) {
+  const value = String(message ?? "");
+  if (value.includes("NFSE_SEM_PERMISSAO") || value.includes("NFSE_NAO_AUTENTICADO")) return ["permissao", "Seu perfil não possui permissão para criar a NFS-e."] as const;
+  if (value.includes("NFSE_LOTE_NAO_ELEGIVEL")) return ["lote-nao-elegivel", "O lote ainda não está em uma etapa elegível para NFS-e."] as const;
+  if (value.includes("NFSE_VALORES_INVALIDOS")) return ["valores", "ISS e deduções estão incompatíveis com o valor do lote."] as const;
+  return ["operacao", "Não foi possível criar o rascunho de NFS-e."] as const;
+}
+
+export async function criarNfseLoteBackground(
+  _previous: BackgroundActionState<BillingNavigationData>,
+  formData: FormData,
+): Promise<BackgroundActionState<BillingNavigationData>> {
+  const { supabase } = await getAssistencialContext();
+  const loteId = text(formData, "lote_id");
+  if (!loteId) {
+    return { status: "error", code: "lote", message: "Selecione um lote elegível para a nota fiscal." };
+  }
+
+  const { data: notaId, error } = await supabase.rpc("criar_nfse_lote_operacional", {
+    p_lote_id: loteId,
+    p_numero_rps: text(formData, "numero_rps") || null,
+    p_serie_rps: text(formData, "serie_rps") || null,
+    p_aliquota_iss: nullableMoney(formData, "aliquota_iss"),
+    p_valor_iss: money(formData, "valor_iss"),
+    p_valor_deducoes: money(formData, "valor_deducoes"),
+  });
+
+  if (error || !notaId) {
+    const [code, message] = nfseError(error?.message);
+    console.error("[faturamento.workspace] criar nfse", { code: error?.code, category: code });
+    return { status: "error", code, message };
+  }
+
+  const id = String(notaId);
+  revalidatePath("/financeiro");
+  revalidatePath("/financeiro/notas-fiscais");
+  revalidatePath("/faturamento");
+
+  return {
+    status: "success",
+    code: "nfse-criada",
+    message: "Rascunho fiscal criado. Abrindo o documento.",
+    data: { id, redirectTo: `/financeiro/notas-fiscais/${id}` },
   };
 }
