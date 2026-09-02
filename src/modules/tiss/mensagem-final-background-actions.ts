@@ -50,6 +50,10 @@ function generationMessage(error: unknown) {
   if (value.includes("TISS040300_ITEM_UNIDADE_OBRIGATORIA")) return "Existe despesa sem unidade de medida TISS. Complete o item na guia antes de gerar o XML.";
   if (value.includes("TISS040300_ORIGEM_ITEM_NAO_SUPORTADA")) return "Existe item sem categoria TISS reconhecida para procedimentos ou outras despesas.";
   if (value.includes("TISS040300_PRESTADOR_SEM_IDENTIFICACAO")) return "Não há código do prestador na operadora nem CNPJ válido para identificar o prestador.";
+  if (value.includes("TISS040300_UF_INVALIDA")) return "A UF do conselho não pertence ao domínio aceito pela Comunicação TISS 4.03.00. Revalide a guia e corrija o cadastro profissional/solicitante de origem.";
+  if (value.includes("TISS040300_TIPO_ATENDIMENTO_INVALIDO")) return "O tipo de atendimento da guia SP/SADT não pertence ao domínio aceito pela Comunicação TISS 4.03.00. Corrija o tipo TUSS do atendimento de origem e revalide a guia.";
+  if (value.includes("TISS040300_ITEM_QUANTIDADE_SADT_INVALIDA")) return "Existe procedimento SP/SADT com quantidade incompatível com o XSD 4.03.00. Revise a quantidade executada antes de gerar o XML.";
+  if (value.includes("TISS040300_CNES_INVALIDO")) return "O CNES fotografado na guia não possui os 7 dígitos exigidos pela Comunicação TISS 4.03.00.";
   if (value.includes("TISS040300_CAMPO_OBRIGATORIO")) return `A mensagem final ainda possui campo obrigatório incompleto (${value.split(":").slice(1).join(":")}).`;
   return "Não foi possível compor a mensagem TISS final com os dados atuais.";
 }
