@@ -30,7 +30,7 @@ export async function salvarComplementoComunicacaoTissBackground(
   formData: FormData,
 ): Promise<BackgroundActionState<TissGuideCommunicationData>> {
   const { supabase } = await getAssistencialContext();
-  const { data, error } = await supabase.rpc("salvar_complemento_comunicacao_tiss_operacional", {
+  const { data, error } = await supabase.rpc("salvar_complemento_comunicacao_tiss_040300_operacional", {
     p_guia_id: guiaId,
     p_codigo_conselho_ans: text(formData, "codigo_conselho_ans_snapshot"),
     p_indicador_acidente: text(formData, "indicador_acidente"),
@@ -46,6 +46,14 @@ export async function salvarComplementoComunicacaoTissBackground(
     p_tipo_internacao: text(formData, "tipo_internacao_tiss"),
     p_regime_internacao: text(formData, "regime_internacao_tiss"),
     p_motivo_encerramento: text(formData, "motivo_encerramento_tiss"),
+    p_solicitante_codigo_prestador: text(formData, "solicitante_codigo_prestador_snapshot"),
+    p_solicitante_cnpj: text(formData, "solicitante_cnpj_snapshot"),
+    p_solicitante_nome_contratado: text(formData, "solicitante_nome_contratado_snapshot"),
+    p_solicitante_nome_profissional: text(formData, "solicitante_nome_profissional_snapshot"),
+    p_solicitante_codigo_conselho_ans: text(formData, "solicitante_codigo_conselho_ans_snapshot"),
+    p_solicitante_numero_conselho: text(formData, "solicitante_numero_conselho_snapshot"),
+    p_solicitante_uf_conselho: text(formData, "solicitante_uf_conselho_snapshot"),
+    p_solicitante_cbo: text(formData, "solicitante_cbo_snapshot"),
   });
 
   if (error) {
