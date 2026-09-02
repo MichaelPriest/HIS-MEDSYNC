@@ -7,6 +7,7 @@ import {
   TissManualSendModal,
   TissPreliminaryXmlForm,
   TissProtocolModal,
+  TissXmlXsdValidationForm,
 } from "@/components/faturamento/tiss-lot-background-forms";
 import { SectionPage } from "@/components/painel/section-page";
 import { createClient } from "@/lib/supabase/server";
@@ -22,6 +23,17 @@ function brl(value: number | string | null | undefined) {
 
 function dateTime(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "—";
+}
+
+function xsdErrors(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const mensagem = typeof row.mensagem === "string" ? row.mensagem : null;
+    const codigo = typeof row.codigo === "string" ? row.codigo : "XSD";
+    return mensagem ? [{ codigo, mensagem }] : [];
+  });
 }
 
 export default async function LotePage({
@@ -135,7 +147,7 @@ export default async function LotePage({
           </form>
         </div>
       </div>
-      {!lote.xsd_validado ? <div className="mt-4 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><AlertTriangle className="size-5 shrink-0" /><p>Envio final permanece bloqueado até validação com o XSD oficial correspondente. O XML preliminar é somente artefato interno de conferência.</p></div> : <div className="mt-4 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><ShieldCheck className="size-5 shrink-0" /><p>Lote validado contra XSD e elegível para webservice ou operação manual.</p></div>}
+      {!lote.xsd_validado ? <div className="mt-4 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><AlertTriangle className="size-5 shrink-0" /><p>Os schemas ANS 04.03.00 estão instalados. O envio final permanece bloqueado até um artefato real `mensagemTISS` passar na validação XSD; o preliminar interno nunca é promovido para envio.</p></div> : <div className="mt-4 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><ShieldCheck className="size-5 shrink-0" /><p>Lote validado contra XSD ANS 04.03.00 e elegível para webservice ou operação manual.</p></div>}
     </section>
 
     <section className="ui-card mt-6 p-5">
@@ -143,7 +155,7 @@ export default async function LotePage({
         <div>
           <p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Operação manual</p>
           <h2 className="mt-1 font-black text-slate-900">Portal, upload, e-mail ou outro canal externo</h2>
-          <p className="mt-1 max-w-3xl text-sm text-slate-500">Importações entram como pendentes de validação. O registro de saída manual só aceita XML já validado.</p>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">XML recebido da operadora é validado no servidor na importação. O registro de saída manual só aceita XML já validado.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <TissManualImportModal loteId={loteId} />
@@ -181,11 +193,24 @@ export default async function LotePage({
       <section className="ui-card p-5"><div className="flex items-center justify-between gap-3"><h2 className="font-black text-slate-900">Glosas</h2><span className="text-xs font-semibold text-rose-600">{brl(totalGlosado)}</span></div><div className="mt-4 space-y-3">{glosas?.length ? glosas.map((glosa) => { const guia = one(glosa.guia); return <div key={glosa.id} className="rounded-xl border border-rose-200 bg-rose-50 p-3"><div className="flex justify-between gap-3"><strong>{glosa.codigo_glosa}</strong><span className="font-semibold text-rose-700">{brl(glosa.valor_glosado)}</span></div><p className="mt-1 text-sm text-slate-600">Guia {guia?.numero_guia_prestador ?? "—"} · {glosa.descricao_glosa ?? "Sem descrição"}</p><p className="mt-1 text-[11px] font-bold uppercase text-rose-500">{String(glosa.status).replaceAll("_", " ")}</p></div>; }) : <p className="text-sm text-slate-500">Nenhuma glosa.</p>}</div></section>
     </div>
 
-    {operacoesManuais?.length ? <section className="ui-card mt-6 p-5"><h2 className="font-black text-slate-900">Histórico de operação manual</h2><div className="mt-4 space-y-2">{operacoesManuais.map((operacao) => <div key={operacao.id} className="rounded-xl border border-slate-200 p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{operacao.direcao === "saida" ? "Saída" : "Entrada"} · {operacao.tipo_documento}</strong><span className="text-xs text-slate-500">{dateTime(operacao.created_at)}</span></div><p className="mt-1 text-xs text-slate-500">{operacao.nome_arquivo} · protocolo {operacao.protocolo_externo ?? "—"} · {operacao.xsd_validado ? "XSD validado" : "validação pendente"}</p>{operacao.observacoes ? <p className="mt-1 text-xs text-slate-600">{operacao.observacoes}</p> : null}</div>)}</div></section> : null}
+    {operacoesManuais?.length ? <section className="ui-card mt-6 p-5"><h2 className="font-black text-slate-900">Histórico de operação manual</h2><div className="mt-4 space-y-2">{operacoesManuais.map((operacao) => <div key={operacao.id} className="rounded-xl border border-slate-200 p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{operacao.direcao === "saida" ? "Saída" : "Entrada"} · {operacao.tipo_documento}</strong><span className="text-xs text-slate-500">{dateTime(operacao.created_at)}</span></div><p className="mt-1 text-xs text-slate-500">{operacao.nome_arquivo} · protocolo {operacao.protocolo_externo ?? "—"} · {operacao.xsd_validado ? "XSD validado" : "XSD inválido/pendente"}</p>{operacao.observacoes ? <p className="mt-1 text-xs text-slate-600">{operacao.observacoes}</p> : null}</div>)}</div></section> : null}
 
     {transacoes?.length ? <section className="ui-card mt-6 p-5"><h2 className="font-black text-slate-900">Histórico de webservice</h2><div className="mt-4 space-y-2">{transacoes.map((transacao) => <div key={transacao.id} className="rounded-xl border border-slate-200 p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{transacao.tipo_operacao} · {transacao.ambiente}</strong><span className={`rounded-full px-2 py-1 text-xs font-semibold ${transacao.status === "enviado" || transacao.status === "aceito" ? "bg-emerald-50 text-emerald-700" : transacao.status === "erro" || transacao.status === "timeout" ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"}`}>{transacao.status}</span></div><p className="mt-1 text-xs text-slate-500">Local {transacao.protocolo_local} · Operadora {transacao.protocolo_operadora ?? "—"} · HTTP {transacao.http_status ?? "—"}</p>{transacao.mensagem_erro ? <p className="mt-1 text-xs text-rose-600">{transacao.codigo_erro}: {transacao.mensagem_erro}</p> : null}</div>)}</div></section> : null}
 
-    {xmls?.length ? <section className="ui-card mt-6 p-5"><h2 className="font-black text-slate-900">Artefatos XML</h2><div className="mt-3 space-y-2">{xmls.map((xml) => <div key={xml.id} className="rounded-xl bg-slate-50 p-3 text-sm"><b>{xml.tipo_mensagem}</b> · comunicação {xml.versao_comunicacao} · {xml.xsd_validado ? "XSD validado" : "não validado"}</div>)}</div></section> : null}
+    {xmls?.length ? <section className="ui-card mt-6 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-black text-slate-900">Artefatos XML e XSD</h2><p className="mt-1 text-xs text-slate-500">Validação ANS 04.03.00 é executada no servidor e persistida transacionalmente.</p></div><span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-black text-brand-700">Comunicação 04.03.00</span></div>
+      <div className="mt-4 space-y-3">{xmls.map((xml) => {
+        const errors = xsdErrors(xml.erros_validacao);
+        const isPreliminary = xml.tipo_mensagem === "PRELIMINAR_INTERNO";
+        return <article key={xml.id} className={`rounded-2xl border p-4 ${xml.xsd_validado ? "border-emerald-200 bg-emerald-50/60" : isPreliminary ? "border-slate-200 bg-slate-50" : "border-amber-200 bg-amber-50/60"}`}>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div><div className="flex flex-wrap items-center gap-2"><strong className="text-slate-900">{xml.tipo_mensagem}</strong><span className={`rounded-full px-2 py-1 text-[11px] font-black uppercase ${xml.xsd_validado ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{xml.xsd_validado ? "XSD válido" : isPreliminary ? "interno" : "não validado"}</span></div><p className="mt-1 text-xs text-slate-500">Comunicação {xml.versao_comunicacao} · criado {dateTime(xml.created_at)}</p></div>
+            {!isPreliminary && xml.versao_comunicacao === "04.03.00" ? <TissXmlXsdValidationForm loteId={loteId} xmlId={xml.id} /> : null}
+          </div>
+          {errors.length ? <div className="mt-3 rounded-xl border border-rose-100 bg-white/80 p-3"><p className="text-xs font-black uppercase tracking-wide text-rose-600">Críticas XSD</p><ul className="mt-2 space-y-1 text-xs text-rose-700">{errors.slice(0, 5).map((error, index) => <li key={`${error.codigo}-${index}`}><b>{error.codigo}</b> · {error.mensagem}</li>)}</ul>{errors.length > 5 ? <p className="mt-2 text-xs text-rose-500">+ {errors.length - 5} crítica(s) registrada(s).</p> : null}</div> : null}
+        </article>;
+      })}</div>
+    </section> : null}
   </SectionPage>;
 }
 
