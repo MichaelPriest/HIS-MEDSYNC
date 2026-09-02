@@ -18,7 +18,7 @@ function professionalReady(item: { habilitado_tiss: boolean; cbo: string | null;
 
 export default async function CadastrosTissPage() {
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
-  const [empresaRes, unidadeRes, profissionaisRes, profissionaisPendentesCount, profissionaisHabilitadosCount, conveniosRes, conveniosPendentesCount, pacientesRes, pacientesIncompletosCount, itensSemTussCount, itensSemTussRes] = await Promise.all([
+  const [empresaRes, unidadeRes, profissionaisRes, profissionaisPendentesCount, profissionaisHabilitadosCount, conveniosRes, conveniosPendentesCount, pacientesRes, itensSemTussCount, itensSemTussRes] = await Promise.all([
     supabase.from("empresas").select("id,razao_social,nome_fantasia,cnpj,cnes").eq("id", empresaId).maybeSingle(),
     supabase.from("unidades").select("id,nome,cnes").eq("id", unidadeId).maybeSingle(),
     supabase.from("profissionais").select("id,nome_completo,cbo,codigo_conselho_ans,conselho,numero_conselho,uf_conselho,habilitado_tiss").eq("ativo", true).eq("habilitado_tiss", true).or("cbo.is.null,codigo_conselho_ans.is.null,numero_conselho.is.null,uf_conselho.is.null").order("nome_completo").limit(12),
@@ -27,7 +27,6 @@ export default async function CadastrosTissPage() {
     supabase.from("convenios").select("id,nome_fantasia,razao_social,registro_ans,cnpj").eq("ativo", true).is("registro_ans", null).order("nome_fantasia").limit(12),
     supabase.from("convenios").select("id", { count: "exact", head: true }).eq("ativo", true).is("registro_ans", null),
     supabase.from("pacientes").select("id,nome_completo,ra,numero_registro,cpf,cns").eq("ativo", true).or("cpf.is.null,cns.is.null").order("nome_completo").limit(12),
-    supabase.from("pacientes").select("id", { count: "exact", head: true }).eq("ativo", true).or("cpf.is.null,cns.is.null"),
     supabase.from("tabelas_procedimentos_itens").select("id", { count: "exact", head: true }).eq("ativo", true).is("codigo_tuss", null),
     supabase.from("tabelas_procedimentos_itens").select("id,codigo,codigo_tuss,descricao,tipo_item,edicao:tabelas_procedimentos_edicoes(nome_edicao,fonte:tabelas_procedimentos_fontes(nome,codigo))").eq("ativo", true).is("codigo_tuss", null).order("descricao").limit(12),
   ]);
