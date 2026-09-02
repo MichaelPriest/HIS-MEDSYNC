@@ -135,8 +135,9 @@ export function serializeTissLoteGuias040300(input: TissFinalLot040300): TissSer
     "</cabecalho>",
   ].join("");
 
+  const lotNumber = x.leaf("numeroLote", input.numero_lote);
   const guideXml = input.guias.map((guide) => serializeGuide(x, guide, input.prestador_cnpj)).join("");
-  const lot = `<prestadorParaOperadora><loteGuias>${x.leaf("numeroLote", input.numero_lote)}<guiasTISS>${guideXml}</guiasTISS></loteGuias></prestadorParaOperadora>`;
+  const lot = `<prestadorParaOperadora><loteGuias>${lotNumber}<guiasTISS>${guideXml}</guiasTISS></loteGuias></prestadorParaOperadora>`;
   const hashTissMd5 = md5Latin1(x.values.join(""));
   const xml = `<?xml version="1.0" encoding="ISO-8859-1"?><mensagemTISS xmlns="${TISS_XML_NAMESPACE}">${header}${lot}<epilogo><hash>${hashTissMd5}</hash></epilogo></mensagemTISS>`;
   assertLatin1(xml, "mensagemTISS");
@@ -214,7 +215,7 @@ function serializeSadt(x: Xml040300, guide: TissFinalGuide040300, companyCnpj: s
     auth,
     beneficiary(x, guide),
     "<dadosSolicitante>",
-    `<contratadoSolicitante>${contractedIdentifier(x, guide.solicitante_codigo_prestador_snapshot, required(guide.solicitante_cnpj_snapshot, "CNPJ/código do solicitante"), "cnpjContratado")}</contratadoSolicitante>`,
+    `<contratadoSolicitante>${contractedIdentifier(x, guide.solicitante_codigo_prestador_snapshot, guide.solicitante_cnpj_snapshot, "cnpjContratado")}</contratadoSolicitante>`,
     x.leaf("nomeContratadoSolicitante", required(guide.solicitante_nome_contratado_snapshot, "nome do contratado solicitante")),
     "<profissionalSolicitante>",
     x.optional("nomeProfissional", guide.solicitante_nome_profissional_snapshot),
@@ -325,9 +326,9 @@ function serializeTotals(x: Xml040300, items: TissFinalItem040300[]) {
   return `<valorTotal>${procedures ? x.leaf("valorProcedimentos", money(procedures)) : ""}${total("diaria") ? x.leaf("valorDiarias", money(total("diaria"))) : ""}${total("taxa") ? x.leaf("valorTaxasAlugueis", money(total("taxa"))) : ""}${total("material") ? x.leaf("valorMateriais", money(total("material"))) : ""}${total("medicamento") ? x.leaf("valorMedicamentos", money(total("medicamento"))) : ""}${total("opme") ? x.leaf("valorOPME", money(total("opme"))) : ""}${total("gas_medicinal") ? x.leaf("valorGasesMedicinais", money(total("gas_medicinal"))) : ""}${x.leaf("valorTotalGeral", money(general))}</valorTotal>`;
 }
 
-function contractedIdentifier(x: Xml040300, providerCode: string | null | undefined, cnpj: string, cnpjTag: "CNPJ" | "cnpjContratado") {
+function contractedIdentifier(x: Xml040300, providerCode: string | null | undefined, cnpj: string | null | undefined, cnpjTag: "CNPJ" | "cnpjContratado") {
   if (providerCode?.trim()) return x.leaf("codigoPrestadorNaOperadora", providerCode.trim());
-  const digits = cnpj.replace(/\D/g, "");
+  const digits = String(cnpj ?? "").replace(/\D/g, "");
   if (digits.length !== 14) throw new Error("TISS040300_PRESTADOR_SEM_IDENTIFICACAO");
   return x.leaf(cnpjTag, digits);
 }
