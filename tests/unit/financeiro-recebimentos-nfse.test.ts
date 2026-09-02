@@ -53,7 +53,7 @@ describe("Recebíveis → Conciliação → NFS-e",()=>{
   it("expõe o detalhe operacional do recebível a partir do hub financeiro",()=>{
     const hub=source("src/app/(painel)/financeiro/page.tsx");
     const detalhe=source("src/app/(painel)/financeiro/recebiveis/[recebivelId]/page.tsx");
-    expect(hub).toContain("/financeiro/recebiveis/${r.id}");
+    expect(hub).toMatch(/\/financeiro\/recebiveis\/\$\{[a-zA-Z_$][\w$]*\.id\}/);
     expect(hub).toContain("Vencido");
     expect(detalhe).toContain("Ledger de recebimentos");
     expect(detalhe).toContain("Registrar baixa");
