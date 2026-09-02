@@ -6,8 +6,8 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 
 ## Referência atual
 
-- `main`: `c91d2ebccb1a549b9bae8db24b24c3d6877db04c`, merge da PR #113 — operação RIS sem reload.
-- A produção do mesmo SHA `c91d2eb...` está `READY` no Vercel.
+- `main`: `b539a4e8b568cc3cfa6aa32d99cf593be22c0028`, merge da PR #115 — Base de Conhecimento pesquisável.
+- A última produção confirmada continua sendo `c91d2ebccb1a549b9bae8db24b24c3d6877db04c`, merge da PR #113, em estado `READY`. Na última consulta ao Vercel ainda não havia deployment de produção listado para o merge `b539a4e8...`; reconfirmar antes de qualquer afirmação de produção desse SHA.
 - PR #104 consolidou Agenda, Admissão/Recepção, Triagem e Fila Médica sem reload.
 - PR #105 consolidou Autorizações sem reload.
 - PR #106 consolidou Enfermagem sem reload, incluindo evolução e administração à beira-leito.
@@ -17,8 +17,8 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 - PR #110 consolidou a bancada Laboratório/LIS sem reload: preparo de amostra, cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico.
 - PR #112 consolidou o editor de laudos Laboratório/LIS: abertura confirmada do editor, rascunho, validação, comunicação crítica, assinatura/liberação e retificação sem reload.
 - PR #113 consolidou a operação do Diagnóstico por Imagem/RIS: agenda, transições da agenda, início/conclusão de execução, contraste e dose com feedback inline. CI #882 e Vercel do head final ficaram verdes; a produção do merge está `READY`.
-- PR #115 contém a Base de Conhecimento pesquisável em `/manual`, com 17 guias operacionais e governança editorial. CI #886 do head `2902113d...` está verde; Vercel do mesmo SHA ainda estava em construção na última verificação, portanto a PR não está autorizada a mesclar até esse gate ficar `READY`.
-- O pacote atual está empilhado sobre a PR #115 e migra o editor/liberação de laudos RIS para o mesmo padrão sem reload. Abrir um laudo novo continua podendo navegar para o editor após criação confirmada; rascunho, criticidade/comunicação, assinatura/liberação e retificação permanecem na mesma tela.
+- PR #115 consolidou a Base de Conhecimento pesquisável em `/manual`, com 17 guias operacionais, busca, categorias, público-alvo, passo a passo, alertas, links diretos e governança editorial. CI #886 e Vercel do head `2902113d...` ficaram verdes antes do merge.
+- PR #116 é o pacote atual do editor/liberação de laudos RIS. Abrir um laudo novo continua podendo navegar para o editor após criação confirmada; rascunho, criticidade/comunicação, assinatura/liberação e retificação permanecem na mesma tela. O primeiro CI pós-retarget (#887) passou lint e TypeScript, mas falhou por uma asserção obsoleta em `imagem-background-saves.test.ts`; a asserção foi corrigida no head subsequente e exige gates novos.
 - PR #111 permanece aberta para o fallback comercial TUSS; a migration correspondente já consta no Supabase conectado e não deve ser confundida com merge/homologação da PR.
 
 ## Princípios arquiteturais obrigatórios
@@ -41,8 +41,8 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 | Prontuário longitudinal | Resumo, histórico, anamnese/evolução, prescrição, documentos, LIS/RIS e cirurgia compartilham o episódio. Alta e avaliações médicas usam salvamento em segundo plano. | adendos, assinaturas adicionais, protocolos e homologação clínica |
 | Farmácia / Enfermagem / medicamentos | FEFO, validação, dispensação, administração, devolução, lote, contingência sem etiqueta e dupla checagem estão integrados e os fluxos principais salvam inline. | saneamento rastreável do legado e homologação farmacêutica/assistencial |
 | Laboratório / LIS | Bancada e editor de laudos estão consolidados sem reload pelas PRs #110 e #112, preservando RPCs de amostra, resultado, criticidade, validação, assinatura/liberação e retificação. | interfaces reais com analisadores, protocolos de bancada e homologação laboratorial |
-| Diagnóstico por Imagem / RIS | A operação RIS foi consolidada sem reload na PR #113. O pacote atual converte também criação do laudo, rascunho, criticidade/comunicação, assinatura/liberação e retificação, preservando os RPCs de laudo e a integração PACS/DICOM já existente. | concluir gates/merge do editor, PACS/visualizador real e homologação por modalidade |
-| Base de Conhecimento | A rota `/manual` foi evoluída no pacote #115 para busca por módulo/tarefa, filtros, público-alvo, passos, alertas e links diretos, referenciando manuais versionados existentes. | concluir gates/merge, ampliar ajuda contextual e trilhas por setor |
+| Diagnóstico por Imagem / RIS | A operação RIS foi consolidada sem reload na PR #113. A PR #116 converte também criação do laudo, rascunho, criticidade/comunicação, assinatura/liberação e retificação, preservando os RPCs de laudo e a integração PACS/DICOM já existente. | concluir gates/merge do editor, PACS/visualizador real e homologação por modalidade |
+| Base de Conhecimento | A rota `/manual` foi consolidada pela PR #115 com busca por módulo/tarefa, filtros, público-alvo, passos, alertas e links diretos, referenciando manuais versionados existentes. | ampliar ajuda contextual, trilhas por setor e governança de revisão |
 | GED | Storage privado, hash, versão, assinatura e vínculos com documentos/laudos estão disponíveis. | retenção, temporalidade e revisão de mutações legadas |
 | Centro Cirúrgico / CME | Agendamento, checklist, anestesia, RPA, equipe, procedimentos, OPME, CME e consumo/estorno integram o mesmo RA. | homologação presencial, termos e protocolos locais |
 | Compras / Almoxarifado / Estoque | Cotação, alçadas, pedido, recebimento, lote, saldo, inventário, reposição e transferências possuem operações transacionais. | alçadas reais, curva ABC, inventários e mutações legadas sem reload |
@@ -93,7 +93,7 @@ Já convertidos e protegidos contra regressão:
 - bancada Laboratório/LIS: preparo de amostra, cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico;
 - editor de laudos Laboratório/LIS: abertura pós-criação confirmada, rascunho, validação, comunicação de crítico, assinatura/liberação e retificação inline;
 - operação Diagnóstico por Imagem/RIS: agendamento, transições da agenda, início/conclusão de execução, contraste e dose;
-- editor de laudos Diagnóstico por Imagem/RIS no pacote atual: criação com navegação pós-confirmação, rascunho, criticidade/comunicação, assinatura/liberação e retificação inline.
+- editor de laudos Diagnóstico por Imagem/RIS na PR #116: criação com navegação pós-confirmação, rascunho, criticidade/comunicação, assinatura/liberação e retificação inline.
 
 Exceções de navegação permanecem somente quando representam mudança real de etapa. Em LIS e RIS, **Iniciar laudo** cria/confirma o laudo no banco e só então abre o editor pelo cliente.
 
