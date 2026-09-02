@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import { useActionState } from "react";
 import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import {
-  assinarDocumentoGed,
-  atualizarStatusDocumentoGed,
+  assinarDocumentoGedBackground,
+  atualizarStatusDocumentoGedBackground,
   type GedActionState,
-} from "@/modules/ged/actions";
+} from "@/modules/ged/background-actions";
 
 type GedGovernanceActionKind = "sign" | "status";
 
@@ -19,8 +19,8 @@ type Props = {
 
 const INITIAL_STATE: GedActionState = { status: "idle" };
 const actions = {
-  sign: assinarDocumentoGed,
-  status: atualizarStatusDocumentoGed,
+  sign: assinarDocumentoGedBackground,
+  status: atualizarStatusDocumentoGedBackground,
 } as const;
 
 type GedServerAction = (
