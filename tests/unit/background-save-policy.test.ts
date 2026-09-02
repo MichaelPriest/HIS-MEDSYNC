@@ -15,6 +15,7 @@ const migratedServerActions = [
   "src/modules/assistencial/imagem-laudo-background-actions.ts",
   "src/modules/ged/background-actions.ts",
   "src/modules/centro-cirurgico/background-actions.ts",
+  "src/modules/centro-cirurgico/anestesia-rpa-background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -33,6 +34,8 @@ const backgroundForms = [
   "src/components/imagem/radiology-report-background-form.tsx",
   "src/components/ged/ged-governance-background-form.tsx",
   "src/components/centro-cirurgico/surgical-background-form.tsx",
+  "src/components/centro-cirurgico/anesthesia-autosave-form.tsx",
+  "src/components/centro-cirurgico/rpa-autosave-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -287,5 +290,22 @@ describe("política de salvamento em segundo plano", () => {
     expect(proceduresPage).not.toContain("adicionarProcedimentoAoAto");
     expect(proceduresPage).not.toContain("salvarMembroEquipeProcedimento");
     expect(proceduresPage).not.toContain("acionarProcedimentoCirurgico");
+  });
+
+  it("mantém autosave de Anestesia e RPA sem RPC direto no cliente nem router.refresh", () => {
+    const actions = read("src/modules/centro-cirurgico/anestesia-rpa-background-actions.ts");
+    const anesthesia = read("src/components/centro-cirurgico/anesthesia-autosave-form.tsx");
+    const rpa = read("src/components/centro-cirurgico/rpa-autosave-form.tsx");
+
+    expect(actions).toContain("centro_cirurgico_salvar_anestesia_operacional");
+    expect(actions).toContain("centro_cirurgico_salvar_rpa_operacional");
+    expect(actions).toContain('.select("id,inicio_em,fim_em")');
+    expect(actions).toContain('.select("id,status,alta_em")');
+    expect(anesthesia).toContain("requestSubmit");
+    expect(rpa).toContain("requestSubmit");
+    expect(anesthesia).not.toContain("createClient");
+    expect(rpa).not.toContain("createClient");
+    expect(anesthesia).not.toContain("router.refresh");
+    expect(rpa).not.toContain("router.refresh");
   });
 });
