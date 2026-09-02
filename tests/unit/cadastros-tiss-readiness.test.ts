@@ -56,4 +56,21 @@ describe("prontidão cadastral TISS", () => {
     expect(form).not.toContain("router.refresh");
     expect(detail).toContain("ProfessionalTissProfileForm");
   });
+
+  it("permite corrigir registro ANS do convênio sem redirect", () => {
+    const actions = read("src/modules/convenios/tiss-background-actions.ts");
+    const form = read("src/components/cadastros/convenio-tiss-profile-form.tsx");
+    const list = read("src/app/(painel)/convenios/page.tsx");
+    const detail = read("src/app/(painel)/convenios/[convenioId]/page.tsx");
+    expect(actions).toContain("BackgroundActionState");
+    expect(actions).toContain('requirePermission("convenios.editar")');
+    expect(actions).toContain("registroAns.length !== 6");
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(form).toContain("useActionState");
+    expect(form).toContain('aria-live="polite"');
+    expect(form).toContain("Salvando…");
+    expect(list).toContain("Registro ANS válido");
+    expect(detail).toContain("ConvenioTissProfileForm");
+  });
 });
