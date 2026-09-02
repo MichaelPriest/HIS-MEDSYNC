@@ -19,6 +19,8 @@ const strictBackgroundServerActions = [
   "src/modules/centro-cirurgico/suprimentos-background-actions.ts",
   "src/modules/centro-cirurgico/cme-background-actions.ts",
   "src/modules/internacao/nir-actions.ts",
+  "src/modules/faturamento/workspace-background-actions.ts",
+  "src/modules/faturamento/producao-background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -42,6 +44,7 @@ const backgroundForms = [
   "src/components/centro-cirurgico/surgical-supply-background-form.tsx",
   "src/components/centro-cirurgico/cme-background-form.tsx",
   "src/components/internacao/nir-bed-allocation-background-form.tsx",
+  "src/components/faturamento/billing-workspace-actions.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -189,5 +192,17 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).not.toContain("sp.sucesso");
     expect(page).not.toContain("sp.erro");
     expect(form).toContain("useActionState");
+  });
+
+  it("mantém ações principais do ciclo da receita sem feedback por redirect", () => {
+    const workspace = read("src/modules/faturamento/workspace-background-actions.ts");
+    const production = read("src/modules/faturamento/producao-background-actions.ts");
+    const forms = read("src/components/faturamento/billing-workspace-actions.tsx");
+    expect(workspace).toContain("criar_lote_tiss_transacional");
+    expect(workspace).toContain("criar_recurso_glosa_tiss_transacional");
+    expect(workspace).toContain("criar_nfse_lote_operacional");
+    expect(production).toContain("sincronizar_producao_atendimento");
+    expect(forms).toContain("router.push");
+    expect(forms).not.toContain("router.refresh");
   });
 });
