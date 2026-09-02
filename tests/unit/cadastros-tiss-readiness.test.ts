@@ -73,4 +73,23 @@ describe("prontidão cadastral TISS", () => {
     expect(list).toContain("Registro ANS válido");
     expect(detail).toContain("ConvenioTissProfileForm");
   });
+
+  it("permite corrigir CNPJ/CNES da empresa e CNES da unidade na central", () => {
+    const actions = read("src/modules/cadastros/tiss-readiness-background-actions.ts");
+    const forms = read("src/components/cadastros/institution-tiss-profile-forms.tsx");
+    const page = read("src/app/(painel)/cadastros/tiss/page.tsx");
+    expect(actions).toContain("BackgroundActionState");
+    expect(actions).toContain('requirePermission("empresas.administrar")');
+    expect(actions).toContain("cnpj.length !== 14");
+    expect(actions).toContain("cnes.length !== 7");
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(forms).toContain("CompanyTissProfileForm");
+    expect(forms).toContain("UnitTissProfileForm");
+    expect(forms).toContain("useActionState");
+    expect(forms).toContain('aria-live="polite"');
+    expect(forms).toContain("Salvando…");
+    expect(page).toContain("CompanyTissProfileForm");
+    expect(page).toContain("UnitTissProfileForm");
+  });
 });
