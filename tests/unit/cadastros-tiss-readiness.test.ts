@@ -40,4 +40,20 @@ describe("prontidão cadastral TISS", () => {
     expect(page).toContain("Revisar conselho/UF/CBO");
     expect(page).not.toContain('defaultValue="225');
   });
+
+  it("permite corrigir a habilitação regulatória do profissional em segundo plano", () => {
+    const actions = read("src/modules/profissionais/tiss-background-actions.ts");
+    const form = read("src/components/cadastros/professional-tiss-profile-form.tsx");
+    const detail = read("src/app/(painel)/profissionais/[profissionalId]/page.tsx");
+    expect(actions).toContain("BackgroundActionState");
+    expect(actions).toContain('requirePermission("profissionais.editar")');
+    expect(actions).toContain('revalidatePath("/cadastros/tiss")');
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toMatch(/\bredirect\s*\(/);
+    expect(form).toContain("useActionState");
+    expect(form).toContain('aria-live="polite"');
+    expect(form).toContain("Salvando…");
+    expect(form).not.toContain("router.refresh");
+    expect(detail).toContain("ProfessionalTissProfileForm");
+  });
 });
