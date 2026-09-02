@@ -182,9 +182,12 @@ export async function assumirPaciente(
 
   revalidatePath("/fila-medica");
   revalidatePath(`/painel-chamadas/${unidadeId}`);
+  revalidatePath(`/prontuario/${encaminhamento.atendimento_id}`);
+  revalidatePath(`/prontuario/${encaminhamento.atendimento_id}/clinico`);
+  revalidatePath(`/prontuario/${encaminhamento.atendimento_id}/alta`);
   return {
     status: "success",
     message: "Paciente chamado e assumido. Abrindo o prontuário…",
-    data: { redirectTo: `/prontuario/${encaminhamento.atendimento_id}/clinico` },
+    data: { redirectTo: `/prontuario/${encaminhamento.atendimento_id}/clinico?claim=ok` },
   };
 }
