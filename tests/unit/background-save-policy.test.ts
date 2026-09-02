@@ -18,6 +18,7 @@ const strictBackgroundServerActions = [
   "src/modules/centro-cirurgico/anestesia-rpa-background-actions.ts",
   "src/modules/centro-cirurgico/suprimentos-background-actions.ts",
   "src/modules/centro-cirurgico/cme-background-actions.ts",
+  "src/modules/internacao/nir-actions.ts",
 ];
 
 const backgroundForms = [
@@ -40,6 +41,7 @@ const backgroundForms = [
   "src/components/centro-cirurgico/rpa-autosave-form.tsx",
   "src/components/centro-cirurgico/surgical-supply-background-form.tsx",
   "src/components/centro-cirurgico/cme-background-form.tsx",
+  "src/components/internacao/nir-bed-allocation-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -62,7 +64,6 @@ describe("política de salvamento em segundo plano", () => {
   it("mantém navegação da Agenda apenas para check-in que muda de etapa", () => {
     const source = read("src/modules/agenda/actions.ts");
     const redirects = source.match(/\bredirect\s*\(/g) ?? [];
-
     expect(source).toContain("BackgroundActionState");
     expect(source).not.toContain("agendaRedirect");
     expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/agenda/);
@@ -74,7 +75,6 @@ describe("política de salvamento em segundo plano", () => {
   it("mantém erros da Admissão inline e navega apenas após abertura real do atendimento", () => {
     const source = read("src/modules/atendimentos/actions.ts");
     const redirects = source.match(/\bredirect\s*\(/g) ?? [];
-
     expect(source).toContain("BackgroundActionState");
     expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/atendimentos\/novo/);
     expect(redirects).toHaveLength(2);
@@ -86,7 +86,6 @@ describe("política de salvamento em segundo plano", () => {
     const triage = read("src/modules/triagem/actions.ts");
     const queue = read("src/modules/fila-medica/actions.ts");
     const authorizations = read("src/modules/autorizacoes/actions.ts");
-
     for (const source of [triage, queue, authorizations]) {
       expect(source).not.toContain('from "next/navigation"');
       expect(source).not.toMatch(/\bredirect\s*\(/);
@@ -101,7 +100,6 @@ describe("política de salvamento em segundo plano", () => {
     const pharmacyPage = read("src/app/(painel)/assistencial/medicamentos/page.tsx");
     const wards = read("src/app/(painel)/assistencial/enfermagem/andares/page.tsx");
     const emergency = read("src/app/(painel)/assistencial/enfermagem/pronto-socorro/page.tsx");
-
     expect(pharmacyPage).toContain("PharmacyBackgroundForm");
     expect(pharmacyPage).not.toContain("dispensarPrescricaoAction");
     expect(wards).toContain("NursingEvolutionBackgroundForm");
@@ -112,7 +110,6 @@ describe("política de salvamento em segundo plano", () => {
     const listPage = read("src/app/(painel)/assistencial/imagem/page.tsx");
     const editor = read("src/app/(painel)/assistencial/imagem/laudos/[laudoId]/page.tsx");
     const reportForm = read("src/components/imagem/radiology-report-background-form.tsx");
-
     expect(listPage).toContain("RadiologyBackgroundForm");
     expect(listPage).toContain("OpenRadiologyReportForm");
     expect(editor).toContain('kind="save"');
@@ -124,7 +121,6 @@ describe("política de salvamento em segundo plano", () => {
   it("mantém assinatura e status do GED no componente de segundo plano", () => {
     const actions = read("src/modules/ged/background-actions.ts");
     const page = read("src/app/(painel)/ged/[documentoId]/page.tsx");
-
     expect(actions).toContain("atualizar_status_documento_ged");
     expect(actions).toContain("assinar_documento_ged");
     expect(actions).toContain('createHash("sha256")');
@@ -137,7 +133,6 @@ describe("política de salvamento em segundo plano", () => {
     const proceduresPage = read("src/app/(painel)/assistencial/centro-cirurgico/procedimentos/page.tsx");
     const anesthesia = read("src/components/centro-cirurgico/anesthesia-autosave-form.tsx");
     const rpa = read("src/components/centro-cirurgico/rpa-autosave-form.tsx");
-
     expect(page).toContain("SurgicalBackgroundForm");
     expect(proceduresPage).toContain("SurgeryProcedureAddForm");
     expect(proceduresPage).toContain("ProcedureTeamForm");
@@ -152,7 +147,6 @@ describe("política de salvamento em segundo plano", () => {
     const actions = read("src/modules/centro-cirurgico/suprimentos-background-actions.ts");
     const detail = read("src/app/(painel)/assistencial/centro-cirurgico/suprimentos/[cirurgiaId]/page.tsx");
     const list = read("src/app/(painel)/assistencial/centro-cirurgico/suprimentos/page.tsx");
-
     expect(actions).toContain("centro_cirurgico_requisitar_suprimentos_operacional");
     expect(actions).toContain("centro_cirurgico_receber_suprimentos_operacional");
     expect(actions).toContain("centro_cirurgico_consumir_suprimento_operacional");
@@ -172,7 +166,6 @@ describe("política de salvamento em segundo plano", () => {
     const actions = read("src/modules/centro-cirurgico/cme-background-actions.ts");
     const page = read("src/app/(painel)/assistencial/centro-cirurgico/cme/page.tsx");
     const form = read("src/components/centro-cirurgico/cme-background-form.tsx");
-
     expect(actions).toContain("cme_salvar_ciclo_operacional");
     expect(actions).toContain("CME_LIBERACAO_EXIGE_RESULTADO_E_INDICADORES");
     expect(actions).toContain("CME_USUARIO_SEM_PROFISSIONAL");
@@ -180,5 +173,21 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).not.toContain("salvarCicloCme");
     expect(page).not.toContain("searchParams");
     expect(form).toContain('state.data?.status === "liberado"');
+  });
+
+  it("mantém NIR inline sem remover filtros de consulta", () => {
+    const actions = read("src/modules/internacao/nir-actions.ts");
+    const page = read("src/app/(painel)/internacao/nir/page.tsx");
+    const form = read("src/components/internacao/nir-bed-allocation-background-form.tsx");
+    expect(actions).toContain("movimentar_internacao_leito");
+    expect(actions).toContain("LEITO_RESERVADO_PARA_OUTRO_ATENDIMENTO");
+    expect(page).toContain("NirBedAllocationBackgroundForm");
+    expect(page).toContain('name="q"');
+    expect(page).toContain('name="risco"');
+    expect(page).toContain('name="setor"');
+    expect(page).not.toContain("action={alocarLeitoNir}");
+    expect(page).not.toContain("sp.sucesso");
+    expect(page).not.toContain("sp.erro");
+    expect(form).toContain("useActionState");
   });
 });
