@@ -68,10 +68,11 @@ describe("contrato XSD ANS TISS 04.03.00", () => {
     expect(fixMigration).toContain("grant execute");
   });
 
-  it("instala o motor no runtime e sincroniza schemas antes do build", () => {
+  it("instala o motor no runtime e sincroniza schemas antes dos testes e build", () => {
     const pkg = JSON.parse(read("package.json")) as { scripts: Record<string, string>; dependencies: Record<string, string> };
     const next = read("next.config.ts");
     expect(pkg.dependencies["xmllint-wasm"]).toBe("5.3.0");
+    expect(pkg.scripts.pretest).toContain("sync-tiss-ans-xsd.mjs");
     expect(pkg.scripts.prebuild).toContain("sync-tiss-ans-xsd.mjs");
     expect(next).toContain('serverExternalPackages: ["xmllint-wasm"]');
     expect(next).toContain("vendor/tiss/040300");
