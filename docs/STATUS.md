@@ -2,117 +2,83 @@
 
 Atualizado em 2026-09-01.
 
-Este documento registra o estado **real confirmado** do MedSync HIS. A existência de rota, tabela, migration, teste automatizado ou deploy verde **não significa homologação hospitalar**. Homologação operacional depende de validação com setores, integrações externas e dados institucionais reais.
+Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabela, migration, teste ou deploy verde não equivalem a homologação hospitalar; homologação depende de validação operacional, integrações externas e dados institucionais reais.
 
 ## Referência atual
 
 - `main`: `b539a4e8b568cc3cfa6aa32d99cf593be22c0028`, merge da PR #115 — Base de Conhecimento pesquisável.
-- A última produção confirmada continua sendo `c91d2ebccb1a549b9bae8db24b24c3d6877db04c`, merge da PR #113, em estado `READY`. O status Vercel do merge `b539a4e8...` falhou exclusivamente por build rate limit externo; não houve deployment de produção confirmado para esse merge SHA.
-- PR #104 consolidou Agenda, Admissão/Recepção, Triagem e Fila Médica sem reload.
-- PR #105 consolidou Autorizações sem reload.
-- PR #106 consolidou Enfermagem sem reload, incluindo evolução e administração à beira-leito.
-- PR #107 consolidou Farmácia sem reload, incluindo conciliação, validação farmacêutica, dispensação FEFO e devolução.
-- PR #108 corrigiu a fila de Auditoria, separando pendências atuais de histórico resolvido e removendo feedback por reload.
-- PR #109 corrigiu a liberação da Auditoria, o trigger de integração e a persistência da revalidação antes do handoff para Contas Médicas.
-- PR #110 consolidou a bancada Laboratório/LIS sem reload: preparo de amostra, cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico.
-- PR #112 consolidou o editor de laudos Laboratório/LIS: abertura confirmada do editor, rascunho, validação, comunicação crítica, assinatura/liberação e retificação sem reload.
-- PR #113 consolidou a operação do Diagnóstico por Imagem/RIS: agenda, transições da agenda, início/conclusão de execução, contraste e dose com feedback inline. CI #882 e Vercel do head final ficaram verdes; a produção do merge está `READY`.
-- PR #115 consolidou a Base de Conhecimento pesquisável em `/manual`, com 17 guias operacionais, busca, categorias, público-alvo, passo a passo, alertas, links diretos e governança editorial. CI #886 e Vercel do head `2902113d...` ficaram verdes antes do merge; o deployment pós-merge da `main` foi bloqueado posteriormente pelo rate limit externo do Vercel.
-- PR #116 é o pacote do editor/liberação de laudos RIS. O head final reconfirmado é `5489a5f52b9152bf6ac85eee157df2175702137e`; CI #891 terminou `success`, mas o check Vercel do mesmo SHA falhou exclusivamente por `Deployment rate limited — retry in 24 hours.`. Portanto a PR permanece aberta e não deve ser mesclada.
-- PR #117 é o pacote de governança do GED, empilhado sobre a #116. O head final `d0f81642636a5baf0771f0928a9eb13794cf1c7c` passou o CI #892 completamente verde. O Vercel do mesmo SHA foi bloqueado exclusivamente por build rate limit externo; portanto a PR permanece aberta. Arquivar, reativar, cancelar e assinar documentos usam `BackgroundActionState` + `useActionState`; a assinatura continua recalculando SHA-256 do arquivo no Storage privado antes do RPC `assinar_documento_ged`, e alterações de status continuam no RPC `atualizar_status_documento_ged`.
-- PR #118 converte o núcleo operacional do Centro Cirúrgico, empilhado sobre a #117. O head final `fbe4c8145277c2dc9b91237a5109fafa411dc8f8` passou o CI #893 completamente verde: lint, typecheck, unitários, build, Chromium, smoke público e E2E autenticado. Reviews/threads estavam limpos na última revisão. O Vercel do mesmo SHA foi bloqueado exclusivamente por rate limit externo, então a PR permanece aberta. Agendamento/classificação ANS, transições, checklist, OPME, vínculo CME liberado, movimentação para ala, múltiplos procedimentos, equipe e tempos de procedimento usam feedback inline e preservam os RPCs canônicos.
-- O pacote atual de Anestesia/RPA está empilhado sobre a PR #118. O autosave de 1,2 segundo foi mantido, mas agora usa Server Actions + React 19 `useActionState`, sem RPC direto do navegador e sem `router.refresh()`. Os RPCs `centro_cirurgico_salvar_anestesia_operacional` e `centro_cirurgico_salvar_rpa_operacional` continuam como autoridades; após início/fim da anestesia e alta da RPA, a camada de servidor relê os registros persistidos para devolver horários/status confirmados pelo banco. Suprimentos e o workspace próprio da CME continuam fora deste subpacote.
-- PR #111 permanece aberta para o fallback comercial TUSS; a migration correspondente já consta no Supabase conectado e não deve ser confundida com merge/homologação da PR.
+- Última produção confirmada `READY`: `c91d2ebccb1a549b9bae8db24b24c3d6877db04c`, merge da PR #113. Não há produção confirmada do merge `b539a4e8...` porque o Vercel passou a bloquear novos builds por rate limit.
+- PR #116 — laudos RIS: head `5489a5f52b9152bf6ac85eee157df2175702137e`, CI #891 verde, Vercel do mesmo SHA rate-limited; aberta.
+- PR #117 — governança GED: head `d0f81642636a5baf0771f0928a9eb13794cf1c7c`, CI #892 verde, Vercel do mesmo SHA rate-limited; aberta.
+- PR #118 — núcleo do Centro Cirúrgico: head `fbe4c8145277c2dc9b91237a5109fafa411dc8f8`, CI #893 completamente verde, reviews/threads limpos, Vercel do mesmo SHA rate-limited; aberta.
+- PR #119 — Anestesia/RPA: head `7003ba48056bcc1c906013383be3b96bd9ad7c6d`, CI #894 verde, reviews/threads limpos, Vercel do mesmo SHA rate-limited; aberta.
+- Pacote atual — Suprimentos do Centro Cirúrgico: empilhado sobre a PR #119. Requisição, recebimento, consumo por lote e estorno passam a usar `BackgroundActionState` + `useActionState`, preservando os quatro RPCs canônicos, rastreabilidade de lote/OPME, saldo e integração com Livro de Produção. Não há migration, schema, RLS ou RPC novo.
+- PR #111 permanece aberta para fallback comercial TUSS; a migration correspondente já está aplicada no Supabase e não deve ser confundida com merge/homologação da PR.
 
-## Princípios arquiteturais obrigatórios
+## Princípios obrigatórios
 
-- O atendimento/RA e o prontuário longitudinal permanecem como eixo assistencial; módulos setoriais não criam fonte clínica concorrente.
-- A Central de Pendências é **derivada**: detecta divergências e direciona responsáveis, mas não reescreve fatos para ocultar inconsistências.
-- Escritas críticas usam operações transacionais no banco com autenticação, escopo empresa/unidade e RBAC. Não reabrir DML direto para contornar RLS/RPC.
+- Atendimento/RA e prontuário longitudinal permanecem como eixo do episódio.
+- Escritas críticas devem usar os RPCs/transações existentes com autenticação, escopo empresa/unidade, RBAC e RLS; não reabrir DML paralelo para contornar segurança.
 - Medicamentos seguem `Prescrição → Farmácia → Dispensação → Administração`.
-- Não criar pacientes, unidades, leitos, estoques, lotes, valores, autorizações, contas, glosas, NFS-e ou fatos clínicos fictícios para “completar” homologação.
-- Migrations aplicadas no Supabase devem permanecer versionadas no GitHub; drift deve ser tratado explicitamente.
-- Salvamentos normais devem usar feedback inline em segundo plano. `redirect()`, `window.location` e `router.refresh()` não devem ser usados apenas para mostrar sucesso/erro ou refletir gravação.
-- A Base de Conhecimento ensina o fluxo implementado, mas não substitui protocolo institucional, treinamento clínico ou homologação externa.
+- Não criar pacientes, unidades, leitos, estoques, lotes, valores, autorizações, contas, glosas, NFS-e ou fatos clínicos fictícios para completar fluxo.
+- Migrations aplicadas no Supabase devem permanecer versionadas; drift deve ser explícito.
+- Salvamentos normais usam feedback inline. `redirect()`, `window.location` e `router.refresh()` não são mecanismos de sucesso/erro.
+- A Base de Conhecimento em `/manual` ensina o fluxo implementado, sem substituir protocolo institucional ou homologação.
 
 ## Estado por área
 
 | Área | Estado confirmado | Próximos pontos críticos |
 |---|---|---|
-| Fundação / Auth / multiempresa | RBAC granular, contexto empresa/unidade, RLS/FORCE RLS, helpers de autorização e `BackgroundActionState` sustentam os módulos. | ampliar testes multi-tenant e break-glass clínico controlado |
-| Recepção / Agenda / Autorizações / Triagem / Fila Médica | Fluxos principais foram consolidados sem reload pelas PRs #104 e #105. Navegação é preservada apenas para transições reais, como check-in, abertura do RA e entrada no prontuário. | Totem/senhas restantes, recorrência, lembretes e homologação de painel |
-| Prontuário longitudinal | Resumo, histórico, anamnese/evolução, prescrição, documentos, LIS/RIS e cirurgia compartilham o episódio. Alta e avaliações médicas usam salvamento em segundo plano. | adendos, assinaturas adicionais, protocolos e homologação clínica |
-| Farmácia / Enfermagem / medicamentos | FEFO, validação, dispensação, administração, devolução, lote, contingência sem etiqueta e dupla checagem estão integrados e os fluxos principais salvam inline. | saneamento rastreável do legado e homologação farmacêutica/assistencial |
-| Laboratório / LIS | Bancada e editor de laudos estão consolidados sem reload pelas PRs #110 e #112, preservando RPCs de amostra, resultado, criticidade, validação, assinatura/liberação e retificação. | interfaces reais com analisadores, protocolos de bancada e homologação laboratorial |
-| Diagnóstico por Imagem / RIS | A operação RIS foi consolidada sem reload na PR #113. A PR #116 converte também criação do laudo, rascunho, criticidade/comunicação, assinatura/liberação e retificação, preservando os RPCs de laudo e a integração PACS/DICOM já existente. | concluir gate Vercel/merge do editor, PACS/visualizador real e homologação por modalidade |
-| Base de Conhecimento | A rota `/manual` foi consolidada pela PR #115 com busca por módulo/tarefa, filtros, público-alvo, passos, alertas e links diretos, referenciando manuais versionados existentes. | confirmar produção do merge quando o rate limit permitir, ampliar ajuda contextual, trilhas por setor e governança de revisão |
-| GED | Storage privado, hash, versão, assinatura e vínculos com documentos/laudos estão disponíveis. A PR #117 converte assinatura e mudanças de status para feedback inline sem reload e mantém validação SHA-256/RPCs. | concluir gate Vercel/merge, retenção, temporalidade e ampliar demais mutações legadas |
-| Centro Cirúrgico / CME | Agendamento, checklist, anestesia, RPA, equipe, procedimentos, OPME, CME e consumo/estorno integram o mesmo RA. A PR #118 converte o núcleo do workspace/procedimentos, e o pacote atual converte também Anestesia/RPA mantendo autosave e reconciliando horários/status reais do banco. | concluir gates da cadeia; converter Suprimentos e workspace CME; homologação presencial, termos e protocolos locais |
-| Compras / Almoxarifado / Estoque | Cotação, alçadas, pedido, recebimento, lote, saldo, inventário, reposição e transferências possuem operações transacionais. | alçadas reais, curva ABC, inventários e mutações legadas sem reload |
-| Comercial / Contratos / Tabelas | Contratos, negociações, versões, itens, auditoria e AMB estruturada estão no workspace comercial. | referências reais, precificação e mapeamentos contratuais |
-| Internação / NIR | Admissão/RA/leito, alta, censo e diárias estão integrados; transferências interunidades possuem base operacional. | homologação NIR, segunda unidade real e mutações restantes sem reload |
-| Urgência / Emergência | Abertura/encerramento, prioridade, SLA, reavaliação e observação possuem fundação operacional. | concluir/sincronizar cadeia antiga de PRs quando os gates permitirem, parametrização real e homologação |
-| Faturamento / TISS / Financeiro | Produção, conta, TISS, glosa/recurso, recebíveis, conciliação e NFS-e possuem fundações transacionais. | XSD/adapters reais, fechamento, precificação e homologação financeira/fiscal |
-| Auditoria / Contas Médicas | Fila pós-alta, histórico resolvido, revalidação e handoff para Contas Médicas foram corrigidos nas PRs #108/#109. | homologar ciclo pós-alta ponta a ponta com operação real |
-| RH / Segurança / TI / Engenharia Clínica | Workspaces e fundações setoriais existem em níveis diferentes de completude. | evoluir fluxos completos e integrações reais |
+| Fundação / Auth / multiempresa | RBAC granular, contexto empresa/unidade, RLS/FORCE RLS e `BackgroundActionState`. | ampliar testes multi-tenant e break-glass controlado |
+| Recepção / Agenda / Autorizações / Triagem / Fila Médica | Fluxos principais sem reload; navegação apenas em transições reais. | Totem/senhas restantes, recorrência, lembretes, homologação |
+| Prontuário longitudinal | Resumo, histórico, evolução, prescrição, documentos, LIS/RIS e cirurgia compartilham o episódio. | adendos, assinaturas, protocolos e homologação clínica |
+| Farmácia / Enfermagem | FEFO, validação, dispensação, administração, devolução, lote e dupla checagem integrados. | saneamento legado e homologação farmacêutica/assistencial |
+| Laboratório / LIS | Bancada e editor de laudos sem reload, preservando rastreabilidade e RPCs. | analisadores reais e homologação laboratorial |
+| Diagnóstico por Imagem / RIS | Operação RIS consolidada; PR #116 converte editor/liberação de laudos. | gate Vercel/merge, PACS/visualizador real, homologação por modalidade |
+| Base de Conhecimento | `/manual` com 17 guias, busca, filtros, público, passos, alertas e fontes versionadas. | confirmar produção do merge, ampliar ajuda contextual e governança |
+| GED | Storage privado, versões, hash e assinatura; PR #117 converte status/assinatura inline. | gate Vercel/merge, retenção e temporalidade |
+| Centro Cirúrgico / CME | PR #118 converte núcleo/procedimentos; PR #119 converte Anestesia/RPA; pacote atual converte Suprimentos. Tudo continua ligado ao mesmo RA. | concluir gates; converter workspace dedicado da CME; homologação presencial |
+| Compras / Almoxarifado / Estoque | Cotação, pedido, recebimento, lote, saldo, inventário, reposição e transferências transacionais. | alçadas reais, curva ABC, inventários e mutações legadas |
+| Comercial / Contratos / Tabelas | Contratos, versões, itens, auditoria e AMB estruturada. | referências reais, precificação e mapeamentos |
+| Internação / NIR | Admissão/leito, alta, censo, diárias e transferências interunidades. | homologação NIR, segunda unidade real, mutações restantes |
+| Urgência / Emergência | Transições, prioridade, SLA, reavaliação e observação com base operacional. | sincronizar cadeia de PRs, parametrização e homologação |
+| Faturamento / TISS / Financeiro | Produção, conta, TISS, glosa/recurso, recebíveis, conciliação e NFS-e têm fundações transacionais. | XSD/adapters reais, fechamento, precificação e homologação |
+| Auditoria / Contas Médicas | Fila pós-alta, revalidação e handoff corrigidos nas PRs #108/#109. | homologar ciclo pós-alta ponta a ponta |
 
-## Supabase — migrations recentes confirmadas
+## Supabase — referência confirmada
 
-Além das migrations históricas, o banco conectado contém entre as mais recentes:
+A migration mais recente continua:
 
-- `20260830005304_internacao_censo_diarias_operacional`
-- `20260830005630_internacao_censo_sincronizar_movimentacao_leito`
-- `20260830005713_internacao_censo_movimentacao_leito_deterministica`
-- `20260830012951_internacao_transferencia_interunidades_operacional`
-- `20260830013036_internacao_transferencia_cnes_destino`
-- `20260830023008_internacao_transferencia_reserva_leito_hardening`
-- `20260830023525_internacao_transferencia_destinos_operacionais`
-- `20260830023629_internacao_transferencia_fila_operacional`
-- `20260830191401_urgencia_transicoes_operacionais`
-- `20260830195047_urgencia_sla_reavaliacao_operacional`
-- `20260830212736_urgencia_observacao_operacional`
-- `20260830230050_urgencia_parametrizacao_sla_institucional`
-- `20260830231419_urgencia_sla_historico_longitudinal`
-- `20260831035056_auditoria_autorizacao_unificada`
-- `20260901223840_auditoria_trigger_liberacao_finalizado_em`
 - `20260901225717_faturamento_fallback_comercial_tuss`
 
-A lista do Supabase conectado é a referência para aplicação. A Base de Conhecimento e os pacotes de background saves do RIS, GED e Centro Cirúrgico não adicionam migration.
+Entre as imediatamente anteriores estão `20260901223840_auditoria_trigger_liberacao_finalizado_em` e `20260831035056_auditoria_autorizacao_unificada`. Os pacotes RIS, GED e Centro Cirúrgico desta cadeia não adicionam migration.
 
-## Salvamentos em segundo plano — estado da migração
+## Salvamentos em segundo plano
 
-A política está documentada em `docs/architecture/background-saves.md` e protegida por testes unitários por módulo.
+Já convertidos e protegidos contra regressão: alta/avaliações médicas, Agenda, Admissão, Triagem, Fila Médica, Autorizações, Enfermagem, Farmácia, bancada e laudos LIS, operação e laudos RIS, governança GED, núcleo/procedimentos do Centro Cirúrgico e Anestesia/RPA.
 
-Já convertidos e protegidos contra regressão:
+No pacote atual de Suprimentos:
 
-- alta médica e avaliações médicas;
-- Agenda;
-- validações/falhas da Admissão;
-- Triagem;
-- Fila Médica;
-- Autorizações;
-- evolução e administração de Enfermagem;
-- conciliação, validação farmacêutica, dispensação FEFO e devolução na Farmácia;
-- bancada Laboratório/LIS: preparo de amostra, cadeia de custódia, encaminhamento, resultado, validação técnica e comunicação de crítico;
-- editor de laudos Laboratório/LIS: abertura pós-criação confirmada, rascunho, validação, comunicação de crítico, assinatura/liberação e retificação inline;
-- operação Diagnóstico por Imagem/RIS: agendamento, transições da agenda, início/conclusão de execução, contraste e dose;
-- editor de laudos Diagnóstico por Imagem/RIS na PR #116: criação com navegação pós-confirmação, rascunho, criticidade/comunicação, assinatura/liberação e retificação inline;
-- governança do GED na PR #117: arquivar, reativar, cancelar e assinar com feedback inline, preservando validação de integridade e RPCs;
-- núcleo do Centro Cirúrgico na PR #118: agendamento/classificação ANS, transições, checklist, OPME, vínculo CME, movimentação para ala, procedimentos e equipe;
-- Anestesia/RPA no pacote atual: autosave por `useActionState`, início/fim/alta sem `router.refresh()` e horários/status reconciliados do banco.
+- requisição ao estoque/farmácia satélite permanece vinculada à cirurgia/RA;
+- recebimento é confirmado no próprio bloco;
+- consumo físico continua restrito a material, OPME e gás medicinal, apenas com cirurgia `em_andamento`, lote válido e saldo real;
+- medicamento continua proibido na baixa direta e segue a cadeia farmacêutica obrigatória;
+- vínculo com requisição não pode exceder quantidade atendida nem divergir produto/local;
+- OPME mantém catálogo, série única, lote e estorno integral;
+- estorno após cirurgia concluída/cancelada continua exigindo Auditoria;
+- Livro de Produção e integrações dependentes são revalidados após operações confirmadas.
 
-Ainda pendentes no domínio cirúrgico: Suprimentos e o workspace dedicado da CME.
-
-Exceções de navegação permanecem somente quando representam mudança real de etapa. Em LIS e RIS, **Iniciar laudo** cria/confirma o laudo no banco e só então abre o editor pelo cliente.
+Pendência cirúrgica restante: workspace dedicado da CME.
 
 ## Gates e critério de merge
 
 1. confirmar GitHub, Supabase e Vercel antes da escrita;
 2. executar CI completo no SHA final;
-3. verificar Vercel do **mesmo SHA final**;
+3. verificar Vercel no **mesmo SHA final**;
 4. revisar threads/reviews;
 5. mesclar somente com gates verdes;
 6. após merge, confirmar nova `main` e produção correspondente;
-7. nunca usar preview de commit intermediário como gate de outro head.
+7. nunca usar preview intermediário como gate de outro head;
+8. rate limit externo do Vercel mantém a PR aberta e não justifica empty commit.
 
 Este status descreve maturidade técnica e integração confirmadas. **Não declara homologação hospitalar, clínica, TISS, financeira ou fiscal.**
