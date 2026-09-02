@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { Activity, AlertTriangle, CheckCircle2, Clock3, ListChecks, Play, Square, UsersRound } from "lucide-react";
+import { Activity, CheckCircle2, Clock3, ListChecks, Play, Square, UsersRound } from "lucide-react";
 import { ProcedureTeamForm } from "@/components/centro-cirurgico/procedure-team-form";
+import { SurgicalBackgroundForm } from "@/components/centro-cirurgico/surgical-background-form";
 import { SurgeryProcedureAddForm } from "@/components/centro-cirurgico/surgery-procedure-add-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { requireAnyPermission } from "@/lib/permissions/server";
-import { acionarProcedimentoCirurgico, adicionarProcedimentoAoAto, salvarMembroEquipeProcedimento } from "@/modules/centro-cirurgico/procedure-actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -52,7 +52,7 @@ type Equipe = {
   saida_em: string | null;
   observacoes: string | null;
 };
-type Params = { cirurgia?: string; sucesso?: string; erro?: string };
+type Params = { cirurgia?: string };
 
 const one = <T,>(value: Rel<T>): T | null => Array.isArray(value) ? value[0] ?? null : value;
 const fmt = (value?: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "—";
@@ -127,9 +127,6 @@ export default async function ProcedimentosCirurgicosPage({ searchParams }: { se
     description="Vários procedimentos no mesmo ato, equipe por papel e horários individuais acionados pelo sistema."
     actions={<Link href="/assistencial/centro-cirurgico/painel-salas" className="ui-button-secondary"><Activity className="size-4" />Painel de salas</Link>}
   >
-    {params.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"><CheckCircle2 className="mr-2 inline size-4" />Operação registrada com sucesso.</div> : null}
-    {params.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700"><AlertTriangle className="mr-2 inline size-4" />{decodeURIComponent(params.erro)}</div> : null}
-
     <section className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
       <aside className="his-card p-5">
         <div className="mb-4"><h2 className="font-black text-slate-950">Casos ativos</h2><p className="mt-1 text-sm text-slate-500">Selecione a cirurgia para operar seus procedimentos.</p></div>
@@ -142,7 +139,7 @@ export default async function ProcedimentosCirurgicosPage({ searchParams }: { se
             <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-wide text-brand-600">Ato selecionado</p><h2 className="mt-1 text-xl font-black text-slate-950">{paciente?.nome_social||paciente?.nome_completo||"Paciente"}</h2><p className="mt-1 text-sm text-slate-500">RA {paciente?.ra??"—"} · {selecionada.sala??"sala não definida"} · {selecionada.status.replaceAll("_"," ")}</p></div><div className="text-right text-xs text-slate-500"><p>Previsto {fmt(selecionada.inicio_previsto)}</p><p>Início do ato {fmt(selecionada.inicio_em)}</p></div></div>
           </article>
 
-          <article className="his-card p-6"><div className="mb-4"><h2 className="font-black text-slate-950">Adicionar outro procedimento</h2><p className="mt-1 text-sm text-slate-500">O procedimento principal é preservado; os demais ficam vinculados ao mesmo ato e atendimento.</p></div><SurgeryProcedureAddForm action={adicionarProcedimentoAoAto} cirurgiaId={selecionada.id} atendimentoId={selecionada.atendimento_id} conveniado={Boolean(conveniado)} convenioNome={convenio?.nome_fantasia??null} /></article>
+          <article className="his-card p-6"><div className="mb-4"><h2 className="font-black text-slate-950">Adicionar outro procedimento</h2><p className="mt-1 text-sm text-slate-500">O procedimento principal é preservado; os demais ficam vinculados ao mesmo ato e atendimento.</p></div><SurgeryProcedureAddForm cirurgiaId={selecionada.id} atendimentoId={selecionada.atendimento_id} conveniado={Boolean(conveniado)} convenioNome={convenio?.nome_fantasia??null} /></article>
 
           <div className="space-y-4">{procedimentos.map((proc) => {
             const membros=equipe.filter((item)=>item.cirurgia_procedimento_id===proc.id);
@@ -151,14 +148,14 @@ export default async function ProcedimentosCirurgicosPage({ searchParams }: { se
             const auxPresent=membros.filter((m)=>m.papel==="cirurgiao_auxiliar").length;
             return <article key={proc.id} className={`his-card overflow-hidden ${proc.status==="em_andamento"?"ring-2 ring-rose-200":""}`}>
               <div className="border-b border-slate-100 p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-black text-brand-700">#{proc.sequencia}{proc.principal?" · principal":""}</span><Status status={proc.status}/></div><h3 className="mt-3 text-lg font-black text-slate-950">{proc.descricao}</h3><p className="mt-1 text-xs text-slate-500">{proc.codigo_tuss||proc.codigo||"sem código"} · porte {proc.porte??"—"} · anest. {proc.porte_anestesico??"—"}{proc.tabela_referencia?` · ${proc.tabela_referencia}`:""}</p></div><div className="text-right text-xs text-slate-500"><p>Início {fmt(proc.inicio_em)}</p><p>Fim {fmt(proc.fim_em)}</p><p className="mt-1 font-black text-slate-700">Duração {duration(proc.inicio_em,proc.fim_em)}</p></div></div>
-                <div className="mt-4 flex flex-wrap gap-2">{proc.status==="previsto"?<form action={acionarProcedimentoCirurgico}><input type="hidden" name="cirurgia_id" value={selecionada.id}/><input type="hidden" name="cirurgia_procedimento_id" value={proc.id}/><input type="hidden" name="acao" value="iniciar"/><button disabled={selecionada.status!=="em_andamento"} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><Play className="size-4"/>Iniciar procedimento</button></form>:null}{proc.status==="em_andamento"?<form action={acionarProcedimentoCirurgico}><input type="hidden" name="cirurgia_id" value={selecionada.id}/><input type="hidden" name="cirurgia_procedimento_id" value={proc.id}/><input type="hidden" name="acao" value="finalizar"/><button className="rounded-xl bg-rose-700 px-4 py-2 text-sm font-black text-white hover:bg-rose-800"><Square className="mr-2 inline size-4"/>Finalizar procedimento</button></form>:null}</div>
+                <div className="mt-4 flex flex-wrap gap-2">{proc.status==="previsto"?<SurgicalBackgroundForm kind="procedure-action"><input type="hidden" name="cirurgia_id" value={selecionada.id}/><input type="hidden" name="cirurgia_procedimento_id" value={proc.id}/><input type="hidden" name="acao" value="iniciar"/><button disabled={selecionada.status!=="em_andamento"} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><Play className="size-4"/>Iniciar procedimento</button></SurgicalBackgroundForm>:null}{proc.status==="em_andamento"?<SurgicalBackgroundForm kind="procedure-action"><input type="hidden" name="cirurgia_id" value={selecionada.id}/><input type="hidden" name="cirurgia_procedimento_id" value={proc.id}/><input type="hidden" name="acao" value="finalizar"/><button className="rounded-xl bg-rose-700 px-4 py-2 text-sm font-black text-white hover:bg-rose-800"><Square className="mr-2 inline size-4"/>Finalizar procedimento</button></SurgicalBackgroundForm>:null}</div>
               </div>
 
               <div className="grid gap-5 p-5 xl:grid-cols-[0.8fr_1.2fr]">
                 <section><h4 className="font-black text-slate-900">Equipe prevista</h4><div className="mt-3 flex flex-wrap gap-2"><Requirement label="Cirurgião principal" ok={membros.some((m)=>m.papel==="cirurgiao_principal")}/>{auxRequired>0?<Requirement label={`Auxiliares ${auxPresent}/${auxRequired}`} ok={auxPresent>=auxRequired}/>:null}{requisitos.instrumentador?<Requirement label="Instrumentador" ok={membros.some((m)=>m.papel==="instrumentador")}/>:null}{requisitos.anestesista?<Requirement label="Anestesista" ok={membros.some((m)=>m.papel==="anestesista")}/>:null}{requisitos.pediatra?<Requirement label="Pediatra" ok={membros.some((m)=>m.papel==="pediatra")}/>:null}{requisitos.neonatologista?<Requirement label="Neonatologista" ok={membros.some((m)=>m.papel==="neonatologista")}/>:null}</div>
                   <div className="mt-4 space-y-2">{membros.map((membro)=>{const p=membro.profissional_id?profissionais.get(membro.profissional_id):null;return <div key={membro.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm"><div className="flex flex-wrap items-start justify-between gap-2"><div><b>{p?.nome_completo??"Profissional"}</b><p className="mt-1 text-xs text-slate-500">{papelLabel(membro.papel)}{membro.ordem_participacao?` · ${membro.ordem_participacao}º`:""}{p?.conselho?` · ${p.conselho} ${p.numero_conselho??""}/${p.uf_conselho??""}`:""}</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${membro.faturavel?"bg-emerald-50 text-emerald-700":"bg-slate-200 text-slate-600"}`}>{membro.faturavel?"previsto em contrato":"registro clínico"}</span></div><p className="mt-2 text-xs text-slate-500">Entrada {fmt(membro.entrada_em)} · saída {fmt(membro.saida_em)}</p></div>})}{!membros.length?<p className="text-sm text-slate-500">Equipe ainda não lançada para este procedimento.</p>:null}</div>
                 </section>
-                <section className="rounded-2xl border border-slate-100 p-4"><div className="mb-3 flex items-center gap-2"><UsersRound className="size-4 text-brand-700"/><h4 className="font-black text-slate-900">Lançar equipe da sala</h4></div><ProcedureTeamForm action={salvarMembroEquipeProcedimento} empresaId={empresaId} cirurgiaId={selecionada.id} procedimentoId={proc.id} requisitos={requisitos}/></section>
+                <section className="rounded-2xl border border-slate-100 p-4"><div className="mb-3 flex items-center gap-2"><UsersRound className="size-4 text-brand-700"/><h4 className="font-black text-slate-900">Lançar equipe da sala</h4></div><ProcedureTeamForm empresaId={empresaId} cirurgiaId={selecionada.id} procedimentoId={proc.id} requisitos={requisitos}/></section>
               </div>
             </article>;
           })}{!procedimentos.length?<div className="his-card p-8 text-center"><ListChecks className="mx-auto size-8 text-slate-300"/><p className="mt-3 font-black text-slate-700">Nenhum procedimento detalhado neste ato.</p></div>:null}</div>

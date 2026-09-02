@@ -3,7 +3,6 @@ import {
   Activity,
   AlertTriangle,
   Boxes,
-  CheckCircle2,
   ClipboardCheck,
   Scissors,
   ShieldCheck,
@@ -11,17 +10,10 @@ import {
 } from "lucide-react";
 import { AnesthesiaAutosaveForm } from "@/components/centro-cirurgico/anesthesia-autosave-form";
 import { RpaAutosaveForm } from "@/components/centro-cirurgico/rpa-autosave-form";
+import { SurgicalBackgroundForm } from "@/components/centro-cirurgico/surgical-background-form";
 import { SurgerySchedulingForm } from "@/components/centro-cirurgico/surgery-scheduling-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import {
-  agendarCirurgia,
-  movimentarPosOperatorioParaAla,
-  registrarOpme,
-  salvarChecklistCirurgico,
-  transicionarCirurgia,
-  vincularCicloCme,
-} from "@/modules/centro-cirurgico/actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -94,7 +86,7 @@ type Rpa = {
 type Opme = { id: string; cirurgia_id: string; item: string; codigo: string | null; lote: string | null; serie: string | null; quantidade: number; status: string };
 type CmeCiclo = { id: string; codigo_ciclo: string; equipamento: string | null; metodo: string | null; resultado: string | null; status: string; liberado_em: string | null };
 type CmeVinculo = { cirurgia_id: string; ciclo_id: string };
-type Params = { sucesso?: string; erro?: string; cirurgia?: string };
+type Params = { cirurgia?: string };
 
 const one = <T,>(value: Rel<T>): T | null => Array.isArray(value) ? value[0] ?? null : value;
 const fmt = (value?: string | null) => value
@@ -200,9 +192,6 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
       description="Agenda, cirurgia segura, anestesia, OPME, CME, recuperação pós-anestésica e fechamento assistencial/faturamento em um único fluxo transacional. Horários exibidos em Brasília."
       actions={<div className="flex flex-wrap gap-2"><Link href="/assistencial/centro-cirurgico/equipamentos" className="ui-button-secondary"><ShieldCheck className="size-4" />Prontidão das salas</Link><Link href="/assistencial/centro-cirurgico/cme" className="ui-button-primary"><Boxes className="size-4" />Abrir CME</Link></div>}
     >
-      {params.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"><CheckCircle2 className="mr-2 inline size-4" />Operação cirúrgica registrada com sucesso.</div> : null}
-      {params.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700"><AlertTriangle className="mr-2 inline size-4" />{decodeURIComponent(params.erro)}</div> : null}
-
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi label="Cirurgias ativas" value={ativas.length} icon={<Scissors className="size-5 text-brand-600" />} />
         <Kpi label="Em cirurgia" value={emSala} icon={<Activity className="size-5 text-rose-600" />} />
@@ -216,7 +205,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
           <h2 className="font-black text-slate-950">Agendar cirurgia</h2>
           <p className="mt-1 text-sm text-slate-500">Em convênio, procedimento, código e porte são resolvidos pelo contrato vigente. Cirurgião e anestesista podem ser localizados por nome, CPF, conselho, número, especialidade ou CBO.</p>
         </div>
-        <SurgerySchedulingForm action={agendarCirurgia} empresaId={empresaId} encounters={encounters} salas={salas} />
+        <SurgerySchedulingForm empresaId={empresaId} encounters={encounters} salas={salas} />
       </section>
 
       <section className="mt-5 space-y-4">
@@ -246,7 +235,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
                     <p className="mt-1 text-xs text-slate-500">Cirurgião: {cirurgia.cirurgiao_id ? profissionalNome.get(cirurgia.cirurgiao_id) ?? "—" : "A definir"} · Anestesista: {cirurgia.anestesista_id ? profissionalNome.get(cirurgia.anestesista_id) ?? "—" : "Não informado"}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {next.map((status) => <form action={transicionarCirurgia} key={status}><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input type="hidden" name="novo_status" value={status} /><button className="ui-button-primary">{status === "em_preparo" ? "Iniciar preparo" : status === "em_andamento" ? "Iniciar cirurgia" : status === "recuperacao" ? "Enviar à recuperação" : status === "concluida" ? "Concluir cirurgia" : "Voltar para agendada"}</button></form>)}
+                    {next.map((status) => <SurgicalBackgroundForm kind="transition" key={status}><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input type="hidden" name="novo_status" value={status} /><button className="ui-button-primary">{status === "em_preparo" ? "Iniciar preparo" : status === "em_andamento" ? "Iniciar cirurgia" : status === "recuperacao" ? "Enviar à recuperação" : status === "concluida" ? "Concluir cirurgia" : "Voltar para agendada"}</button></SurgicalBackgroundForm>)}
                   </div>
                 </div>
               </div>
@@ -254,7 +243,7 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
               <div className="grid gap-3 p-5 xl:grid-cols-2">
                 <details className="rounded-xl border border-slate-200 p-4" open={cirurgia.status === "em_preparo" || cirurgia.status === "em_andamento"}>
                   <summary className="cursor-pointer font-black text-slate-900"><ClipboardCheck className="mr-2 inline size-4" />Cirurgia segura / checklists</summary>
-                  <div className="mt-4 space-y-4">{(["entrada", "pausa", "saida"] as const).map((etapa) => { const atual = checklist.get(etapa); return <form action={salvarChecklistCirurgico} key={etapa} className="rounded-xl bg-slate-50 p-4"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input type="hidden" name="etapa" value={etapa} /><div className="mb-3 flex items-center justify-between gap-2"><b>{etapaLabel(etapa)}</b>{atual?.concluido ? <span className="text-xs font-black text-emerald-700">Concluído {fmt(atual.concluido_em)}</span> : <span className="text-xs font-bold text-amber-700">Pendente</span>}</div><div className="grid gap-2 sm:grid-cols-2">{checklistConfig[etapa].map(([key, label]) => <label key={key} className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" name={key} defaultChecked={Boolean(atual?.itens?.[key])} className="mt-0.5 size-4" />{label}</label>)}</div><input name="observacoes" defaultValue={atual?.observacoes ?? ""} className="ui-input mt-3" placeholder="Observações da etapa" /><label className="mt-3 flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" name="concluido" defaultChecked={atual?.concluido ?? false} />Marcar etapa como concluída</label><button className="ui-button-secondary mt-3">Salvar checklist</button></form>})}</div>
+                  <div className="mt-4 space-y-4">{(["entrada", "pausa", "saida"] as const).map((etapa) => { const atual = checklist.get(etapa); return <SurgicalBackgroundForm kind="checklist" key={etapa} className="rounded-xl bg-slate-50 p-4"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input type="hidden" name="etapa" value={etapa} /><div className="mb-3 flex items-center justify-between gap-2"><b>{etapaLabel(etapa)}</b>{atual?.concluido ? <span className="text-xs font-black text-emerald-700">Concluído {fmt(atual.concluido_em)}</span> : <span className="text-xs font-bold text-amber-700">Pendente</span>}</div><div className="grid gap-2 sm:grid-cols-2">{checklistConfig[etapa].map(([key, label]) => <label key={key} className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" name={key} defaultChecked={Boolean(atual?.itens?.[key])} className="mt-0.5 size-4" />{label}</label>)}</div><input name="observacoes" defaultValue={atual?.observacoes ?? ""} className="ui-input mt-3" placeholder="Observações da etapa" /><label className="mt-3 flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" name="concluido" defaultChecked={atual?.concluido ?? false} />Marcar etapa como concluída</label><button className="ui-button-secondary mt-3">Salvar checklist</button></SurgicalBackgroundForm>})}</div>
                 </details>
 
                 <details className="rounded-xl border border-slate-200 p-4" open={cirurgia.status === "em_andamento"}>
@@ -265,18 +254,18 @@ export default async function CentroCirurgicoPage({ searchParams }: { searchPara
                 <details className="rounded-xl border border-slate-200 p-4">
                   <summary className="cursor-pointer font-black text-slate-900"><Boxes className="mr-2 inline size-4" />OPME e rastreabilidade</summary>
                   <div className="mt-4 space-y-2">{opmeItems.map((item) => <div key={item.id} className="rounded-xl bg-slate-50 px-3 py-2 text-sm"><b>{item.item}</b><span className="ml-2 text-xs font-black text-brand-700">{item.status}</span><p className="text-xs text-slate-500">Qtd. {item.quantidade} · código {item.codigo ?? "—"} · lote {item.lote ?? "—"} · série {item.serie ?? "—"}</p></div>)}{!opmeItems.length ? <p className="text-sm text-slate-500">Nenhum OPME registrado.</p> : null}</div>
-                  <form action={registrarOpme} className="mt-4 grid gap-3 sm:grid-cols-3"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input name="item" required className="ui-input sm:col-span-2" placeholder="Item OPME *" /><input name="codigo" className="ui-input" placeholder="Código" /><input name="fabricante" className="ui-input" placeholder="Fabricante" /><input name="lote" className="ui-input" placeholder="Lote" /><input name="serie" className="ui-input" placeholder="Série" /><input name="registro_anvisa" className="ui-input" placeholder="Registro ANVISA" /><input name="quantidade" type="number" min="0.01" step="0.01" defaultValue="1" className="ui-input" /><select name="status" defaultValue="previsto" className="ui-input"><option value="previsto">Previsto</option><option value="utilizado">Utilizado</option><option value="nao_utilizado">Não utilizado</option><option value="cancelado">Cancelado</option></select><input name="observacoes" className="ui-input sm:col-span-2" placeholder="Observações" /><button className="ui-button-secondary">Registrar OPME</button></form>
-                  <form action={vincularCicloCme} className="mt-4 grid gap-3 sm:grid-cols-3"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><select name="ciclo_id" required defaultValue="" className="ui-input sm:col-span-2"><option value="">Vincular ciclo CME liberado</option>{ciclos.filter((item) => !cmeLinks.has(item.id)).map((item) => <option key={item.id} value={item.id}>{item.codigo_ciclo} · {item.metodo ?? "método não informado"} · {fmt(item.liberado_em)}</option>)}</select><button className="ui-button-secondary">Vincular ciclo</button></form>
+                  <SurgicalBackgroundForm kind="opme" resetOnSuccess className="mt-4 grid gap-3 sm:grid-cols-3"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input name="item" required className="ui-input sm:col-span-2" placeholder="Item OPME *" /><input name="codigo" className="ui-input" placeholder="Código" /><input name="fabricante" className="ui-input" placeholder="Fabricante" /><input name="lote" className="ui-input" placeholder="Lote" /><input name="serie" className="ui-input" placeholder="Série" /><input name="registro_anvisa" className="ui-input" placeholder="Registro ANVISA" /><input name="quantidade" type="number" min="0.01" step="0.01" defaultValue="1" className="ui-input" /><select name="status" defaultValue="previsto" className="ui-input"><option value="previsto">Previsto</option><option value="utilizado">Utilizado</option><option value="nao_utilizado">Não utilizado</option><option value="cancelado">Cancelado</option></select><input name="observacoes" className="ui-input sm:col-span-2" placeholder="Observações" /><button className="ui-button-secondary">Registrar OPME</button></SurgicalBackgroundForm>
+                  <SurgicalBackgroundForm kind="cme-link" resetOnSuccess className="mt-4 grid gap-3 sm:grid-cols-3"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><select name="ciclo_id" required defaultValue="" className="ui-input sm:col-span-2"><option value="">Vincular ciclo CME liberado</option>{ciclos.filter((item) => !cmeLinks.has(item.id)).map((item) => <option key={item.id} value={item.id}>{item.codigo_ciclo} · {item.metodo ?? "método não informado"} · {fmt(item.liberado_em)}</option>)}</select><button className="ui-button-secondary">Vincular ciclo</button></SurgicalBackgroundForm>
                 </details>
 
                 <details className="rounded-xl border border-slate-200 p-4" open={cirurgia.status === "recuperacao"}>
                   <summary className="cursor-pointer font-black text-slate-900"><Activity className="mr-2 inline size-4" />RPA / Recuperação pós-anestésica</summary>
                   <RpaAutosaveForm cirurgiaId={cirurgia.id} initial={rpa ?? null} />
-                  {rpa?.status === "alta" && internacaoByAtendimento.has(cirurgia.atendimento_id) ? <form action={movimentarPosOperatorioParaAla} className="mt-4 grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 sm:grid-cols-[1fr_1fr_auto]"><input type="hidden" name="cirurgia_id" value={cirurgia.id}/><select name="leito_id" required defaultValue="" className="ui-input"><option value="">Ala / leito de destino *</option>{leitos.map((leito)=><option key={leito.id} value={leito.id}>{leito.setor??"Ala"} · quarto {leito.quarto??"—"} · leito {leito.codigo} · {leito.status}</option>)}</select><input name="motivo" className="ui-input" defaultValue="Transferência pós-operatória para a ala" placeholder="Motivo da movimentação"/><button className="ui-button-primary">Movimentar para ala</button></form> : null}
+                  {rpa?.status === "alta" && internacaoByAtendimento.has(cirurgia.atendimento_id) ? <SurgicalBackgroundForm kind="move" className="mt-4 grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 sm:grid-cols-[1fr_1fr_auto]"><input type="hidden" name="cirurgia_id" value={cirurgia.id}/><select name="leito_id" required defaultValue="" className="ui-input"><option value="">Ala / leito de destino *</option>{leitos.map((leito)=><option key={leito.id} value={leito.id}>{leito.setor??"Ala"} · quarto {leito.quarto??"—"} · leito {leito.codigo} · {leito.status}</option>)}</select><input name="motivo" className="ui-input" defaultValue="Transferência pós-operatória para a ala" placeholder="Motivo da movimentação"/><button className="ui-button-primary">Movimentar para ala</button></SurgicalBackgroundForm> : null}
                 </details>
               </div>
 
-              {!["concluida", "cancelada"].includes(cirurgia.status) ? <div className="border-t border-slate-100 bg-rose-50/40 px-5 py-4"><form action={transicionarCirurgia} className="flex flex-wrap items-center gap-3"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input type="hidden" name="novo_status" value="cancelada" /><input name="observacoes" required className="ui-input min-w-64 flex-1" placeholder="Motivo obrigatório para cancelamento" /><button className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-black text-rose-700 hover:bg-rose-50">Cancelar cirurgia</button></form></div> : null}
+              {!["concluida", "cancelada"].includes(cirurgia.status) ? <div className="border-t border-slate-100 bg-rose-50/40 px-5 py-4"><SurgicalBackgroundForm kind="transition" className="flex flex-wrap items-center gap-3"><input type="hidden" name="cirurgia_id" value={cirurgia.id} /><input type="hidden" name="novo_status" value="cancelada" /><input name="observacoes" required className="ui-input min-w-64 flex-1" placeholder="Motivo obrigatório para cancelamento" /><button className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-black text-rose-700 hover:bg-rose-50">Cancelar cirurgia</button></SurgicalBackgroundForm></div> : null}
             </article>
           );
         })}

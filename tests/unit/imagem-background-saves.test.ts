@@ -28,7 +28,7 @@ describe("RIS / Diagnóstico por Imagem sem reload", () => {
     expect(source).not.toContain("window.location");
   });
 
-  it("remove actions operacionais legadas da página sem misturar o editor de laudos", () => {
+  it("remove actions legadas e mantém operação e laudos nos formulários assíncronos", () => {
     const source = read("src/app/(painel)/assistencial/imagem/page.tsx");
 
     expect(source).toContain("RadiologyBackgroundForm");
@@ -38,13 +38,15 @@ describe("RIS / Diagnóstico por Imagem sem reload", () => {
     expect(source).toContain('kind="finish"');
     expect(source).toContain('kind="contrast"');
     expect(source).toContain('kind="dose"');
+    expect(source).toContain("OpenRadiologyReportForm");
+    expect(source).toContain("RadiologyReportBackgroundForm");
     expect(source).not.toContain("agendarImagem,");
     expect(source).not.toContain("atualizarAgendaImagem,");
     expect(source).not.toContain("iniciarExecucaoImagem,");
     expect(source).not.toContain("concluirExecucaoImagem,");
     expect(source).not.toContain("registrarContrasteImagem,");
     expect(source).not.toContain("registrarDoseImagem,");
-    expect(source).toContain("salvarLaudoImagem");
-    expect(source).toContain("liberarLaudoImagem");
+    expect(source).not.toContain("salvarLaudoImagem");
+    expect(source).not.toContain("liberarLaudoImagem");
   });
 });

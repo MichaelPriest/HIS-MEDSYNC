@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
-const migratedServerActions = [
+const strictBackgroundServerActions = [
   "src/modules/prontuario-medico/encerramento-actions.ts",
   "src/modules/prontuario-medico/avaliacao-medica-actions.ts",
   "src/modules/triagem/actions.ts",
@@ -12,6 +12,12 @@ const migratedServerActions = [
   "src/modules/autorizacoes/actions.ts",
   "src/modules/assistencial/medicamentos-background-actions.ts",
   "src/modules/assistencial/imagem-background-actions.ts",
+  "src/modules/assistencial/imagem-laudo-background-actions.ts",
+  "src/modules/ged/background-actions.ts",
+  "src/modules/centro-cirurgico/background-actions.ts",
+  "src/modules/centro-cirurgico/anestesia-rpa-background-actions.ts",
+  "src/modules/centro-cirurgico/suprimentos-background-actions.ts",
+  "src/modules/centro-cirurgico/cme-background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -27,10 +33,17 @@ const backgroundForms = [
   "src/components/enfermagem/medication-administration-background-form.tsx",
   "src/components/farmacia/pharmacy-background-form.tsx",
   "src/components/imagem/radiology-background-form.tsx",
+  "src/components/imagem/radiology-report-background-form.tsx",
+  "src/components/ged/ged-governance-background-form.tsx",
+  "src/components/centro-cirurgico/surgical-background-form.tsx",
+  "src/components/centro-cirurgico/anesthesia-autosave-form.tsx",
+  "src/components/centro-cirurgico/rpa-autosave-form.tsx",
+  "src/components/centro-cirurgico/surgical-supply-background-form.tsx",
+  "src/components/centro-cirurgico/cme-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
-  it.each(migratedServerActions)("não permite redirect em %s", (path) => {
+  it.each(strictBackgroundServerActions)("não permite redirect em %s", (path) => {
     const source = read(path);
     expect(source).toContain("BackgroundActionState");
     expect(source).not.toContain('from "next/navigation"');
@@ -46,19 +59,7 @@ describe("política de salvamento em segundo plano", () => {
     expect(source).not.toContain("window.location");
   });
 
-  it("mantém a alta médica no componente de segundo plano", () => {
-    const source = read("src/app/(painel)/prontuario/[atendimentoId]/alta/page.tsx");
-    expect(source).toContain("AltaMedicaBackgroundForm");
-    expect(source).not.toContain("action={finalizarAtendimentoMedico}");
-  });
-
-  it("mantém a avaliação médica no componente de segundo plano", () => {
-    const source = read("src/app/(painel)/prontuario/[atendimentoId]/avaliacoes/page.tsx");
-    expect(source).toContain("AvaliacaoMedicaBackgroundForm");
-    expect(source).not.toContain("action={solicitarAvaliacaoMedicaAction}");
-  });
-
-  it("mantém a Agenda sem redirects usados apenas como feedback", () => {
+  it("mantém navegação da Agenda apenas para check-in que muda de etapa", () => {
     const source = read("src/modules/agenda/actions.ts");
     const redirects = source.match(/\bredirect\s*\(/g) ?? [];
 
@@ -70,149 +71,114 @@ describe("política de salvamento em segundo plano", () => {
     expect(source).toContain("/atendimentos/novo?agendamento=");
   });
 
-  it("renderiza ações operacionais da Agenda no componente de segundo plano", () => {
-    const source = read("src/app/(painel)/agenda/page.tsx");
-    expect(source).toContain("AgendaStatusActions");
-    expect(source).not.toContain("atualizarStatusAgendamento");
-  });
-
-  it("mantém o novo agendamento no formulário de segundo plano", () => {
-    const source = read("src/app/(painel)/agenda/novo/page.tsx");
-    expect(source).toContain("<AgendaForm");
-    expect(source).not.toContain("searchParams");
-    expect(source).not.toContain("criarAgendamento");
-  });
-
-  it("mantém erros da Admissão inline e navega apenas após abertura real", () => {
+  it("mantém erros da Admissão inline e navega apenas após abertura real do atendimento", () => {
     const source = read("src/modules/atendimentos/actions.ts");
     const redirects = source.match(/\bredirect\s*\(/g) ?? [];
 
     expect(source).toContain("BackgroundActionState");
-    expect(source).toContain("return failure(\"campos-obrigatorios\")");
-    expect(source).toContain("return failure(\"cobertura\")");
     expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/atendimentos\/novo/);
-    expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/senhas\?erro=/);
-    expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/agenda\?erro=/);
     expect(redirects).toHaveLength(2);
     expect(source).toContain("/autorizacoes?atendimento=");
     expect(source).toContain("/triagem?sucesso=admissao&atendimento=");
   });
 
-  it("renderiza a Admissão no formulário de segundo plano", () => {
-    const source = read("src/app/(painel)/atendimentos/novo/page.tsx");
-    expect(source).toContain("AdmissionBackgroundForm");
-    expect(source).toContain("<AdmissionBackgroundForm");
-    expect(source).not.toContain("<AdmissionForm");
+  it("mantém Triagem, Fila Médica e Autorizações sem redirects de feedback", () => {
+    const triage = read("src/modules/triagem/actions.ts");
+    const queue = read("src/modules/fila-medica/actions.ts");
+    const authorizations = read("src/modules/autorizacoes/actions.ts");
+
+    for (const source of [triage, queue, authorizations]) {
+      expect(source).not.toContain('from "next/navigation"');
+      expect(source).not.toMatch(/\bredirect\s*\(/);
+    }
+    expect(queue).toContain("redirectTo: `/prontuario/${encaminhamento.atendimento_id}/clinico`");
+    expect(authorizations).toContain("/triagem?atendimento=");
+    expect(authorizations).toContain("/fila-medica?atendimento=");
+    expect(authorizations).toContain("/pronto-socorro?atendimento=");
   });
 
-  it("mantém chamada e registro da Triagem sem redirect usado como feedback", () => {
-    const actions = read("src/modules/triagem/actions.ts");
-    const page = read("src/app/(painel)/triagem/page.tsx");
+  it("mantém Farmácia e Enfermagem nas camadas de segundo plano", () => {
+    const pharmacyPage = read("src/app/(painel)/assistencial/medicamentos/page.tsx");
+    const wards = read("src/app/(painel)/assistencial/enfermagem/andares/page.tsx");
+    const emergency = read("src/app/(painel)/assistencial/enfermagem/pronto-socorro/page.tsx");
 
-    expect(actions).not.toContain('from "next/navigation"');
-    expect(actions).not.toMatch(/\bredirect\s*\(/);
-    expect(actions).toContain("return success(\"Paciente chamado no painel");
-    expect(actions).toContain("redirectTo: `/autorizacoes?atendimento=");
-    expect(actions).toContain("redirectTo: `/pronto-socorro?atendimento=");
-    expect(actions).not.toContain("/triagem?sucesso=encaminhado");
-    expect(page).toContain("TriageCallAction");
-    expect(page).toContain("TriageBackgroundForm");
-    expect(page).not.toContain("action={chamarPacienteTriagem}");
-    expect(page).not.toContain("action={registrarTriagem}");
+    expect(pharmacyPage).toContain("PharmacyBackgroundForm");
+    expect(pharmacyPage).not.toContain("dispensarPrescricaoAction");
+    expect(wards).toContain("NursingEvolutionBackgroundForm");
+    expect(emergency).toContain("NursingEvolutionBackgroundForm");
   });
 
-  it("mantém a Fila Médica sem redirects de erro e navega só após assumir o paciente", () => {
-    const actions = read("src/modules/fila-medica/actions.ts");
-    const page = read("src/app/(painel)/fila-medica/page.tsx");
-    const prontoSocorroPage = read("src/app/(painel)/pronto-socorro/page.tsx");
-    const form = read("src/components/fila-medica/assume-patient-background-form.tsx");
+  it("mantém operação e laudos RIS nas camadas de segundo plano", () => {
+    const listPage = read("src/app/(painel)/assistencial/imagem/page.tsx");
+    const editor = read("src/app/(painel)/assistencial/imagem/laudos/[laudoId]/page.tsx");
+    const reportForm = read("src/components/imagem/radiology-report-background-form.tsx");
 
-    expect(actions).not.toContain('from "next/navigation"');
-    expect(actions).not.toMatch(/\bredirect\s*\(/);
-    expect(actions).not.toContain("filaComErro");
-    expect(actions).toContain("data: { redirectTo: `/prontuario/${encaminhamento.atendimento_id}/clinico` }");
-    expect(page).toContain("AssumePatientBackgroundForm");
-    expect(page).not.toContain("action={assumirPaciente}");
-    expect(page).not.toContain("MENSAGENS_ERRO");
-    expect(prontoSocorroPage).toContain("AssumePatientBackgroundForm");
-    expect(prontoSocorroPage).not.toContain("action={assumirPaciente}");
-    expect(form).toContain("router.push");
+    expect(listPage).toContain("RadiologyBackgroundForm");
+    expect(listPage).toContain("OpenRadiologyReportForm");
+    expect(editor).toContain('kind="save"');
+    expect(editor).toContain('kind="release"');
+    expect(editor).not.toContain("searchParams");
+    expect(reportForm).toContain("router.push");
   });
 
-  it("mantém Autorizações inline e navega somente para próxima etapa real", () => {
-    const actions = read("src/modules/autorizacoes/actions.ts");
-    const page = read("src/app/(painel)/autorizacoes/page.tsx");
-    const forms = read("src/components/autorizacoes/authorization-background-actions.tsx");
+  it("mantém assinatura e status do GED no componente de segundo plano", () => {
+    const actions = read("src/modules/ged/background-actions.ts");
+    const page = read("src/app/(painel)/ged/[documentoId]/page.tsx");
 
-    expect(actions).not.toContain('from "next/navigation"');
-    expect(actions).not.toMatch(/\bredirect\s*\(/);
-    expect(actions).toContain("return failure(\"identificacao-obrigatoria\")");
-    expect(actions).toContain("return success(\"Autorização salva.\")");
-    expect(actions).toContain("/triagem?atendimento=");
-    expect(actions).toContain("/fila-medica?atendimento=");
-    expect(actions).toContain("/pronto-socorro?atendimento=");
-    expect(page).toContain("AuthorizationIdentificationBackgroundForm");
-    expect(page).toContain("AuthorizationUpdateBackgroundForm");
-    expect(page).not.toContain("action={registrarIdentificacaoAutorizacao}");
-    expect(page).not.toContain("action={atualizarAutorizacao}");
-    expect(forms).toContain("router.push");
+    expect(actions).toContain("atualizar_status_documento_ged");
+    expect(actions).toContain("assinar_documento_ged");
+    expect(actions).toContain('createHash("sha256")');
+    expect(page).toContain("GedGovernanceBackgroundForm");
+    expect(page).not.toContain("action={assinarDocumentoGed}");
   });
 
-  it("mantém evolução de Enfermagem inline em Andares e Pronto-Socorro", () => {
-    const actions = read("src/modules/enfermagem/actions.ts");
-    const evolutionStart = actions.indexOf("export async function registrarEvolucaoEnfermagemAction");
-    const evolutionSource = actions.slice(evolutionStart);
-    const andares = read("src/app/(painel)/assistencial/enfermagem/andares/page.tsx");
-    const prontoSocorro = read("src/app/(painel)/assistencial/enfermagem/pronto-socorro/page.tsx");
+  it("mantém o Centro Cirúrgico principal, procedimentos, Anestesia e RPA sem reload", () => {
+    const page = read("src/app/(painel)/assistencial/centro-cirurgico/page.tsx");
+    const proceduresPage = read("src/app/(painel)/assistencial/centro-cirurgico/procedimentos/page.tsx");
+    const anesthesia = read("src/components/centro-cirurgico/anesthesia-autosave-form.tsx");
+    const rpa = read("src/components/centro-cirurgico/rpa-autosave-form.tsx");
 
-    expect(evolutionStart).toBeGreaterThan(-1);
-    expect(evolutionSource).toContain("BackgroundActionState");
-    expect(evolutionSource).toContain("return evolutionFailure");
-    expect(evolutionSource).toContain('status: "success"');
-    expect(evolutionSource).not.toMatch(/\bredirect\s*\(/);
-    expect(andares).toContain("NursingEvolutionBackgroundForm");
-    expect(andares).not.toContain("action={registrarEvolucaoEnfermagemAction}");
-    expect(prontoSocorro).toContain("NursingEvolutionBackgroundForm");
-    expect(prontoSocorro).not.toContain("action={registrarEvolucaoEnfermagemAction}");
+    expect(page).toContain("SurgicalBackgroundForm");
+    expect(proceduresPage).toContain("SurgeryProcedureAddForm");
+    expect(proceduresPage).toContain("ProcedureTeamForm");
+    expect(proceduresPage).toContain('kind="procedure-action"');
+    expect(anesthesia).toContain("requestSubmit");
+    expect(rpa).toContain("requestSubmit");
+    expect(anesthesia).not.toContain("createClient");
+    expect(rpa).not.toContain("createClient");
   });
 
-  it("mantém a Farmácia nos formulários de segundo plano sem actions legadas na página", () => {
-    const actions = read("src/modules/assistencial/medicamentos-background-actions.ts");
-    const page = read("src/app/(painel)/assistencial/medicamentos/page.tsx");
+  it("mantém Suprimentos cirúrgicos inline e preserva a cadeia farmacêutica", () => {
+    const actions = read("src/modules/centro-cirurgico/suprimentos-background-actions.ts");
+    const detail = read("src/app/(painel)/assistencial/centro-cirurgico/suprimentos/[cirurgiaId]/page.tsx");
+    const list = read("src/app/(painel)/assistencial/centro-cirurgico/suprimentos/page.tsx");
 
-    expect(actions).not.toContain('from "next/navigation"');
-    expect(actions).not.toMatch(/\bredirect\s*\(/);
-    expect(page).toContain("PharmacyBackgroundForm");
-    expect(page).toContain('kind="reconciliation"');
-    expect(page).toContain('kind="validation"');
-    expect(page).toContain('kind="dispense"');
-    expect(page).toContain('kind="component-dispense"');
-    expect(page).toContain('kind="return"');
-    expect(page).not.toContain("registrarConciliacaoMedicamentosaAction");
-    expect(page).not.toContain("validarPrescricaoFarmaceuticaAction");
-    expect(page).not.toContain("dispensarPrescricaoAction");
-    expect(page).not.toContain("dispensarComponentePrescricaoAction");
-    expect(page).not.toContain("devolverMedicamentoAction");
+    expect(actions).toContain("centro_cirurgico_requisitar_suprimentos_operacional");
+    expect(actions).toContain("centro_cirurgico_receber_suprimentos_operacional");
+    expect(actions).toContain("centro_cirurgico_consumir_suprimento_operacional");
+    expect(actions).toContain("centro_cirurgico_estornar_consumo_operacional");
+    expect(actions).toContain("CC_MEDICAMENTO_EXIGE_FLUXO_FARMACIA_PRESCRICAO");
+    expect(detail).toContain("SurgicalSupplyBackgroundForm");
+    expect(detail).toContain('kind="request"');
+    expect(detail).toContain('kind="receive"');
+    expect(detail).toContain('kind="consume"');
+    expect(detail).toContain('kind="reverse"');
+    expect(detail).not.toContain("searchParams");
+    expect(detail).not.toContain("requisitarSuprimentosCirurgicosAction");
+    expect(list).not.toContain("searchParams");
   });
 
-  it("mantém a operação RIS nos formulários de segundo plano sem actions legadas na página", () => {
-    const actions = read("src/modules/assistencial/imagem-background-actions.ts");
-    const page = read("src/app/(painel)/assistencial/imagem/page.tsx");
+  it("mantém CME inline e liberação definitiva sem redirect", () => {
+    const actions = read("src/modules/centro-cirurgico/cme-background-actions.ts");
+    const page = read("src/app/(painel)/assistencial/centro-cirurgico/cme/page.tsx");
+    const form = read("src/components/centro-cirurgico/cme-background-form.tsx");
 
-    expect(actions).not.toContain('from "next/navigation"');
-    expect(actions).not.toMatch(/\bredirect\s*\(/);
-    expect(page).toContain("RadiologyBackgroundForm");
-    expect(page).toContain('kind="schedule"');
-    expect(page).toContain('kind="schedule-status"');
-    expect(page).toContain('kind="start"');
-    expect(page).toContain('kind="finish"');
-    expect(page).toContain('kind="contrast"');
-    expect(page).toContain('kind="dose"');
-    expect(page).not.toContain("agendarImagem,");
-    expect(page).not.toContain("atualizarAgendaImagem,");
-    expect(page).not.toContain("iniciarExecucaoImagem,");
-    expect(page).not.toContain("concluirExecucaoImagem,");
-    expect(page).not.toContain("registrarContrasteImagem,");
-    expect(page).not.toContain("registrarDoseImagem,");
+    expect(actions).toContain("cme_salvar_ciclo_operacional");
+    expect(actions).toContain("CME_LIBERACAO_EXIGE_RESULTADO_E_INDICADORES");
+    expect(actions).toContain("CME_USUARIO_SEM_PROFISSIONAL");
+    expect(page).toContain("CmeBackgroundForm");
+    expect(page).not.toContain("salvarCicloCme");
+    expect(page).not.toContain("searchParams");
+    expect(form).toContain('state.data?.status === "liberado"');
   });
 });

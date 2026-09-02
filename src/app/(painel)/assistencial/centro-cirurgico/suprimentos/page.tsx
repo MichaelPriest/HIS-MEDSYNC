@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Boxes, CheckCircle2, Scissors, TriangleAlert } from "lucide-react";
+import { Boxes, Scissors } from "lucide-react";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
@@ -17,8 +17,6 @@ type Cirurgia = {
 };
 type Req = { id: string; cirurgia_id: string | null; status: string; prioridade: string };
 
-type Params = { sucesso?: string; erro?: string };
-
 function one<T>(value: Rel<T>) { return Array.isArray(value) ? value[0] ?? null : value; }
 function fmt(value: string | null) {
   return value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "—";
@@ -30,8 +28,7 @@ function statusClass(status: string) {
   return "bg-slate-100 text-slate-700";
 }
 
-export default async function SuprimentosCirurgicosPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const params = await searchParams;
+export default async function SuprimentosCirurgicosPage() {
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
   const [cirurgiasReq, requisicoesReq] = await Promise.all([
     supabase.from("cirurgias")
@@ -52,9 +49,6 @@ export default async function SuprimentosCirurgicosPage({ searchParams }: { sear
   const urgentes = requisicoes.filter((item) => !["recebida", "cancelada"].includes(item.status) && item.prioridade === "urgente").length;
 
   return <SectionPage eyebrow="Assistencial / Bloco Cirúrgico" title="Suprimentos Cirúrgicos" description="Requisição ao Almoxarifado/Farmácia Satélite, transferência por lote, recebimento no bloco, consumo físico, OPME e estorno com rastreabilidade até o Livro de Produção." actions={<Link href="/assistencial/centro-cirurgico" className="ui-button-secondary"><Scissors className="size-4"/>Central Cirúrgica</Link>}>
-    {params.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"><CheckCircle2 className="mr-2 inline size-4"/>Operação concluída.</div> : null}
-    {params.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700"><TriangleAlert className="mr-2 inline size-4"/>{decodeURIComponent(params.erro)}</div> : null}
-
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Kpi label="Cirurgias abertas" value={abertas.length}/>
       <Kpi label="Em sala" value={cirurgias.filter((item) => item.status === "em_andamento").length}/>

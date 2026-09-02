@@ -1,8 +1,8 @@
 import { CalendarClock, CheckCircle2, Contrast, ImageIcon, Radiation, ScanLine } from "lucide-react";
 import { RadiologyBackgroundForm } from "@/components/imagem/radiology-background-form";
+import { OpenRadiologyReportForm, RadiologyReportBackgroundForm } from "@/components/imagem/radiology-report-background-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getAssistencialContext } from "@/modules/assistencial/context";
-import { liberarLaudoImagem, salvarLaudoImagem } from "@/modules/assistencial/imagem-actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -10,8 +10,7 @@ export const revalidate = 0;
 const one = (v: any) => Array.isArray(v) ? v[0] ?? null : v;
 const fmt = (v?: string | null) => v ? new Date(v).toLocaleString("pt-BR") : "—";
 
-export default async function ImagemPage({ searchParams }: { searchParams: Promise<{ sucesso?: string; erro?: string }> }) {
-  const sp = await searchParams;
+export default async function ImagemPage() {
   const { supabase, unidadeId, empresaId } = await getAssistencialContext();
   const [solReq, agendaReq, execReq, protoReq, laudoReq, equipReq] = await Promise.all([
     supabase.from("solicitacoes_exames").select("id,atendimento_id,exame,codigo_tuss,prioridade,status,created_at,atendimento:atendimentos(numero_atendimento,paciente:pacientes(nome_completo,ra,numero_registro))").eq("unidade_id", unidadeId).eq("modalidade", "imagem").eq("status", "solicitado").order("created_at", { ascending: false }).limit(100),
@@ -36,9 +35,6 @@ export default async function ImagemPage({ searchParams }: { searchParams: Promi
       title="Diagnóstico por Imagem"
       description="Agenda e execução transacionais, equipamento patrimonial, protocolo técnico, accession, PACS/DICOM, contraste, dose de radiação e laudo assinado no mesmo fluxo."
     >
-      {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Operação de laudo concluída: {sp.sucesso}.</div> : null}
-      {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Falha no laudo: {decodeURIComponent(sp.erro)}.</div> : null}
-
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["Aguardando agenda", solicitacoes.length, ScanLine],
@@ -177,17 +173,18 @@ export default async function ImagemPage({ searchParams }: { searchParams: Promi
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <form action={salvarLaudoImagem} className="his-card p-6">
-          <h2 className="font-black">Laudar exame</h2>
+        <OpenRadiologyReportForm className="his-card p-6">
+          <h2 className="font-black">Iniciar laudo</h2>
+          <p className="mt-1 text-sm text-slate-500">Após a criação ser confirmada pelo banco, o editor do laudo será aberto.</p>
           <div className="mt-4 grid gap-3">
             <select name="execucao_id" required defaultValue="" className="ui-input"><option value="">Selecione execução concluída</option>{execucoes.filter((e) => e.status === "concluido").map((e) => <option key={e.id} value={e.id}>{e.accession_number} · {one(e.solicitacao)?.exame}</option>)}</select>
             <textarea name="tecnica" rows={2} className="ui-input" placeholder="Técnica" />
             <textarea name="achados" rows={5} className="ui-input" placeholder="Achados" />
             <textarea name="conclusao" rows={3} className="ui-input" placeholder="Conclusão" />
             <textarea name="recomendacoes" rows={2} className="ui-input" placeholder="Recomendações" />
-            <button className="ui-button-primary justify-self-end">Salvar rascunho</button>
+            <button className="ui-button-primary justify-self-end">Criar e abrir editor</button>
           </div>
-        </form>
+        </OpenRadiologyReportForm>
 
         <div className="his-card overflow-hidden">
           <div className="border-b border-slate-100 p-5"><h2 className="font-black">Laudos recentes</h2></div>
@@ -199,7 +196,12 @@ export default async function ImagemPage({ searchParams }: { searchParams: Promi
                 <div key={l.id} className="p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div><p className="font-black">{p?.nome_completo ?? "Paciente"} · revisão {l.revisao}</p><p className="mt-1 text-sm text-slate-600">{l.conclusao ?? "Sem conclusão"}</p><p className="mt-1 text-xs text-slate-400">{l.retificado ? "Retificado · " : ""}{fmt(l.created_at)}</p></div>
-                    {l.status !== "liberado" ? <form action={liberarLaudoImagem}><input type="hidden" name="laudo_id" value={l.id} /><button className="ui-button-primary">Liberar / assinar</button></form> : <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Liberado {fmt(l.liberado_em)}</span>}
+                    {l.status !== "liberado" ? (
+                      <RadiologyReportBackgroundForm kind="release">
+                        <input type="hidden" name="laudo_id" value={l.id} />
+                        <button className="ui-button-primary">Liberar / assinar</button>
+                      </RadiologyReportBackgroundForm>
+                    ) : <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Liberado {fmt(l.liberado_em)}</span>}
                   </div>
                 </div>
               );

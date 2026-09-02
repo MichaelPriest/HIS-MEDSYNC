@@ -2,8 +2,8 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ExternalLink, FileClock, FileText, RotateCcw, ScanLine } from "lucide-react";
+import { RadiologyReportBackgroundForm } from "@/components/imagem/radiology-report-background-form";
 import { SectionPage } from "@/components/painel/section-page";
-import { abrirRetificacaoLaudoImagem, liberarLaudoImagem, registrarCriticidadeLaudoImagem, salvarLaudoImagem } from "@/modules/assistencial/imagem-actions";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +14,10 @@ const one = <T,>(value: T | T[] | null | undefined): T | null => Array.isArray(v
 
 export default async function ImagemLaudoPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ laudoId: string }>;
-  searchParams: Promise<{ sucesso?: string; erro?: string }>;
 }) {
-  const [{ laudoId }, sp] = await Promise.all([params, searchParams]);
+  const { laudoId } = await params;
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
 
   const [visualizarReq, laudarReq, liberarReq] = await Promise.all(
@@ -71,9 +69,6 @@ export default async function ImagemLaudoPage({
       title={solicitacao?.exame ?? "Laudo de imagem"}
       description={`Atendimento #${atendimento?.numero_atendimento ?? "—"} · ${paciente?.nome_completo ?? "Paciente"} · revisão ${laudo.revisao}`}
     >
-      {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Operação concluída: {sp.sucesso}.</div> : null}
-      {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">Falha: {decodeURIComponent(sp.erro)}.</div> : null}
-
       <div className="mb-5 flex flex-wrap gap-2">
         <Link href={`/prontuario/${laudo.atendimento_id}/historico` as Route} className="ui-button-secondary">Voltar ao histórico</Link>
         {podeVisualizarModulo ? <Link href="/assistencial/imagem" className="ui-button-secondary">Voltar ao RIS</Link> : null}
@@ -115,7 +110,8 @@ export default async function ImagemLaudoPage({
           </div>
 
           {!liberado && podeLaudar ? (
-            <form action={salvarLaudoImagem} className="his-card p-6">
+            <RadiologyReportBackgroundForm kind="save" className="his-card p-6">
+              <input type="hidden" name="laudo_id" value={laudo.id} />
               <input type="hidden" name="execucao_id" value={String(laudo.execucao_id ?? "")} />
               <div className="mb-4 flex items-center gap-2"><ScanLine className="size-5 text-brand-700" /><h2 className="font-black">Editor do laudo</h2></div>
               {laudo.retificado && laudo.motivo_retificacao ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><strong>Retificação:</strong> {laudo.motivo_retificacao}</div> : null}
@@ -128,7 +124,7 @@ export default async function ImagemLaudoPage({
                   <button className="ui-button-secondary">Salvar rascunho</button>
                 </div>
               </div>
-            </form>
+            </RadiologyReportBackgroundForm>
           ) : liberado ? (
             <div className="his-card p-6">
               <div className="mb-5 flex items-center gap-2"><CheckCircle2 className="size-5 text-emerald-700" /><h2 className="font-black">Laudo assinado</h2></div>
@@ -147,7 +143,7 @@ export default async function ImagemLaudoPage({
           ) : null}
 
           {!liberado && podeLaudar ? (
-            <form action={registrarCriticidadeLaudoImagem} className="his-card p-5">
+            <RadiologyReportBackgroundForm kind="critical" className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <div className="flex items-center gap-2"><AlertTriangle className="size-5 text-rose-700" /><h2 className="font-black">Criticidade e comunicação clínica</h2></div>
               <p className="mt-1 text-sm text-slate-500">Marque achado crítico quando aplicável. Se houver destinatário, a comunicação fica registrada de forma auditável; laudo crítico sem comunicação não pode ser liberado.</p>
@@ -159,25 +155,24 @@ export default async function ImagemLaudoPage({
                 <input name="observacao" defaultValue={laudo.comunicacao_critica_observacao ?? ""} className="ui-input" placeholder="Observação da comunicação" />
               </div>
               <div className="mt-3 flex justify-end"><button className="ui-button-secondary">Salvar criticidade / comunicação</button></div>
-            </form>
+            </RadiologyReportBackgroundForm>
           ) : null}
 
           {!liberado && podeLiberar ? (
-            <form action={liberarLaudoImagem} className="his-card p-5">
+            <RadiologyReportBackgroundForm kind="release" className="his-card p-5">
               <input type="hidden" name="laudo_id" value={laudo.id} />
-              <input type="hidden" name="retorno" value="editor" />
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><h2 className="font-black">Assinar e liberar</h2><p className="text-sm text-slate-500">A liberação assina o laudo, fecha a solicitação e impede edição direta.{criticoPendente ? " Registre a comunicação do achado crítico antes de liberar." : ""}</p></div>
                 <button disabled={criticoPendente} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><CheckCircle2 className="size-4" /> Assinar e liberar</button>
               </div>
-            </form>
+            </RadiologyReportBackgroundForm>
           ) : liberado && podeLiberar ? (
-            <form action={abrirRetificacaoLaudoImagem} className="his-card p-5">
+            <RadiologyReportBackgroundForm kind="rectify" className="his-card p-5" resetOnSuccess>
               <input type="hidden" name="laudo_id" value={laudo.id} />
               <div className="flex items-center gap-2"><RotateCcw className="size-5 text-amber-700" /><h2 className="font-black">Abrir retificação</h2></div>
               <p className="mt-1 text-sm text-slate-500">O conteúdo liberado fica preservado no histórico e uma nova revisão editável é aberta. A criticidade e a comunicação precisam ser reavaliadas na nova revisão.</p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row"><input name="motivo" required className="ui-input flex-1" placeholder="Motivo obrigatório da retificação" /><button className="ui-button-secondary">Retificar laudo</button></div>
-            </form>
+            </RadiologyReportBackgroundForm>
           ) : null}
         </div>
 
