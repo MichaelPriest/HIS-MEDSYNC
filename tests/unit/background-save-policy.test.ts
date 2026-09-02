@@ -17,6 +17,7 @@ const strictBackgroundServerActions = [
   "src/modules/centro-cirurgico/background-actions.ts",
   "src/modules/centro-cirurgico/anestesia-rpa-background-actions.ts",
   "src/modules/centro-cirurgico/suprimentos-background-actions.ts",
+  "src/modules/centro-cirurgico/cme-background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -38,6 +39,7 @@ const backgroundForms = [
   "src/components/centro-cirurgico/anesthesia-autosave-form.tsx",
   "src/components/centro-cirurgico/rpa-autosave-form.tsx",
   "src/components/centro-cirurgico/surgical-supply-background-form.tsx",
+  "src/components/centro-cirurgico/cme-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -164,5 +166,19 @@ describe("política de salvamento em segundo plano", () => {
     expect(detail).not.toContain("searchParams");
     expect(detail).not.toContain("requisitarSuprimentosCirurgicosAction");
     expect(list).not.toContain("searchParams");
+  });
+
+  it("mantém CME inline e liberação definitiva sem redirect", () => {
+    const actions = read("src/modules/centro-cirurgico/cme-background-actions.ts");
+    const page = read("src/app/(painel)/assistencial/centro-cirurgico/cme/page.tsx");
+    const form = read("src/components/centro-cirurgico/cme-background-form.tsx");
+
+    expect(actions).toContain("cme_salvar_ciclo_operacional");
+    expect(actions).toContain("CME_LIBERACAO_EXIGE_RESULTADO_E_INDICADORES");
+    expect(actions).toContain("CME_USUARIO_SEM_PROFISSIONAL");
+    expect(page).toContain("CmeBackgroundForm");
+    expect(page).not.toContain("salvarCicloCme");
+    expect(page).not.toContain("searchParams");
+    expect(form).toContain('state.data?.status === "liberado"');
   });
 });
