@@ -34,7 +34,7 @@ Navegação automática só é válida quando representa uma transição real de
 - Diagnóstico por Imagem/RIS: agenda, execução, contraste, dose e editor de laudos sem reload; criação do laudo pode abrir o editor após confirmação.
 - GED: assinatura e status inline, com SHA-256 do arquivo privado validado antes de `assinar_documento_ged`.
 
-## Centro Cirúrgico
+## Centro Cirúrgico e CME
 
 ### Núcleo operacional
 
@@ -48,22 +48,21 @@ O autosave continua com debounce de 1,2 segundo, agora por Server Actions + `use
 
 ### Suprimentos
 
-Requisição, confirmação de recebimento, consumo físico por lote e estorno permanecem no workspace da cirurgia com `useActionState` e feedback inline. Continuam canônicos:
-
-- `centro_cirurgico_requisitar_suprimentos_operacional`;
-- `centro_cirurgico_receber_suprimentos_operacional`;
-- `centro_cirurgico_consumir_suprimento_operacional`;
-- `centro_cirurgico_estornar_consumo_operacional`.
+Requisição, confirmação de recebimento, consumo físico por lote e estorno permanecem no workspace da cirurgia com `useActionState` e feedback inline. Continuam canônicos `centro_cirurgico_requisitar_suprimentos_operacional`, `centro_cirurgico_receber_suprimentos_operacional`, `centro_cirurgico_consumir_suprimento_operacional` e `centro_cirurgico_estornar_consumo_operacional`.
 
 A requisição pode conter material, OPME, medicamento e gás medicinal porque a separação permanece setorial. A **baixa direta no ato cirúrgico continua proibida para medicamento**: medicamento segue Prescrição → Farmácia → Dispensação → Administração. Consumo direto continua restrito a material, OPME e gás medicinal, exige cirurgia em andamento, lote real disponível, validade e saldo. Vínculo com item de requisição respeita produto/local/quantidade atendida. OPME preserva catálogo, série única e estorno integral. Após conclusão/cancelamento, estorno continua exigindo Auditoria. Nenhum lote, saldo, local ou produto fictício é criado pela interface.
 
-### Pendência cirúrgica
+### CME dedicada
 
-O workspace dedicado da CME ainda possui mutações legadas e deve ser convertido em pacote próprio antes de declarar o domínio cirúrgico inteiro concluído.
+Criação, atualização, conclusão, reprovação e liberação definitiva de ciclos permanecem no workspace CME com `useActionState`. O RPC `cme_salvar_ciclo_operacional` continua como única autoridade de escrita para permissão `cme.gerenciar`, escopo empresa/unidade, status, indicadores, profissional responsável e imutabilidade após liberação.
+
+A interface mantém as validações anteriores: liberação exige resultado técnico e pelo menos um indicador marcado como conforme. Após o RPC, a camada de servidor relê `status`, `inicio_em`, `fim_em` e `liberado_em`; o formulário só apresenta liberação definitiva e bloqueia novas edições quando o estado persistido confirma `liberado`. Ciclos já liberados continuam protegidos também pelo banco. Para novos ciclos, o formulário é limpo apenas após criação confirmada. Não há redirect/query string para feedback e não há schema ou RPC novo.
+
+Com este pacote, os workspaces Centro Cirúrgico/CME mapeados nesta frente deixam de ter mutações de feedback por reload. Isso **não** representa homologação presencial dos protocolos, equipamentos, indicadores ou rotinas locais.
 
 ## Regressão
 
-A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem, entre outras:
+A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem:
 
 - `tests/unit/enfermagem-background-saves.test.ts`;
 - `tests/unit/farmacia-background-actions.test.ts`;
@@ -74,6 +73,7 @@ A política global é protegida por `tests/unit/background-save-policy.test.ts`.
 - `tests/unit/ged-background-saves.test.ts`;
 - `tests/unit/centro-cirurgico-background-saves.test.ts`;
 - `tests/unit/centro-cirurgico-anestesia-rpa-background-saves.test.ts`;
-- `tests/unit/centro-cirurgico-suprimentos-background-saves.test.ts`.
+- `tests/unit/centro-cirurgico-suprimentos-background-saves.test.ts`;
+- `tests/unit/centro-cirurgico-cme-background-saves.test.ts`.
 
-A conversão é incremental. Não declarar o sistema inteiro convertido enquanto existirem mutações legadas fora das exceções de navegação justificadas acima.
+A conversão global do HIS continua incremental. Não declarar o sistema inteiro convertido enquanto existirem mutações legadas fora das exceções de navegação justificadas acima.
