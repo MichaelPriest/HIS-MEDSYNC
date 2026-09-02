@@ -28,16 +28,18 @@ describe("prontidão cadastral TISS", () => {
     const page = read("src/app/(painel)/cadastros/tiss/page.tsx");
     expect(page).toContain("Pacientes — qualidade documental");
     expect(page).toContain('tone="quality"');
-    expect(page).toContain("a obrigatoriedade TISS final depende do tipo de mensagem e do episódio");
-    const blockersExpression = page.match(/const blockers =[\s\S]*?;/)?.[0] ?? "";
-    expect(blockersExpression).not.toContain("pacientesIncompletosCount");
+    expect(page).toContain("Ausência aqui é saneamento, não bloqueio TISS universal");
+    const blockersExpression = page.match(/const blockers=[\s\S]*?;/)?.[0] ?? "";
+    expect(blockersExpression).not.toContain("pacientesIncompletos");
   });
 
-  it("sinaliza prontidão individual de profissionais sem inventar conselho ou CBO", () => {
+  it("separa habilitação TISS de funções administrativas sem inventar conselho ou CBO", () => {
     const page = read("src/app/(painel)/profissionais/page.tsx");
-    expect(page).toContain("Prontos TISS nesta página");
-    expect(page).toContain("prontoTiss");
-    expect(page).toContain("Revisar conselho/UF/CBO");
+    expect(page).toContain("Habilitados TISS nesta página");
+    expect(page).toContain("Não usam TISS nesta página");
+    expect(page).toContain("habilitado_tiss");
+    expect(page).toContain('tissReady=item.habilitado_tiss===true');
+    expect(page).toContain('tissReady?"Pronto":"Não usa TISS"');
     expect(page).not.toContain('defaultValue="225');
   });
 
