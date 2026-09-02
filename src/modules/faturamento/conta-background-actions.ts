@@ -43,6 +43,7 @@ export async function atualizarResumoContaBackground(
   _previous: BackgroundActionState<BillingAccountActionData>,
   formData: FormData,
 ): Promise<BackgroundActionState<BillingAccountActionData>> {
+  void _previous;
   if (!UUID.test(contaId)) return { status: "error", code: "conta", message: "Conta inválida." };
   const { supabase } = await requirePermission("faturamento.criar");
   const competencia = text(formData, "competencia");
@@ -69,6 +70,8 @@ export async function sincronizarProducaoContaBackground(
   _previous: BackgroundActionState<BillingAccountActionData>,
   _formData: FormData,
 ): Promise<BackgroundActionState<BillingAccountActionData>> {
+  void _previous;
+  void _formData;
   if (!UUID.test(contaId)) return { status: "error", code: "conta", message: "Conta inválida." };
   const { supabase, empresaId, unidadeId } = await requirePermission("producao.reprocessar");
   const { data: conta } = await supabase
@@ -102,6 +105,8 @@ export async function recalcularPrecosContaBackground(
   _previous: BackgroundActionState<BillingAccountActionData>,
   _formData: FormData,
 ): Promise<BackgroundActionState<BillingAccountActionData>> {
+  void _previous;
+  void _formData;
   if (!UUID.test(contaId)) return { status: "error", code: "conta", message: "Conta inválida." };
   const { supabase } = await requirePermission("faturamento.criar");
   const { count: guiasAtivas } = await supabase
@@ -124,6 +129,8 @@ export async function validarContaTissBackground(
   _previous: BackgroundActionState<BillingAccountActionData>,
   _formData: FormData,
 ): Promise<BackgroundActionState<BillingAccountActionData>> {
+  void _previous;
+  void _formData;
   if (!UUID.test(contaId)) return { status: "error", code: "conta", message: "Conta inválida." };
   const { supabase } = await requirePermission("faturamento.criar");
   const { error } = await supabase.rpc("validar_conta_tiss", { p_conta_id: contaId });
@@ -137,6 +144,7 @@ export async function excluirLancamentoContaBackground(
   _previous: BackgroundActionState<BillingAccountActionData>,
   formData: FormData,
 ): Promise<BackgroundActionState<BillingAccountActionData>> {
+  void _previous;
   const itemId = text(formData, "item_id");
   if (!UUID.test(contaId) || !UUID.test(itemId)) return { status: "error", code: "item-invalido", message: "Lançamento inválido." };
   const { supabase } = await requirePermission("faturamento.criar");
