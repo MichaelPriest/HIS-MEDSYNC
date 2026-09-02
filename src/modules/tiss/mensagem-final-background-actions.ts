@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 import {
-  serializeTissLoteGuias040300,
   TISS_FINAL_VERSION,
   type TissFinalGuide040300,
   type TissFinalItem040300,
   type TissGuideType040300,
 } from "@/modules/tiss/mensagem-final-040300";
+import { serializeTissWireLoteGuias040300 } from "@/modules/tiss/mensagem-final-wire-040300";
 import { validateTissXmlXsd } from "@/modules/tiss/xsd-validator";
 
 export type TissFinalGenerationData = {
@@ -140,7 +140,7 @@ export async function gerarMensagemTissFinalBackground(
   const now = nowSaoPaulo();
   let serialized;
   try {
-    serialized = serializeTissLoteGuias040300({
+    serialized = serializeTissWireLoteGuias040300({
       numero_lote: lote.numero_lote,
       registro_ans: registroAns,
       prestador_codigo_operadora: null,
