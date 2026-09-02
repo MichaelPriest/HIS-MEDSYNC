@@ -1,9 +1,11 @@
 "use client";
 
 import { CheckCircle2, Cloud, CloudOff, Loader2, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  salvarRpaBackground,
+  type SurgicalTimelineActionState,
+} from "@/modules/centro-cirurgico/anestesia-rpa-background-actions";
 
 export type RpaInitialData = {
   aldrete_entrada: number | null;
@@ -18,18 +20,20 @@ export type RpaInitialData = {
 };
 
 type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
-const num = (value: string) => value === "" ? null : Number(value);
+const INITIAL_STATE: SurgicalTimelineActionState = { status: "idle" };
 const text = (value: unknown) => typeof value === "string" ? value : value == null ? "" : String(value);
 const fmt = (value?: string | null) => value
   ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value))
   : "—";
 
 export function RpaAutosaveForm({ cirurgiaId, initial }: { cirurgiaId: string; initial?: RpaInitialData | null }) {
-  const supabase = useMemo(() => createClient(), []);
-  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const first = useRef(true);
-  const [state, setState] = useState<SaveState>("idle");
-  const [message, setMessage] = useState<string | null>(null);
+  const editVersion = useRef(0);
+  const submittedVersion = useRef(0);
+  const [actionState, formAction, pending] = useActionState(salvarRpaBackground, INITIAL_STATE);
+  const [dirty, setDirty] = useState(false);
+  const [autoBlocked, setAutoBlocked] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [aldreteEntrada, setAldreteEntrada] = useState(initial?.aldrete_entrada?.toString() ?? "");
   const [aldreteAlta, setAldreteAlta] = useState(initial?.aldrete_alta?.toString() ?? "");
@@ -41,35 +45,9 @@ export function RpaAutosaveForm({ cirurgiaId, initial }: { cirurgiaId: string; i
   const [temperatura, setTemperatura] = useState(text(initial?.sinais_vitais?.temperatura));
   const [destino, setDestino] = useState(initial?.destino ?? "");
   const [intercorrencias, setIntercorrencias] = useState(initial?.intercorrencias ?? "");
-  const altaConcluida = initial?.status === "alta" || Boolean(initial?.alta_em);
-
-  const payload = useCallback((alta = false) => ({
-    p_cirurgia_id: cirurgiaId,
-    p_aldrete_entrada: num(aldreteEntrada),
-    p_aldrete_alta: num(aldreteAlta),
-    p_dor: num(dor),
-    p_nauseas: nauseas,
-    p_sinais_vitais: { pa: pa || null, fc: num(fc), spo2: num(spo2), temperatura: num(temperatura) },
-    p_intercorrencias: intercorrencias || null,
-    p_destino: destino || null,
-    p_alta: alta,
-  }), [aldreteAlta, aldreteEntrada, cirurgiaId, destino, dor, fc, intercorrencias, nauseas, pa, spo2, temperatura]);
-
-  const save = useCallback(async (alta = false) => {
-    if (altaConcluida && !alta) return true;
-    setState("saving");
-    setMessage(null);
-    const { error } = await supabase.rpc("centro_cirurgico_salvar_rpa_operacional", payload(alta));
-    if (error) {
-      setState("error");
-      setMessage(error.message);
-      return false;
-    }
-    setState("saved");
-    setLastSaved(new Date());
-    if (alta) router.refresh();
-    return true;
-  }, [altaConcluida, payload, router, supabase]);
+  const [status, setStatus] = useState(initial?.status ?? "em_rpa");
+  const [altaEm, setAltaEm] = useState(initial?.alta_em ?? null);
+  const altaConcluida = status === "alta" || Boolean(altaEm);
 
   useEffect(() => {
     if (first.current) {
@@ -77,35 +55,66 @@ export function RpaAutosaveForm({ cirurgiaId, initial }: { cirurgiaId: string; i
       return;
     }
     if (altaConcluida) return;
-    setState("dirty");
-    const timer = window.setTimeout(() => void save(false), 1200);
-    return () => window.clearTimeout(timer);
-  }, [aldreteAlta, aldreteEntrada, altaConcluida, destino, dor, fc, intercorrencias, nauseas, pa, save, spo2, temperatura]);
+    editVersion.current += 1;
+    setDirty(true);
+    setAutoBlocked(false);
+  }, [aldreteAlta, aldreteEntrada, altaConcluida, destino, dor, fc, intercorrencias, nauseas, pa, spo2, temperatura]);
 
-  return <div className="mt-4 space-y-3">
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+  useEffect(() => {
+    if (!dirty || pending || altaConcluida || autoBlocked) return;
+    const timer = window.setTimeout(() => {
+      submittedVersion.current = editVersion.current;
+      formRef.current?.requestSubmit();
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [altaConcluida, autoBlocked, dirty, pending]);
+
+  useEffect(() => {
+    if (actionState.status === "success") {
+      setLastSaved(new Date());
+      setAutoBlocked(false);
+      if (editVersion.current === submittedVersion.current) setDirty(false);
+      if (actionState.data?.status !== undefined) setStatus(actionState.data.status ?? "em_rpa");
+      if (actionState.data?.altaEm !== undefined) setAltaEm(actionState.data.altaEm ?? null);
+    } else if (actionState.status === "error") {
+      setAutoBlocked(true);
+    }
+  }, [actionState]);
+
+  const saveState: SaveState = pending ? "saving" : actionState.status === "error" ? "error" : dirty ? "dirty" : actionState.status === "success" ? "saved" : "idle";
+
+  return <form
+    ref={formRef}
+    action={formAction}
+    onSubmit={() => { submittedVersion.current = editVersion.current; }}
+    className="mt-4 space-y-3"
+    aria-busy={pending}
+  >
+    <input type="hidden" name="cirurgia_id" value={cirurgiaId} />
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2" aria-live="polite">
       <p className="text-xs font-semibold text-slate-600">Rascunho da recuperação salvo automaticamente.</p>
-      <SaveIndicator state={state} lastSaved={lastSaved} />
+      <SaveIndicator state={saveState} lastSaved={lastSaved} />
     </div>
     <div className="grid gap-3 sm:grid-cols-4">
-      <input value={aldreteEntrada} disabled={altaConcluida} onChange={(e) => setAldreteEntrada(e.target.value)} type="number" step="0.1" className="ui-input" placeholder="Aldrete entrada" />
-      <input value={aldreteAlta} disabled={altaConcluida} onChange={(e) => setAldreteAlta(e.target.value)} type="number" step="0.1" className="ui-input" placeholder="Aldrete alta" />
-      <input value={dor} disabled={altaConcluida} onChange={(e) => setDor(e.target.value)} type="number" min="0" max="10" step="0.1" className="ui-input" placeholder="Dor 0–10" />
-      <input value={pa} disabled={altaConcluida} onChange={(e) => setPa(e.target.value)} className="ui-input" placeholder="PA" />
-      <input value={fc} disabled={altaConcluida} onChange={(e) => setFc(e.target.value)} type="number" className="ui-input" placeholder="FC" />
-      <input value={spo2} disabled={altaConcluida} onChange={(e) => setSpo2(e.target.value)} type="number" step="0.1" className="ui-input" placeholder="SpO₂" />
-      <input value={temperatura} disabled={altaConcluida} onChange={(e) => setTemperatura(e.target.value)} type="number" step="0.1" className="ui-input" placeholder="Temperatura" />
-      <input value={destino} disabled={altaConcluida} onChange={(e) => setDestino(e.target.value)} className="ui-input" placeholder="Destino" />
-      <textarea value={intercorrencias} disabled={altaConcluida} onChange={(e) => setIntercorrencias(e.target.value)} className="ui-input min-h-20 sm:col-span-3" placeholder="Intercorrências" />
-      <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm"><input type="checkbox" disabled={altaConcluida} checked={nauseas} onChange={(e) => setNauseas(e.target.checked)} />Náuseas</label>
+      <input name="aldrete_entrada" value={aldreteEntrada} disabled={altaConcluida} onChange={(e) => setAldreteEntrada(e.target.value)} type="number" step="0.1" className="ui-input" placeholder="Aldrete entrada" />
+      <input name="aldrete_alta" value={aldreteAlta} disabled={altaConcluida} onChange={(e) => setAldreteAlta(e.target.value)} type="number" step="0.1" className="ui-input" placeholder="Aldrete alta" />
+      <input name="dor" value={dor} disabled={altaConcluida} onChange={(e) => setDor(e.target.value)} type="number" min="0" max="10" step="0.1" className="ui-input" placeholder="Dor 0–10" />
+      <input name="pa" value={pa} disabled={altaConcluida} onChange={(e) => setPa(e.target.value)} className="ui-input" placeholder="PA" />
+      <input name="fc" value={fc} disabled={altaConcluida} onChange={(e) => setFc(e.target.value)} type="number" className="ui-input" placeholder="FC" />
+      <input name="spo2" value={spo2} disabled={altaConcluida} onChange={(e) => setSpo2(e.target.value)} type="number" step="0.1" className="ui-input" placeholder="SpO₂" />
+      <input name="temperatura" value={temperatura} disabled={altaConcluida} onChange={(e) => setTemperatura(e.target.value)} type="number" step="0.1" className="ui-input" placeholder="Temperatura" />
+      <input name="destino" value={destino} disabled={altaConcluida} onChange={(e) => setDestino(e.target.value)} className="ui-input" placeholder="Destino" />
+      <textarea name="intercorrencias" value={intercorrencias} disabled={altaConcluida} onChange={(e) => setIntercorrencias(e.target.value)} className="ui-input min-h-20 sm:col-span-3" placeholder="Intercorrências" />
+      <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm"><input type="checkbox" name="nauseas" disabled={altaConcluida} checked={nauseas} onChange={(e) => setNauseas(e.target.checked)} />Náuseas</label>
     </div>
-    {message ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{message}</p> : null}
+    {actionState.status === "error" ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700" aria-live="polite">{actionState.message}{actionState.detail ? <span className="mt-1 block font-normal">{actionState.detail}</span> : null}</p> : null}
+    {actionState.status === "success" && actionState.data?.action === "discharge" ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700" aria-live="polite">{actionState.message}</p> : null}
     <div className="flex flex-wrap items-center gap-3">
-      {!altaConcluida ? <button type="button" onClick={() => void save(false)} disabled={state === "saving"} className="ui-button-secondary"><Save className="size-4" />Salvar agora</button> : null}
-      {!altaConcluida ? <button type="button" onClick={() => void save(true)} disabled={state === "saving" || !aldreteAlta} className="ui-button-primary">Registrar alta da RPA</button> : null}
-      <span className="text-xs text-slate-500">Status {initial?.status ?? "em_rpa"} · alta {fmt(initial?.alta_em)} · horário de Brasília</span>
+      {!altaConcluida ? <button type="submit" disabled={pending} className="ui-button-secondary"><Save className="size-4" />Salvar agora</button> : null}
+      {!altaConcluida ? <button type="submit" name="acao" value="alta" disabled={pending || !aldreteAlta} className="ui-button-primary">Registrar alta da RPA</button> : null}
+      <span className="text-xs text-slate-500">Status {status} · alta {fmt(altaEm)} · horário de Brasília</span>
     </div>
-  </div>;
+  </form>;
 }
 
 function SaveIndicator({ state, lastSaved }: { state: SaveState; lastSaved: Date | null }) {
