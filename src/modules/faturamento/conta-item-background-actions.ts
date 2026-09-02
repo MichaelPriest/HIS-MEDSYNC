@@ -9,6 +9,14 @@ export type BillingItemActionData = {
   mode: "created" | "updated";
 };
 
+function refreshBillingItemPaths(contaId: string) {
+  revalidatePath("/faturamento");
+  revalidatePath("/faturamento/producao");
+  revalidatePath(`/faturamento/${contaId}`);
+  revalidatePath(`/faturamento/${contaId}/catalogo`);
+  revalidatePath(`/faturamento/${contaId}/lancamentos`);
+}
+
 export async function salvarLancamentoContaBackground(
   contaId: string,
   _previous: BackgroundActionState<BillingItemActionData>,
@@ -16,15 +24,13 @@ export async function salvarLancamentoContaBackground(
 ): Promise<BackgroundActionState<BillingItemActionData>> {
   const result = await saveBillingAccountItem(contaId, formData);
   if (!result.ok) {
+    // Também cobre a rara falha após o item já ter sido persistido e antes de
+    // concluir um recálculo opcional: a tela deve refletir o estado real do banco.
+    refreshBillingItemPaths(contaId);
     return { status: "error", code: result.code, message: result.message };
   }
 
-  revalidatePath("/faturamento");
-  revalidatePath("/faturamento/producao");
-  revalidatePath(`/faturamento/${contaId}`);
-  revalidatePath(`/faturamento/${contaId}/catalogo`);
-  revalidatePath(`/faturamento/${contaId}/lancamentos`);
-
+  refreshBillingItemPaths(contaId);
   return {
     status: "success",
     code: result.mode === "created" ? "item-adicionado" : "item-atualizado",
