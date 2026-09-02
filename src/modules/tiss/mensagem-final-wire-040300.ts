@@ -28,8 +28,8 @@ const VALID_UF_ANS_040300 = new Set([...Object.values(UF_ANS_040300), "98"]);
  * XML, porém, é dm_versao e usa 4.03.00 conforme o XSD oficial.
  */
 export function serializeTissWireLoteGuias040300(input: TissFinalLot040300): TissSerializedMessage040300 {
-  assertCommunicationDomains(input);
   const base = serializeTissLoteGuias040300(input);
+  assertCommunicationDomains(input);
   let canonicalXml = base.xml;
 
   canonicalXml = patchUfDomains(canonicalXml);
