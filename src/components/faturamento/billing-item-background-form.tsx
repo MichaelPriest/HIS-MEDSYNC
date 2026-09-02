@@ -45,7 +45,7 @@ export function BillingItemBackgroundForm({
       <button disabled={disabled || pending} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">
         <Icon className="size-4" />{submitLabel ?? (editing ? "Salvar lançamento" : "Adicionar à conta")}
       </button>
-      {editing && showDelete ? <AccountItemDeleteButton contaId={contaId} /> : null}
+      {editing && showDelete && !disabled ? <AccountItemDeleteButton contaId={contaId} /> : null}
     </div>
   </form>;
 }
