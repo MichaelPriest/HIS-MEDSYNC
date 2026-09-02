@@ -1,8 +1,10 @@
 "use client";
 
 import { AlertTriangle, Plus, Search, ShieldCheck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { SurgicalActionFeedback } from "@/components/centro-cirurgico/surgical-background-form";
 import { createClient } from "@/lib/supabase/client";
+import { adicionarProcedimentoAoAtoBackground, type SurgicalActionState } from "@/modules/centro-cirurgico/background-actions";
 
 type ProcedimentoContrato = {
   tabela_item_id: string;
@@ -18,20 +20,32 @@ type ProcedimentoContrato = {
 };
 
 type Props = {
-  action: (formData: FormData) => void | Promise<void>;
   cirurgiaId: string;
   atendimentoId: string;
   conveniado: boolean;
   convenioNome?: string | null;
 };
 
-export function SurgeryProcedureAddForm({ action, cirurgiaId, atendimentoId, conveniado, convenioNome }: Props) {
+const INITIAL_STATE: SurgicalActionState = { status: "idle" };
+
+export function SurgeryProcedureAddForm({ cirurgiaId, atendimentoId, conveniado, convenioNome }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const [state, formAction, pending] = useActionState(adicionarProcedimentoAoAtoBackground, INITIAL_STATE);
+  const [formVersion, setFormVersion] = useState(0);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<ProcedimentoContrato[]>([]);
   const [selected, setSelected] = useState<ProcedimentoContrato | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (state.status !== "success") return;
+    setSelected(null);
+    setQuery("");
+    setItems([]);
+    setError(null);
+    setFormVersion((current) => current + 1);
+  }, [state.status]);
 
   useEffect(() => {
     if (!conveniado || selected) return;
@@ -64,7 +78,7 @@ export function SurgeryProcedureAddForm({ action, cirurgiaId, atendimentoId, con
     };
   }, [atendimentoId, conveniado, query, selected, supabase]);
 
-  return <form action={action} className="space-y-3">
+  return <form key={formVersion} action={formAction} className="space-y-3" aria-busy={pending}>
     <input type="hidden" name="cirurgia_id" value={cirurgiaId} />
     {conveniado ? <div className="rounded-2xl border border-brand-200 bg-brand-50/50 p-4">
       <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-5 text-brand-700" /><div><p className="font-black text-brand-950">Adicionar procedimento conforme contrato</p><p className="mt-1 text-xs text-brand-800">{convenioNome ?? "Convênio do atendimento"}. Código, porte e porte anestésico serão revalidados no banco.</p></div></div>
@@ -76,6 +90,7 @@ export function SurgeryProcedureAddForm({ action, cirurgiaId, atendimentoId, con
       <input type="hidden" name="porte_anestesico" value={selected?.porte_anestesico ?? ""} />
     </div> : <div className="grid gap-3 md:grid-cols-2"><input name="descricao" required className="ui-input md:col-span-2" placeholder="Descrição do procedimento *" /><input name="codigo" className="ui-input" placeholder="Código / TUSS" /><input name="porte" className="ui-input" placeholder="Porte" /><input name="porte_anestesico" className="ui-input" placeholder="Porte anestésico" /><input name="observacoes" className="ui-input" placeholder="Observações" /></div>}
     {conveniado ? <input name="observacoes" className="ui-input" placeholder="Observações do procedimento" /> : null}
-    <button disabled={conveniado && !selected} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" />Adicionar ao ato cirúrgico</button>
+    <button disabled={pending || (conveniado && !selected)} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" />Adicionar ao ato cirúrgico</button>
+    <SurgicalActionFeedback state={state} pending={pending} />
   </form>;
 }
