@@ -1,6 +1,6 @@
 # Estado real da implementação
 
-Atualizado em 2026-09-01.
+Atualizado em 2026-09-02.
 
 Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabela, migration, teste ou deploy verde não equivalem a homologação hospitalar; homologação depende de validação operacional, integrações externas e dados institucionais reais.
 
@@ -8,10 +8,9 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 
 - `main`: `202326decbd3a2ab88196b4288d79da9d8754b18`, merge da PR #121, que consolidou a cadeia cumulativa #116–#121.
 - O head cumulativo da #121, `fe4ddccb8b39903c7bce491942631356434060d9`, passou CI #896 completamente verde e Vercel `success` antes do merge, sem reviews/threads bloqueantes.
-- A produção do **merge SHA** `202326de...` ainda não está confirmada: o GitHub/Vercel do pós-merge retornou novamente `Deployment rate limited`. A listagem do Vercel mostra `READY` apenas para o preview do head `fe4ddccb...`, não para o merge SHA. Portanto não declarar a nova `main` em produção ainda.
-- A última produção de `main` confirmada por SHA continua `c91d2ebccb1a549b9bae8db24b24c3d6877db04c` (PR #113), até que exista deployment de produção do merge `202326de...` ou posterior.
-- As PRs intermediárias #116–#120 foram incorporadas pela PR cumulativa #121; o GitHub já reconhece os commits como mesclados na `main`.
-- Pacote atual — Internação/NIR: branch `feat/internacao-nir-background-saves`, baseada no head consolidado da #121. A alocação de leito passa a usar `BackgroundActionState` + `useActionState`, preservando `movimentar_internacao_leito` como autoridade transacional. Sem migration, schema, RLS ou RPC novo.
+- A produção do merge SHA `202326de...` ainda não está confirmada: o pós-merge retornou `Deployment rate limited`. A última produção de `main` confirmada por SHA permanece `c91d2ebccb1a549b9bae8db24b24c3d6877db04c` até existir deployment de produção do merge atual ou posterior.
+- PR #122 — Internação/NIR: head `d92c8132373d79372ed0ae89b7a4fa6d6324d30d`, CI #898 completamente verde, sem reviews/threads bloqueantes; Vercel do mesmo SHA falhou somente por rate limit. A PR permanece aberta e não recebeu empty commit para retry.
+- Pacote atual — Redesign do Ciclo da Receita: branch `feat/faturamento-redesign-workspace`, empilhada sobre a #122. O objetivo é reorganizar Faturamento/TISS/Glosas/Recursos/Recebíveis/NFS-e/Financeiro em um workspace único, com ícones, grids, filtros e modais, preservando regras financeiras e RPCs existentes.
 - PR #111 permanece aberta para fallback comercial TUSS; a migration correspondente já está aplicada no Supabase e não deve ser confundida com homologação da PR.
 
 ## Princípios obrigatórios
@@ -37,30 +36,47 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 | Base de Conhecimento | `/manual` com 17 guias, busca, filtros, público, passos, alertas e fontes versionadas. | confirmar produção da `main`, ampliar ajuda contextual e governança |
 | GED | Storage privado, versões, hash, assinatura e mudanças de status inline consolidadas pela #121. | retenção, temporalidade e governança documental |
 | Centro Cirúrgico / CME | Núcleo/procedimentos, Anestesia/RPA, Suprimentos e CME dedicada consolidados pela #121, ligados ao mesmo RA e RPCs canônicos. | homologação presencial de cirurgia/CME, equipamentos, indicadores, termos e protocolos locais |
-| Internação / NIR | Admissão/leito, alta, censo, diárias e transferências interunidades existem. Pacote atual converte a alocação NIR para feedback inline. | concluir gate/merge do NIR; depois gestão operacional de leitos, transferências e alta sem reload; homologação NIR |
+| Internação / NIR | A #122 converte a alocação NIR para feedback inline e mantém `movimentar_internacao_leito` como autoridade. | Vercel/merge; depois gestão operacional de leitos, transferências e alta sem reload; homologação NIR |
 | Compras / Almoxarifado / Estoque | Cotação, pedido, recebimento, lote, saldo, inventário, reposição e transferências transacionais. | alçadas reais, curva ABC, inventários e mutações legadas |
 | Comercial / Contratos / Tabelas | Contratos, versões, itens, auditoria e AMB estruturada. | referências reais, precificação e mapeamentos |
-| Urgência / Emergência | Transições, prioridade, SLA, reavaliação e observação com base operacional. | sincronizar cadeia de PRs, parametrização e homologação |
-| Faturamento / TISS / Financeiro | Produção, conta, TISS, glosa/recurso, recebíveis, conciliação e NFS-e têm fundações transacionais. | XSD/adapters reais, fechamento, precificação e homologação |
+| Urgência / Emergência | Transições, prioridade, SLA, reavaliação e observação com base operacional. | parametrização e homologação |
+| Faturamento / TISS / Financeiro | Fundações transacionais já existiam. O pacote atual redesenha as centrais de Contas, Produção, Guias, Lotes, Glosas, Recursos, Recebíveis, NFS-e e Financeiro em um Ciclo da Receita único. | validar CI; migrar depois as mutações legadas de detalhes/ledger; XSD/adapters reais, fechamento e homologação |
 | Auditoria / Contas Médicas | Fila pós-alta, revalidação e handoff corrigidos nas PRs #108/#109. | homologar ciclo pós-alta ponta a ponta |
 
 ## Supabase — referência confirmada
 
-A migration mais recente continua `20260901225717_faturamento_fallback_comercial_tuss`; entre as imediatamente anteriores estão `20260901223840_auditoria_trigger_liberacao_finalizado_em` e `20260831035056_auditoria_autorizacao_unificada`. A cadeia #116–#121 e o pacote NIR atual não adicionam migration.
+A migration mais recente continua `20260901225717_faturamento_fallback_comercial_tuss`; entre as imediatamente anteriores estão `20260901223840_auditoria_trigger_liberacao_finalizado_em` e `20260831035056_auditoria_autorizacao_unificada`. A #122 e o redesign atual não adicionam migration, schema, RLS ou RPC.
 
-## Internação/NIR — pacote atual
+## Redesign do Ciclo da Receita — pacote atual
 
-A alocação da fila regulatória preserva o RPC `movimentar_internacao_leito(uuid,uuid,text)`. O banco continua responsável por:
+A arquitetura visual/operacional passa a compartilhar `BillingWorkspaceNav` entre `/faturamento` e `/financeiro`, mantendo uma navegação única para Visão Geral, Produção, Guias TISS, Lotes, Glosas, Recursos, Recebíveis, Notas fiscais e Financeiro.
 
-- autenticação, escopo empresa/unidade e permissões `leitos.gerenciar` / `internacao.movimentar` / `internacao.gerenciar`;
-- lock da internação e do leito;
-- internação ativa e ausência/transferência de leito;
-- disponibilidade e ocupação concorrente;
-- isolamento, restrição de sexo e acomodação;
-- reserva ativa vinculada ao mesmo atendimento quando o leito está reservado;
-- ocupação do destino, consumo da reserva, atualização de internação/atendimento e registro em `movimentacoes_leitos`.
+Mudanças implementadas neste pacote:
 
-A tela mantém prioridade por risco/espera, compatibilidade visual e filtros `q`, `risco` e `setor`. Esses filtros continuam na URL por serem consulta deliberada. Sucesso/erro de alocação deixa de usar query string e passa a ser inline por paciente. NIR, Internação, mapa de leitos e prontuário são revalidados após confirmação.
+- nova **Central do Ciclo da Receita** com KPIs, fila de ação, atalhos, lotes recentes, pós-alta pendente, busca e filtros de contas;
+- criação de conta em modal pesquisável por paciente/CPF/RA/registro/atendimento;
+- nova rota/index **`/faturamento/guias`**, antes inexistente, com filtros, críticas abertas e status de validação;
+- nova rota/index **`/faturamento/recursos`**, antes inexistente, com acompanhamento por paciente, guia, operadora, protocolo e valores recursados/deferidos;
+- Central de Glosas em grid/tabela operacional, com recurso aberto em modal em vez de formulário permanente em cada item;
+- Central de Lotes com filtros por status/competência, KPIs e criação em modal;
+- Livro de Produção com busca/filtros e sincronização de contingência em modal;
+- nova rota/index **`/financeiro/recebiveis`**, antes inexistente, com vencidos, competência, status, saldo e acesso ao ledger;
+- Resumo Financeiro redesenhado com prioridades, agenda de recebimento, glosas, saldo e NFS-e;
+- Central de NFS-e com filtros, indicadores e criação de rascunho em modal;
+- subnavegação da conta hospitalar redesenhada com ícones para Resumo, Lançamentos, Catálogo e Cirurgia/SADT;
+- componente `BillingModal` reutilizável com `role="dialog"`, `aria-modal`, fechamento por Escape e bloqueio de scroll.
+
+Ações convertidas para `BackgroundActionState` + `useActionState`:
+
+- abertura de conta hospitalar;
+- criação de lote via `criar_lote_tiss_transacional`;
+- criação de recurso via `criar_recurso_glosa_tiss_transacional`;
+- criação de rascunho NFS-e via `criar_nfse_lote_operacional`;
+- sincronização de contingência via `sincronizar_producao_atendimento`.
+
+Navegação após essas ações só ocorre quando existe uma nova etapa real: conta, lote, recurso ou nota confirmados pelo banco. Erros permanecem inline e os campos do modal não são descartados.
+
+Ainda não convertidos neste pacote: baixas, conciliações, estornos e demais mutações de detalhe financeiro/NFS-e que permanecem em actions legadas. Devem ser migradas em pacotes posteriores sem romper o ledger append-only nem os RPCs fiscais/financeiros.
 
 ## Gates e critério de merge
 
