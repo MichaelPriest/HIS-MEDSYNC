@@ -12,13 +12,14 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 - PR #117 — governança GED: head `d0f81642636a5baf0771f0928a9eb13794cf1c7c`, CI #892 verde, Vercel do mesmo SHA rate-limited; aberta.
 - PR #118 — núcleo do Centro Cirúrgico: head `fbe4c8145277c2dc9b91237a5109fafa411dc8f8`, CI #893 completamente verde, reviews/threads limpos, Vercel do mesmo SHA rate-limited; aberta.
 - PR #119 — Anestesia/RPA: head `7003ba48056bcc1c906013383be3b96bd9ad7c6d`, CI #894 verde, reviews/threads limpos, Vercel do mesmo SHA rate-limited; aberta.
-- Pacote atual — Suprimentos do Centro Cirúrgico: empilhado sobre a PR #119. Requisição, recebimento, consumo por lote e estorno passam a usar `BackgroundActionState` + `useActionState`, preservando os quatro RPCs canônicos, rastreabilidade de lote/OPME, saldo e integração com Livro de Produção. Não há migration, schema, RLS ou RPC novo.
+- PR #120 — Suprimentos do Centro Cirúrgico: head `1e378291ae8252fc064136ce436f066b62ee3dcb`, CI #895 completamente verde (lint, typecheck, unitários, build e E2E), reviews/threads limpos na abertura e Vercel do mesmo SHA rate-limited; aberta.
+- Pacote atual — CME dedicada: empilhado sobre a PR #120. Criação, atualização, conclusão/reprovação e liberação definitiva de ciclos passam para `BackgroundActionState` + `useActionState`, preservando `cme_salvar_ciclo_operacional`, permissão `cme.gerenciar`, imutabilidade após liberação e releitura do estado persistido. Sem migration, schema, RLS ou RPC novo.
 - PR #111 permanece aberta para fallback comercial TUSS; a migration correspondente já está aplicada no Supabase e não deve ser confundida com merge/homologação da PR.
 
 ## Princípios obrigatórios
 
 - Atendimento/RA e prontuário longitudinal permanecem como eixo do episódio.
-- Escritas críticas devem usar os RPCs/transações existentes com autenticação, escopo empresa/unidade, RBAC e RLS; não reabrir DML paralelo para contornar segurança.
+- Escritas críticas devem usar RPCs/transações existentes com autenticação, escopo empresa/unidade, RBAC e RLS; não reabrir DML paralelo para contornar segurança.
 - Medicamentos seguem `Prescrição → Farmácia → Dispensação → Administração`.
 - Não criar pacientes, unidades, leitos, estoques, lotes, valores, autorizações, contas, glosas, NFS-e ou fatos clínicos fictícios para completar fluxo.
 - Migrations aplicadas no Supabase devem permanecer versionadas; drift deve ser explícito.
@@ -37,7 +38,7 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 | Diagnóstico por Imagem / RIS | Operação RIS consolidada; PR #116 converte editor/liberação de laudos. | gate Vercel/merge, PACS/visualizador real, homologação por modalidade |
 | Base de Conhecimento | `/manual` com 17 guias, busca, filtros, público, passos, alertas e fontes versionadas. | confirmar produção do merge, ampliar ajuda contextual e governança |
 | GED | Storage privado, versões, hash e assinatura; PR #117 converte status/assinatura inline. | gate Vercel/merge, retenção e temporalidade |
-| Centro Cirúrgico / CME | PR #118 converte núcleo/procedimentos; PR #119 converte Anestesia/RPA; pacote atual converte Suprimentos. Tudo continua ligado ao mesmo RA. | concluir gates; converter workspace dedicado da CME; homologação presencial |
+| Centro Cirúrgico / CME | PR #118 converte núcleo/procedimentos; PR #119 Anestesia/RPA; PR #120 Suprimentos; pacote atual converte a CME dedicada. Tudo permanece ligado ao mesmo RA e aos RPCs canônicos. | concluir gates da cadeia; homologação presencial de cirurgia/CME, equipamentos, indicadores, termos e protocolos locais |
 | Compras / Almoxarifado / Estoque | Cotação, pedido, recebimento, lote, saldo, inventário, reposição e transferências transacionais. | alçadas reais, curva ABC, inventários e mutações legadas |
 | Comercial / Contratos / Tabelas | Contratos, versões, itens, auditoria e AMB estruturada. | referências reais, precificação e mapeamentos |
 | Internação / NIR | Admissão/leito, alta, censo, diárias e transferências interunidades. | homologação NIR, segunda unidade real, mutações restantes |
@@ -47,28 +48,25 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 
 ## Supabase — referência confirmada
 
-A migration mais recente continua:
-
-- `20260901225717_faturamento_fallback_comercial_tuss`
-
-Entre as imediatamente anteriores estão `20260901223840_auditoria_trigger_liberacao_finalizado_em` e `20260831035056_auditoria_autorizacao_unificada`. Os pacotes RIS, GED e Centro Cirúrgico desta cadeia não adicionam migration.
+A migration mais recente continua `20260901225717_faturamento_fallback_comercial_tuss`; entre as imediatamente anteriores estão `20260901223840_auditoria_trigger_liberacao_finalizado_em` e `20260831035056_auditoria_autorizacao_unificada`. Os pacotes RIS, GED e Centro Cirúrgico/CME desta cadeia não adicionam migration.
 
 ## Salvamentos em segundo plano
 
-Já convertidos e protegidos contra regressão: alta/avaliações médicas, Agenda, Admissão, Triagem, Fila Médica, Autorizações, Enfermagem, Farmácia, bancada e laudos LIS, operação e laudos RIS, governança GED, núcleo/procedimentos do Centro Cirúrgico e Anestesia/RPA.
+Já convertidos e protegidos contra regressão: alta/avaliações médicas, Agenda, Admissão, Triagem, Fila Médica, Autorizações, Enfermagem, Farmácia, bancada e laudos LIS, operação e laudos RIS, governança GED, núcleo/procedimentos do Centro Cirúrgico, Anestesia/RPA e Suprimentos.
 
-No pacote atual de Suprimentos:
+No pacote atual da CME:
 
-- requisição ao estoque/farmácia satélite permanece vinculada à cirurgia/RA;
-- recebimento é confirmado no próprio bloco;
-- consumo físico continua restrito a material, OPME e gás medicinal, apenas com cirurgia `em_andamento`, lote válido e saldo real;
-- medicamento continua proibido na baixa direta e segue a cadeia farmacêutica obrigatória;
-- vínculo com requisição não pode exceder quantidade atendida nem divergir produto/local;
-- OPME mantém catálogo, série única, lote e estorno integral;
-- estorno após cirurgia concluída/cancelada continua exigindo Auditoria;
-- Livro de Produção e integrações dependentes são revalidados após operações confirmadas.
+- novo ciclo exige código real;
+- criação/atualização usa o RPC `cme_salvar_ciclo_operacional`;
+- status permanece limitado a `em_processamento`, `concluido`, `reprovado` ou `liberado` no banco;
+- liberação definitiva exige resultado e ao menos um indicador conforme na interface, além das validações do RPC;
+- liberação exige profissional vinculado e permanece imutável no banco;
+- após salvar, a Server Action relê `status`, `inicio_em`, `fim_em` e `liberado_em` antes de mostrar confirmação;
+- após `status=liberado` confirmado, o formulário é bloqueado sem `router.refresh()`;
+- novo formulário só é limpo após criação confirmada;
+- não há feedback por query string/redirect.
 
-Pendência cirúrgica restante: workspace dedicado da CME.
+Com este pacote, os workspaces Centro Cirúrgico/CME mapeados nesta frente ficam convertidos para feedback em segundo plano. Isso **não** declara homologação presencial nem valida protocolos/equipamentos institucionais.
 
 ## Gates e critério de merge
 
