@@ -3,31 +3,24 @@ import {
   AlertTriangle,
   BadgeCheck,
   Building2,
-  Calculator,
   ClipboardList,
   FileCheck2,
   Layers3,
   Plus,
   ReceiptText,
-  RefreshCcw,
   Save,
-  ShieldCheck,
-  Trash2,
   UserRound,
 } from "lucide-react";
 import { notFound } from "next/navigation";
+import {
+  AccountBackgroundForm,
+  AccountItemDeleteButton,
+} from "@/components/faturamento/account-background-forms";
 import { SectionPage } from "@/components/painel/section-page";
 import { createClient } from "@/lib/supabase/server";
 import { gerarGuiaTiss } from "@/modules/faturamento/actions";
 import { atualizarGrupoAto, criarGrupoAto, recalcularGrupoAto } from "@/modules/faturamento/atos-actions";
-import {
-  atualizarResumoConta,
-  excluirLancamentoConta,
-  recalcularPrecosConta,
-  salvarLancamentoConta,
-  sincronizarProducaoConta,
-  validarContaTissOperacional,
-} from "@/modules/faturamento/conta-operacional-actions";
+import { salvarLancamentoConta } from "@/modules/faturamento/conta-operacional-actions";
 
 function one<T>(rel: T | T[] | null): T | null { return Array.isArray(rel) ? rel[0] ?? null : rel; }
 function brl(v: number | null | undefined) { return `R$ ${Number(v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`; }
@@ -63,20 +56,12 @@ const erroLabels: Record<string, string> = {
   "valor-invalido": "O valor unitário informado é inválido.",
   "percentual-invalido": "O percentual de redução/acréscimo informado é inválido.",
   "desconto-invalido": "O desconto não pode ser maior que o valor bruto da conta.",
-  "sincronizacao-producao": "Não foi possível sincronizar a produção assistencial deste atendimento.",
-  "recalculo-contratual": "Não foi possível recalcular os valores contratuais da conta.",
-  "validacao-tiss": "Não foi possível executar a validação TISS da conta.",
   lancamento: "Não foi possível salvar o lançamento. Revise os campos e tente novamente.",
 };
 
 const sucessoLabels: Record<string, string> = {
   "item-adicionado": "Lançamento incluído e totais recalculados.",
   "item-atualizado": "Lançamento atualizado e conta marcada para nova validação.",
-  "item-excluido": "Lançamento excluído e totais recalculados.",
-  "resumo-atualizado": "Competência/desconto atualizados.",
-  "producao-sincronizada": "Produção assistencial sincronizada com a conta.",
-  "precos-recalculados": "Regras contratuais recalculadas.",
-  "conta-validada": "Validação TISS executada no banco. Revise as críticas abaixo.",
 };
 
 export default async function ContaPage({ params, searchParams }: { params: Promise<{ contaId: string }>; searchParams: Promise<{ erro?: string; sucesso?: string }> }) {
@@ -123,11 +108,6 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
   const totalItens = itens.filter((i) => i.cobravel).reduce((sum, item) => sum + Number(item.valor_total ?? 0), 0);
 
   const salvarItem = salvarLancamentoConta.bind(null, contaId);
-  const excluirItem = excluirLancamentoConta.bind(null, contaId);
-  const salvarResumo = atualizarResumoConta.bind(null, contaId);
-  const sincronizar = sincronizarProducaoConta.bind(null, contaId);
-  const recalcular = recalcularPrecosConta.bind(null, contaId);
-  const validar = validarContaTissOperacional.bind(null, contaId);
   const gerarGuia = gerarGuiaTiss.bind(null, contaId);
   const novoGrupo = criarGrupoAto.bind(null, contaId);
   const salvarGrupo = atualizarGrupoAto.bind(null, contaId);
@@ -181,21 +161,22 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
           <Row label="Nº autorização" value={atendimento?.numero_autorizacao}/><Row label="Senha" value={atendimento?.senha_autorizacao}/>
           <Row label="Auditoria" value={conta.auditoria_liberada ? "Liberada" : "Pendente"}/><Row label="Contas Médicas" value={conta.contas_medicas_liberada ? "Liberada" : "Pendente"}/>
         </dl>
-        <form action={salvarResumo} className="mt-4 grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-[1fr_1fr_auto]">
-          <label className="text-xs font-semibold text-slate-600">Competência<input type="month" name="competencia" defaultValue={conta.competencia} className="ui-input mt-1"/></label>
-          <label className="text-xs font-semibold text-slate-600">Desconto em valor<input name="valor_desconto" defaultValue={Number(conta.valor_desconto ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} className="ui-input mt-1" inputMode="decimal"/></label>
-          <button className="ui-button-secondary self-end"><Save className="size-4"/>Salvar</button>
-        </form>
+        <AccountBackgroundForm contaId={contaId} kind="summary" className="mt-4 rounded-xl border border-slate-200 p-4" buttonClassName="ui-button-secondary">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-semibold text-slate-600">Competência<input type="month" name="competencia" defaultValue={conta.competencia} className="ui-input mt-1"/></label>
+            <label className="text-xs font-semibold text-slate-600">Desconto em valor<input name="valor_desconto" defaultValue={Number(conta.valor_desconto ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} className="ui-input mt-1" inputMode="decimal"/></label>
+          </div>
+        </AccountBackgroundForm>
       </article>
     </section>
 
     <section className="ui-card mt-5 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="font-bold text-slate-900">Ações da conta</h2><p className="text-xs text-slate-500">Fluxo equivalente ao trabalho operacional: sincronizar, conferir preço, validar e só então gerar guia.</p></div>
-        <div className="flex flex-wrap gap-2">
-          <form action={sincronizar}><button className="ui-button-secondary"><RefreshCcw className="size-4"/>Sincronizar produção</button></form>
-          <form action={recalcular}><button className="ui-button-secondary"><Calculator className="size-4"/>Recalcular contrato</button></form>
-          <form action={validar}><button className="ui-button-primary"><ShieldCheck className="size-4"/>Validar conta TISS</button></form>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h2 className="font-bold text-slate-900">Ações da conta</h2><p className="text-xs text-slate-500">Sincronizar, conferir preço e validar não recarregam a página. Gerar a Guia TISS continua como transição real de etapa.</p></div>
+        <div className="flex flex-wrap items-start gap-3">
+          <AccountBackgroundForm contaId={contaId} kind="sync" />
+          <AccountBackgroundForm contaId={contaId} kind="reprice" />
+          <AccountBackgroundForm contaId={contaId} kind="validate" />
           {guiaTissAtiva ? <Link href={`/faturamento/guias/${guiaTissAtiva.id}`} className="ui-button-secondary"><FileCheck2 className="size-4"/>Abrir Guia TISS</Link> : conta.status === "pronta" && conta.tipo_cobranca === "convenio" ? <form action={gerarGuia}><button className="ui-button-primary"><FileCheck2 className="size-4"/>Gerar Guia TISS</button></form> : null}
         </div>
       </div>
@@ -250,7 +231,7 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 text-xs xl:col-span-2"><label className="flex items-center gap-1"><input type="checkbox" name="cobravel" defaultChecked={item.cobravel}/>Cobravel</label><label className="flex items-center gap-1"><input type="checkbox" name="urgencia" defaultChecked={item.urgencia}/>Urgência</label><label className="flex items-center gap-1"><input type="checkbox" name="horario_especial" defaultChecked={item.horario_especial}/>Horário especial</label><label className="flex items-center gap-1"><input type="checkbox" name="acomodacao_individual" defaultChecked={item.acomodacao_individual}/>Acomod. individual</label><label className="flex items-center gap-1"><input type="checkbox" name="anestesia" defaultChecked={item.anestesia}/>Anestesia</label></div>
             <input name="observacao" defaultValue={item.observacao ?? ""} className="ui-input md:col-span-2 xl:col-span-5" placeholder="Observação"/>
             <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="recalcular_contrato" defaultChecked/>Recalcular contrato</label>
-            <div className="flex justify-end gap-2 xl:col-span-2"><button className="ui-button-secondary"><Save className="size-4"/>Salvar</button><button formAction={excluirItem} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"><Trash2 className="size-4"/>Excluir</button></div>
+            <div className="flex justify-end gap-2 xl:col-span-2"><button className="ui-button-secondary"><Save className="size-4"/>Salvar</button><AccountItemDeleteButton contaId={contaId}/></div>
           </div>
         </form>) : <p className="p-8 text-center text-sm text-slate-500">Nenhum lançamento na conta.</p>}
       </div>
@@ -275,7 +256,7 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
     <section id="criticas" className="ui-card mt-6 p-5">
       <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-slate-900">Críticas e pendências</h2><p className="text-sm text-slate-500">{erros} erro(s) impeditivo(s) · {alertas} alerta(s). A validação é executada no Supabase e não somente na tela.</p></div>{erros ? <AlertTriangle className="size-6 text-rose-600"/> : <BadgeCheck className="size-6 text-emerald-600"/>}</div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">{criticas.length ? criticas.map((c) => <div key={c.id} className={`rounded-xl border p-4 ${c.resolvida ? "border-slate-200 bg-slate-50 opacity-70" : c.severidade === "erro" ? "border-rose-200 bg-rose-50" : "border-amber-200 bg-amber-50"}`}><div className="flex items-center justify-between gap-3"><strong className="text-xs">{c.codigo}</strong><span className="text-[11px] uppercase">{c.resolvida ? "resolvida" : c.severidade}</span></div><p className="mt-2 text-sm text-slate-700">{c.mensagem}</p><p className="mt-2 text-xs text-slate-500">Campo: {c.campo ?? "—"} · origem: {c.origem ?? "validador"}</p></div>) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Ainda não há críticas registradas. Execute a validação da conta.</p>}</div>
-      <form action={validar} className="mt-5 flex justify-end"><button className="ui-button-primary"><ShieldCheck className="size-4"/>Revalidar conta</button></form>
+      <div className="mt-5 flex justify-end"><AccountBackgroundForm contaId={contaId} kind="validate" /></div>
     </section>
   </SectionPage>;
 }

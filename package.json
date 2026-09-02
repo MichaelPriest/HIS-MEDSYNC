@@ -5,6 +5,7 @@
   "engines": { "node": "22.x" },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/sync-tiss-ans-xsd.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
@@ -13,7 +14,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:public": "playwright test tests/e2e/public.spec.ts",
-    "test:e2e:auth": "playwright test tests/e2e/integracao-auth.spec.ts"
+    "test:e2e:auth": "playwright test tests/e2e/integracao-auth.spec.ts",
+    "tiss:xsd:sync": "node scripts/sync-tiss-ans-xsd.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -26,6 +28,7 @@
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.62.0",
     "sonner": "^1.7.4",
+    "xmllint-wasm": "5.3.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {

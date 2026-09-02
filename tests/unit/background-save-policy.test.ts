@@ -19,6 +19,12 @@ const strictBackgroundServerActions = [
   "src/modules/centro-cirurgico/suprimentos-background-actions.ts",
   "src/modules/centro-cirurgico/cme-background-actions.ts",
   "src/modules/internacao/nir-actions.ts",
+  "src/modules/faturamento/workspace-background-actions.ts",
+  "src/modules/faturamento/producao-background-actions.ts",
+  "src/modules/faturamento/conta-background-actions.ts",
+  "src/modules/tiss/guia-background-actions.ts",
+  "src/modules/tiss/lote-background-actions.ts",
+  "src/modules/financeiro/background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -42,6 +48,11 @@ const backgroundForms = [
   "src/components/centro-cirurgico/surgical-supply-background-form.tsx",
   "src/components/centro-cirurgico/cme-background-form.tsx",
   "src/components/internacao/nir-bed-allocation-background-form.tsx",
+  "src/components/faturamento/billing-workspace-actions.tsx",
+  "src/components/faturamento/account-background-forms.tsx",
+  "src/components/faturamento/guide-validation-background-form.tsx",
+  "src/components/faturamento/tiss-lot-background-forms.tsx",
+  "src/components/financeiro/receivable-background-forms.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -189,5 +200,51 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).not.toContain("sp.sucesso");
     expect(page).not.toContain("sp.erro");
     expect(form).toContain("useActionState");
+  });
+
+  it("mantém ações principais do ciclo da receita sem feedback por redirect", () => {
+    const workspace = read("src/modules/faturamento/workspace-background-actions.ts");
+    const production = read("src/modules/faturamento/producao-background-actions.ts");
+    const forms = read("src/components/faturamento/billing-workspace-actions.tsx");
+    expect(workspace).toContain("criar_lote_tiss_transacional");
+    expect(workspace).toContain("criar_recurso_glosa_tiss_transacional");
+    expect(workspace).toContain("criar_nfse_lote_operacional");
+    expect(production).toContain("sincronizar_producao_atendimento");
+    expect(forms).toContain("router.push");
+    expect(forms).not.toContain("router.refresh");
+  });
+
+  it("mantém o ledger financeiro append-only sem redirects de feedback", () => {
+    const actions = read("src/modules/financeiro/background-actions.ts");
+    const forms = read("src/components/financeiro/receivable-background-forms.tsx");
+    const detail = read("src/app/(painel)/financeiro/recebiveis/[recebivelId]/page.tsx");
+    expect(actions).toContain("registrar_recebimento_financeiro_operacional");
+    expect(actions).toContain("conciliar_recebimento_financeiro_operacional");
+    expect(actions).toContain("estornar_recebimento_financeiro_operacional");
+    expect(forms).toContain("ReceivablePaymentForm");
+    expect(forms).toContain("ReceivableLedgerActions");
+    expect(detail).toContain("ReceivablePaymentForm");
+    expect(detail).toContain("ReceivableLedgerActions");
+    expect(detail).not.toContain("registrarRecebimentoFinanceiro");
+    expect(detail).not.toContain("conciliarRecebimentoFinanceiro");
+    expect(detail).not.toContain("estornarRecebimentoFinanceiro");
+    expect(detail).not.toContain("searchParams");
+  });
+
+  it("mantém detalhes de conta, guia e lote TISS nas camadas de segundo plano", () => {
+    const account = read("src/app/(painel)/faturamento/[contaId]/page.tsx");
+    const guide = read("src/app/(painel)/faturamento/guias/[guiaId]/page.tsx");
+    const lot = read("src/app/(painel)/faturamento/lotes/[loteId]/page.tsx");
+    expect(account).toContain("AccountBackgroundForm");
+    expect(account).toContain("AccountItemDeleteButton");
+    expect(guide).toContain("GuideValidationBackgroundForm");
+    expect(guide).not.toContain("validarGuiaTiss");
+    expect(lot).toContain("TissProtocolModal");
+    expect(lot).toContain("TissDenialModal");
+    expect(lot).toContain("TissManualImportModal");
+    expect(lot).toContain("TissManualSendModal");
+    expect(lot).toContain("enviarLoteWebservice");
+    expect(lot).not.toContain("registrarProtocolo.bind");
+    expect(lot).not.toContain("registrarGlosa.bind");
   });
 });
