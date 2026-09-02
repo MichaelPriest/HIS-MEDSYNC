@@ -11,8 +11,8 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 - A produção do merge SHA `202326de...` ainda não está confirmada: o pós-merge retornou `Deployment rate limited`. A última produção de `main` confirmada por SHA permanece `c91d2ebccb1a549b9bae8db24b24c3d6877db04c` até existir deployment de produção do merge atual ou posterior.
 - PR #122 — Internação/NIR continua aberta sobre `main`; head-base confirmado `1b513a0cf898728b44c894b7d322c3a58eff2768` após receber o redesign do Ciclo da Receita.
 - PR #123 — redesign do Ciclo da Receita foi mesclada na branch da #122 como merge commit `1b513a0cf898728b44c894b7d322c3a58eff2768`; portanto não deve ser mesclada separadamente em `main`.
-- PR #124 — `feat(tiss): concluir mensagem final e XSD ANS 4.03.00` está aberta e empilhada sobre a #122. O pacote implementa a mensagem final `ENVIO_LOTE_GUIAS`, MD5 TISS, XSD oficial fail-closed, staging/promoção transacional, domínios wire e saída ISO-8859-1.
-- O CI #954 chegou aos testes XSD reais e expôs duas incompatibilidades de domínio: UF do conselho em sigla versus `dm_UF` numérico e um fixture SP/SADT com `tipoAtendimento=05`, não aceito pelo schema. O wire agora converte deterministicamente UF válida (`SP → 35`) sem alterar o snapshot, recusa valores desconhecidos e o banco também bloqueia domínios inválidos. O fixture positivo foi corrigido para código aceito em vez de afrouxar o XSD.
+- PR #124 — `feat(tiss): concluir mensagem final e XSD ANS 4.03.00` está aberta e empilhada sobre a #122. Além da mensagem final/XSD, o pacote agora inclui Prontidão Cadastral TISS e padronização do cadastro profissional com CBO TUSS 24, conselho TUSS 26, UF fechada e habilitação TISS explícita.
+- O wire converte deterministicamente UF válida (`SP → 35`) sem alterar o snapshot, recusa valores desconhecidos e o banco também bloqueia domínios inválidos. Fixtures positivos seguem o XSD oficial em vez de afrouxar a validação.
 - Os status Vercel dos heads recentes da #124 continuam falhando somente por `build-rate-limit`; isso bloqueia merge, mas não autoriza empty commit ou promoção de um SHA diferente.
 - PR #111 permanece aberta para fallback comercial TUSS; a migration correspondente já está aplicada no Supabase e não deve ser confundida com homologação da PR.
 
@@ -26,18 +26,20 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 - Salvamentos normais usam feedback inline. `redirect()`, `window.location` e `router.refresh()` não são mecanismos de sucesso/erro.
 - A Base de Conhecimento em `/manual` ensina o fluxo implementado, sem substituir protocolo institucional ou homologação.
 - XML TISS não é considerado válido apenas por ser XML bem-formado: envio exige resultado XSD real persistido pelo banco.
+- Profissionais administrativos não recebem conselho/CBO fictícios: a exigência regulatória só se aplica quando `habilitado_tiss=true`.
 
 ## Estado por área
 
 | Área | Estado confirmado | Próximos pontos críticos |
 |---|---|---|
 | Fundação / Auth / multiempresa | RBAC granular, contexto empresa/unidade, RLS/FORCE RLS e `BackgroundActionState`. | ampliar testes multi-tenant e break-glass controlado |
+| Cadastros mestres | Central de Prontidão TISS; CNPJ/CNES, ANS, TUSS e qualidade documental; profissional usa CBO TUSS 24, conselho TUSS 26, 27 UFs e flag `habilitado_tiss`. | incorporar edições regulatórias posteriores quando publicadas/validadas e homologar cadastros reais |
 | Recepção / Agenda / Autorizações / Triagem / Fila Médica | Fluxos principais sem reload; navegação apenas em transições reais. | Totem/senhas restantes, recorrência, lembretes, homologação |
 | Prontuário longitudinal | Resumo, histórico, evolução, prescrição, documentos, LIS/RIS e cirurgia compartilham o episódio. | adendos, assinaturas, protocolos e homologação clínica |
 | Farmácia / Enfermagem | FEFO, validação, dispensação, administração, devolução, lote e dupla checagem integrados. | saneamento legado e homologação farmacêutica/assistencial |
 | Laboratório / LIS | Bancada e editor de laudos sem reload, preservando rastreabilidade e RPCs. | analisadores reais e homologação laboratorial |
 | Diagnóstico por Imagem / RIS | Operação e editor/liberação de laudos consolidados em `main` pela #121. | PACS/visualizador real e homologação por modalidade |
-| Base de Conhecimento | `/manual` com 17 guias, busca, filtros, público, passos, alertas e fontes versionadas. | confirmar produção da `main`, ampliar ajuda contextual e governança |
+| Base de Conhecimento | `/manual` com 17 guias, busca, filtros, público, passos, alertas e fontes versionadas; manual específico de Cadastros TISS versionado em `docs/`. | integrar novos guias contextuais e confirmar produção da `main` |
 | GED | Storage privado, versões, hash, assinatura e mudanças de status inline consolidadas pela #121. | retenção, temporalidade e governança documental |
 | Centro Cirúrgico / CME | Núcleo/procedimentos, Anestesia/RPA, Suprimentos e CME dedicada consolidados pela #121, ligados ao mesmo RA e RPCs canônicos. | homologação presencial de cirurgia/CME, equipamentos, indicadores e protocolos locais |
 | Internação / NIR | A #122 converte a alocação NIR para feedback inline e mantém `movimentar_internacao_leito` como autoridade. | concluir cadeia #124 → #122, Vercel/merge e homologação NIR |
@@ -49,11 +51,23 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 
 ## Supabase — referência confirmada
 
-A migration mais recente aplicada é `20260902191102_tiss_dominios_wire_040300`.
+A migration mais recente aplicada é `20260902202239_tiss_profissional_dominios_cbo_conselho`.
 
-Ela instala `uf_ans_tiss_040300`, preservando a UF original no snapshot e permitindo converter apenas na borda para o domínio numérico do XSD. Também endurece `validar_guia_tiss_comunicacao_040300_internal`: UF do executante/solicitante inválida, tipo de consulta fora de `dm_tipoConsulta` e `tipoAtendimento` SP/SADT fora do domínio `01,02,03,04,08,09,10,13,23` viram críticas impeditivas.
+Ela adiciona ao modelo ANS FHIR já existente:
 
-Uma verificação read-only após a migration encontrou `0` guias reais com UF do executante inválida, `0` SP/SADT com tipo de atendimento inválido e `0` com UF do solicitante inválida. Nenhum fato assistencial foi alterado para obter esse resultado.
+- TUSS 24 / CBO, baseline FHIR `202309`, com 167 conceitos oficiais carregados;
+- TUSS 26 / Conselho profissional, baseline FHIR `202309`, com 15 conceitos oficiais carregados;
+- `profissionais.codigo_conselho_ans`;
+- `profissionais.habilitado_tiss`, com padrão `false`;
+- UF de conselho restrita às 27 UFs brasileiras;
+- CBO com seis dígitos;
+- trigger que, quando `habilitado_tiss=true`, exige CBO existente na TUSS 24, conselho existente na TUSS 26, número e UF válidos e recusa `999999` como habilitação de cadastro mestre.
+
+O backfill foi conservador: somente registros que já possuíam dados compatíveis foram habilitados. Nenhum conselho, CBO ou UF foi inventado para profissionais administrativos.
+
+A migration anterior `20260902191102_tiss_dominios_wire_040300` instala `uf_ans_tiss_040300`, preservando a UF original no snapshot e permitindo converter apenas na borda para o domínio numérico do XSD. Também endurece `validar_guia_tiss_comunicacao_040300_internal`: UF do executante/solicitante inválida, tipo de consulta fora de `dm_tipoConsulta` e `tipoAtendimento` SP/SADT fora do domínio `01,02,03,04,08,09,10,13,23` viram críticas impeditivas.
+
+Uma verificação read-only após essa migration encontrou `0` guias reais com UF do executante inválida, `0` SP/SADT com tipo de atendimento inválido e `0` com UF do solicitante inválida. Nenhum fato assistencial foi alterado para obter esse resultado.
 
 A cadeia TISS 04.03.00 aplicada nesta evolução inclui:
 
@@ -67,9 +81,10 @@ A cadeia TISS 04.03.00 aplicada nesta evolução inclui:
 - `20260902180109_tiss_guia_item_origem_snapshot_040300` — origem do item para separar procedimento de despesa;
 - `20260902180256_tiss_item_unidade_despesa_040300` — unidade de medida TISS para outras despesas;
 - `20260902183026_tiss_envio_final_only_040300` — envio manual final-only;
-- `20260902191102_tiss_dominios_wire_040300` — domínios UF/Consulta/SP-SADT alinhados ao XSD.
+- `20260902191102_tiss_dominios_wire_040300` — domínios UF/Consulta/SP-SADT alinhados ao XSD;
+- `20260902202239_tiss_profissional_dominios_cbo_conselho` — CBO, conselho, UF e habilitação TISS do cadastro profissional.
 
-A tabela `tiss_versoes` mantém a versão ativa Julho/2026: Organizacional `202607`, Conteúdo/Estrutura `202511`, TUSS `202607`, Segurança/Privacidade `202511`, Comunicação principal interna `04.03.00` e secundária `01.06.00`.
+A tabela `tiss_versoes` mantém a versão ativa Julho/2026: Organizacional `202607`, Conteúdo/Estrutura `202511`, TUSS `202607`, Segurança/Privacidade `202511`, Comunicação principal interna `04.03.00` e secundária `01.06.00`. A baseline FHIR `202309` das tabelas 24/26 é armazenada com metadados próprios e não é apresentada como substituta da versão geral TUSS ativa.
 
 ## XSD ANS — Comunicação interna 04.03.00 / wire 4.03.00
 
@@ -140,7 +155,9 @@ Novos pontos principais:
 - XSD antes do staging e dupla conferência de hash no banco;
 - promoção `ENVIO_LOTE_GUIAS_CANDIDATO → ENVIO_LOTE_GUIAS` somente após validação;
 - download e webservice em bytes compatíveis com a declaração ISO-8859-1;
-- envio manual e webservice restritos à mensagem final validada.
+- envio manual e webservice restritos à mensagem final validada;
+- Cadastros → Prontidão TISS com correção na origem;
+- cadastro profissional sem CBO/conselho/UF livres quando habilitado para TISS.
 
 A PR ainda está em gate. O CI completo e o Vercel do **mesmo SHA final** precisam estar verdes antes de incorporar a #124 à #122. Rate limit do Vercel mantém a PR aberta mesmo se o CI concluir verde.
 
