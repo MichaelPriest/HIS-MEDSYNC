@@ -13,6 +13,7 @@ const migratedServerActions = [
   "src/modules/assistencial/medicamentos-background-actions.ts",
   "src/modules/assistencial/imagem-background-actions.ts",
   "src/modules/assistencial/imagem-laudo-background-actions.ts",
+  "src/modules/ged/background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -29,6 +30,7 @@ const backgroundForms = [
   "src/components/farmacia/pharmacy-background-form.tsx",
   "src/components/imagem/radiology-background-form.tsx",
   "src/components/imagem/radiology-report-background-form.tsx",
+  "src/components/ged/ged-governance-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -246,5 +248,19 @@ describe("política de salvamento em segundo plano", () => {
     expect(editorPage).not.toContain("registrarCriticidadeLaudoImagem");
     expect(editorPage).not.toContain("liberarLaudoImagem");
     expect(editorPage).not.toContain("abrirRetificacaoLaudoImagem");
+  });
+
+  it("mantém assinatura e status do GED no componente de segundo plano", () => {
+    const actions = read("src/modules/ged/background-actions.ts");
+    const page = read("src/app/(painel)/ged/[documentoId]/page.tsx");
+
+    expect(actions).toContain("atualizar_status_documento_ged");
+    expect(actions).toContain("assinar_documento_ged");
+    expect(actions).toContain('createHash("sha256")');
+    expect(page).toContain("GedGovernanceBackgroundForm");
+    expect(page).toContain('kind="sign"');
+    expect(page).toContain('kind="status"');
+    expect(page).not.toContain("action={assinarDocumentoGed}");
+    expect(page).not.toContain("action={atualizarStatusDocumentoGed}");
   });
 });

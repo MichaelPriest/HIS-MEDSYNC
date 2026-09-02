@@ -2,10 +2,10 @@ import Link from "next/link";
 import type { Route } from "next";
 import { notFound } from "next/navigation";
 import { Archive, Download, ExternalLink, FileCheck2, FileClock, FileLock2, FileUp, ShieldCheck } from "lucide-react";
+import { GedGovernanceBackgroundForm } from "@/components/ged/ged-governance-background-form";
 import { GedUploadForm } from "@/components/ged/ged-upload-form";
 import { SectionPage } from "@/components/painel/section-page";
 import { getCurrentNavigationAccess } from "@/lib/permissions/server-navigation";
-import { assinarDocumentoGed, atualizarStatusDocumentoGed } from "@/modules/ged/actions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -19,13 +19,10 @@ function bytesLabel(value: number | null) {
 
 export default async function GedDocumentoPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ documentoId: string }>;
-  searchParams: Promise<{ erro?: string; sucesso?: string }>;
 }) {
   const { documentoId } = await params;
-  const sp = await searchParams;
   const { supabase, grantedPermissions } = await getCurrentNavigationAccess();
   const canManage = ["ged.gerenciar", "ged.administrar"].some((code) => grantedPermissions.includes(code));
 
@@ -55,9 +52,6 @@ export default async function GedDocumentoPage({
       title={doc.titulo}
       description={`Versão ${doc.versao} · ${doc.categoria}${doc.subcategoria ? ` / ${doc.subcategoria}` : ""}`}
     >
-      {sp.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">Não foi possível concluir a ação: {decodeURIComponent(sp.erro)}</div> : null}
-      {sp.sucesso ? <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Ação concluída com sucesso no GED.</div> : null}
-
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,.8fr)]">
         <article className="his-card overflow-hidden">
           <div className="border-b border-slate-100 p-5 sm:p-6">
@@ -116,17 +110,27 @@ export default async function GedDocumentoPage({
             <section className="his-card p-5">
               <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-brand-700" /><h2 className="font-black text-slate-950">Governança</h2></div>
               {!doc.assinado_em && doc.status === "ativo" && doc.hash_sha256 ? (
-                <form action={assinarDocumentoGed} className="mt-4 space-y-2">
+                <GedGovernanceBackgroundForm kind="sign" className="mt-4 space-y-2">
                   <input type="hidden" name="documento_id" value={doc.id} />
                   <textarea name="observacao" rows={2} className="ui-input w-full" placeholder="Observação opcional da assinatura" />
                   <button className="ui-button-primary w-full"><FileCheck2 className="size-4" /> Validar integridade e assinar</button>
-                </form>
+                </GedGovernanceBackgroundForm>
               ) : null}
 
               {doc.status !== "substituido" ? (
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <form action={atualizarStatusDocumentoGed}><input type="hidden" name="documento_id" value={doc.id} /><input type="hidden" name="status" value={doc.status === "arquivado" ? "ativo" : "arquivado"} /><button className="btn-secondary w-full"><Archive className="size-4" />{doc.status === "arquivado" ? "Reativar" : "Arquivar"}</button></form>
-                  {doc.status !== "cancelado" ? <form action={atualizarStatusDocumentoGed}><input type="hidden" name="documento_id" value={doc.id} /><input type="hidden" name="status" value="cancelado" /><button className="btn-secondary w-full text-rose-700">Cancelar</button></form> : null}
+                  <GedGovernanceBackgroundForm kind="status">
+                    <input type="hidden" name="documento_id" value={doc.id} />
+                    <input type="hidden" name="status" value={doc.status === "arquivado" ? "ativo" : "arquivado"} />
+                    <button className="btn-secondary w-full"><Archive className="size-4" />{doc.status === "arquivado" ? "Reativar" : "Arquivar"}</button>
+                  </GedGovernanceBackgroundForm>
+                  {doc.status !== "cancelado" ? (
+                    <GedGovernanceBackgroundForm kind="status">
+                      <input type="hidden" name="documento_id" value={doc.id} />
+                      <input type="hidden" name="status" value="cancelado" />
+                      <button className="btn-secondary w-full text-rose-700">Cancelar</button>
+                    </GedGovernanceBackgroundForm>
+                  ) : null}
                 </div>
               ) : null}
             </section>
