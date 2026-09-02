@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { ArrowRight, BadgeDollarSign, Boxes, FilePlus2, Plus, RefreshCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
@@ -37,7 +38,7 @@ type ProductionEncounter = { id: string; numero: string | number; paciente: stri
 function useNavigateOnSuccess(state: BackgroundActionState<BillingNavigationData>) {
   const router = useRouter();
   useEffect(() => {
-    if (state.status === "success" && state.data?.redirectTo) router.push(state.data.redirectTo);
+    if (state.status === "success" && state.data?.redirectTo) router.push(state.data.redirectTo as Route);
   }, [router, state]);
 }
 
