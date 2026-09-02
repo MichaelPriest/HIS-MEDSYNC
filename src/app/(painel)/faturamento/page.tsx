@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -7,7 +8,6 @@ import {
   Boxes,
   CheckCircle2,
   CircleDollarSign,
-  Clock3,
   FileCheck2,
   ReceiptText,
   RefreshCcw,
@@ -268,7 +268,8 @@ export default async function FaturamentoPage({
         <div className="mt-3 flex flex-wrap gap-2">
           {FILTROS.map(([key, label]) => {
             const queryParam = key === "todas" ? (q ? `?q=${encodeURIComponent(q)}` : "") : `?status=${key}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
-            return <Link key={key} href={`/faturamento${queryParam}`} className={`rounded-full px-3 py-1.5 text-xs font-black ${filtro === key ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{label}</Link>;
+            const href = `/faturamento${queryParam}` as Route;
+            return <Link key={key} href={href} className={`rounded-full px-3 py-1.5 text-xs font-black ${filtro === key ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{label}</Link>;
           })}
         </div>
       </div>
@@ -324,14 +325,14 @@ function MetricCard({
   </div>;
 }
 
-function PriorityCard({ icon: Icon, title, description, value, href, tone }: { icon: typeof ShieldAlert; title: string; description: string; value: number; href: string; tone: "default" | "warning" | "danger" }) {
+function PriorityCard({ icon: Icon, title, description, value, href, tone }: { icon: typeof ShieldAlert; title: string; description: string; value: number; href: Route | `#${string}`; tone: "default" | "warning" | "danger" }) {
   const toneClass = tone === "danger" ? "bg-rose-50 text-rose-700" : tone === "warning" ? "bg-amber-50 text-amber-700" : "bg-brand-50 text-brand-700";
-  return <Link href={href} className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-brand-200 hover:shadow-sm">
-    <div className="flex items-start justify-between gap-3"><span className={`grid size-10 place-items-center rounded-xl ${toneClass}`}><Icon className="size-5" /></span><span className="text-2xl font-black text-slate-950">{value}</span></div>
-    <h3 className="mt-3 font-black text-slate-900">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-  </Link>;
+  const content = <><div className="flex items-start justify-between gap-3"><span className={`grid size-10 place-items-center rounded-xl ${toneClass}`}><Icon className="size-5" /></span><span className="text-2xl font-black text-slate-950">{value}</span></div><h3 className="mt-3 font-black text-slate-900">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{description}</p></>;
+  const className = "rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-brand-200 hover:shadow-sm";
+  if (href.startsWith("#")) return <a href={href} className={className}>{content}</a>;
+  return <Link href={href} className={className}>{content}</Link>;
 }
 
-function QuickLink({ icon: Icon, label, detail, href }: { icon: typeof ReceiptText; label: string; detail: string; href: string }) {
+function QuickLink({ icon: Icon, label, detail, href }: { icon: typeof ReceiptText; label: string; detail: string; href: Route }) {
   return <Link href={href} className="flex items-center gap-3 rounded-2xl border border-slate-200 p-3 transition hover:border-brand-200 hover:bg-brand-50/40"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Icon className="size-4" /></span><span className="min-w-0 flex-1"><strong className="block text-sm text-slate-900">{label}</strong><span className="block truncate text-[11px] text-slate-500">{detail}</span></span><ArrowRight className="size-4 text-slate-400" /></Link>;
 }
