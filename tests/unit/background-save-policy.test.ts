@@ -14,6 +14,7 @@ const migratedServerActions = [
   "src/modules/assistencial/imagem-background-actions.ts",
   "src/modules/assistencial/imagem-laudo-background-actions.ts",
   "src/modules/ged/background-actions.ts",
+  "src/modules/centro-cirurgico/background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -31,6 +32,7 @@ const backgroundForms = [
   "src/components/imagem/radiology-background-form.tsx",
   "src/components/imagem/radiology-report-background-form.tsx",
   "src/components/ged/ged-governance-background-form.tsx",
+  "src/components/centro-cirurgico/surgical-background-form.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -262,5 +264,28 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).toContain('kind="status"');
     expect(page).not.toContain("action={assinarDocumentoGed}");
     expect(page).not.toContain("action={atualizarStatusDocumentoGed}");
+  });
+
+  it("mantém o Centro Cirúrgico principal e procedimentos nos formulários de segundo plano", () => {
+    const actions = read("src/modules/centro-cirurgico/background-actions.ts");
+    const page = read("src/app/(painel)/assistencial/centro-cirurgico/page.tsx");
+    const proceduresPage = read("src/app/(painel)/assistencial/centro-cirurgico/procedimentos/page.tsx");
+
+    expect(actions).toContain("centro_cirurgico_agendar_operacional");
+    expect(actions).toContain("centro_cirurgico_transicionar_operacional");
+    expect(actions).toContain("centro_cirurgico_salvar_checklist_operacional");
+    expect(actions).toContain("centro_cirurgico_registrar_opme_operacional");
+    expect(actions).toContain("centro_cirurgico_salvar_membro_equipe_operacional");
+    expect(page).toContain("SurgicalBackgroundForm");
+    expect(page).toContain("SurgerySchedulingForm");
+    expect(page).not.toContain("action={transicionarCirurgia}");
+    expect(page).not.toContain("action={salvarChecklistCirurgico}");
+    expect(page).not.toContain("action={registrarOpme}");
+    expect(proceduresPage).toContain("SurgeryProcedureAddForm");
+    expect(proceduresPage).toContain("ProcedureTeamForm");
+    expect(proceduresPage).toContain('kind="procedure-action"');
+    expect(proceduresPage).not.toContain("adicionarProcedimentoAoAto");
+    expect(proceduresPage).not.toContain("salvarMembroEquipeProcedimento");
+    expect(proceduresPage).not.toContain("acionarProcedimentoCirurgico");
   });
 });

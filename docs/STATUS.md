@@ -19,7 +19,8 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 - PR #113 consolidou a operação do Diagnóstico por Imagem/RIS: agenda, transições da agenda, início/conclusão de execução, contraste e dose com feedback inline. CI #882 e Vercel do head final ficaram verdes; a produção do merge está `READY`.
 - PR #115 consolidou a Base de Conhecimento pesquisável em `/manual`, com 17 guias operacionais, busca, categorias, público-alvo, passo a passo, alertas, links diretos e governança editorial. CI #886 e Vercel do head `2902113d...` ficaram verdes antes do merge; o deployment pós-merge da `main` foi bloqueado posteriormente pelo rate limit externo do Vercel.
 - PR #116 é o pacote do editor/liberação de laudos RIS. O head final reconfirmado é `5489a5f52b9152bf6ac85eee157df2175702137e`; CI #891 terminou `success`, mas o check Vercel do mesmo SHA falhou exclusivamente por `Deployment rate limited — retry in 24 hours.`. Portanto a PR permanece aberta e não deve ser mesclada.
-- O pacote atual do GED está empilhado sobre a PR #116. Arquivar, reativar, cancelar e assinar documentos passam a usar `BackgroundActionState` + `useActionState`; a assinatura continua recalculando SHA-256 do arquivo no Storage privado antes do RPC `assinar_documento_ged`, e alterações de status continuam no RPC `atualizar_status_documento_ged`. Não há migration/schema/RLS/RPC novo neste pacote.
+- PR #117 é o pacote de governança do GED, empilhado sobre a #116. O head final `d0f81642636a5baf0771f0928a9eb13794cf1c7c` passou o CI #892 completamente verde. O Vercel do mesmo SHA foi bloqueado exclusivamente por build rate limit externo; portanto a PR permanece aberta. Arquivar, reativar, cancelar e assinar documentos usam `BackgroundActionState` + `useActionState`; a assinatura continua recalculando SHA-256 do arquivo no Storage privado antes do RPC `assinar_documento_ged`, e alterações de status continuam no RPC `atualizar_status_documento_ged`.
+- O pacote atual do Centro Cirúrgico está empilhado sobre a PR #117. O workspace principal e a tela de procedimentos/equipe estão sendo convertidos para salvamento inline: agendamento com classificação ANS, transições, checklist, OPME, vínculo CME liberado, movimentação para ala, inclusão de procedimentos, equipe e tempos de procedimento. Os RPCs canônicos foram preservados e não há migration/schema/RLS/RPC novo. Anestesia/RPA, Suprimentos e o workspace próprio da CME permanecem fora deste subpacote e serão tratados separadamente; seus fluxos legados não devem ser declarados convertidos ainda.
 - PR #111 permanece aberta para o fallback comercial TUSS; a migration correspondente já consta no Supabase conectado e não deve ser confundida com merge/homologação da PR.
 
 ## Princípios arquiteturais obrigatórios
@@ -44,8 +45,8 @@ Este documento registra o estado **real confirmado** do MedSync HIS. A existênc
 | Laboratório / LIS | Bancada e editor de laudos estão consolidados sem reload pelas PRs #110 e #112, preservando RPCs de amostra, resultado, criticidade, validação, assinatura/liberação e retificação. | interfaces reais com analisadores, protocolos de bancada e homologação laboratorial |
 | Diagnóstico por Imagem / RIS | A operação RIS foi consolidada sem reload na PR #113. A PR #116 converte também criação do laudo, rascunho, criticidade/comunicação, assinatura/liberação e retificação, preservando os RPCs de laudo e a integração PACS/DICOM já existente. | concluir gate Vercel/merge do editor, PACS/visualizador real e homologação por modalidade |
 | Base de Conhecimento | A rota `/manual` foi consolidada pela PR #115 com busca por módulo/tarefa, filtros, público-alvo, passos, alertas e links diretos, referenciando manuais versionados existentes. | confirmar produção do merge quando o rate limit permitir, ampliar ajuda contextual, trilhas por setor e governança de revisão |
-| GED | Storage privado, hash, versão, assinatura e vínculos com documentos/laudos estão disponíveis. No pacote atual, assinatura e mudanças de status usam feedback inline sem reload e mantêm validação SHA-256/RPCs. | concluir gates do pacote, retenção, temporalidade e ampliar demais mutações legadas |
-| Centro Cirúrgico / CME | Agendamento, checklist, anestesia, RPA, equipe, procedimentos, OPME, CME e consumo/estorno integram o mesmo RA. | homologação presencial, termos e protocolos locais |
+| GED | Storage privado, hash, versão, assinatura e vínculos com documentos/laudos estão disponíveis. A PR #117 converte assinatura e mudanças de status para feedback inline sem reload e mantém validação SHA-256/RPCs. | concluir gate Vercel/merge, retenção, temporalidade e ampliar demais mutações legadas |
+| Centro Cirúrgico / CME | Agendamento, checklist, anestesia, RPA, equipe, procedimentos, OPME, CME e consumo/estorno integram o mesmo RA. O subpacote atual converte o núcleo do workspace e procedimentos/equipe para feedback inline, preservando RPCs e explicitando persistência parcial quando um adicional falha após o agendamento principal. | concluir gates do subpacote; depois converter Anestesia/RPA sem `router.refresh`, Suprimentos e workspace CME; homologação presencial, termos e protocolos locais |
 | Compras / Almoxarifado / Estoque | Cotação, alçadas, pedido, recebimento, lote, saldo, inventário, reposição e transferências possuem operações transacionais. | alçadas reais, curva ABC, inventários e mutações legadas sem reload |
 | Comercial / Contratos / Tabelas | Contratos, negociações, versões, itens, auditoria e AMB estruturada estão no workspace comercial. | referências reais, precificação e mapeamentos contratuais |
 | Internação / NIR | Admissão/RA/leito, alta, censo e diárias estão integrados; transferências interunidades possuem base operacional. | homologação NIR, segunda unidade real e mutações restantes sem reload |
@@ -75,7 +76,7 @@ Além das migrations históricas, o banco conectado contém entre as mais recent
 - `20260901223840_auditoria_trigger_liberacao_finalizado_em`
 - `20260901225717_faturamento_fallback_comercial_tuss`
 
-A lista do Supabase conectado é a referência para aplicação. A Base de Conhecimento e os pacotes de background saves do RIS/GED não adicionam migration.
+A lista do Supabase conectado é a referência para aplicação. A Base de Conhecimento e os pacotes de background saves do RIS, GED e Centro Cirúrgico não adicionam migration.
 
 ## Salvamentos em segundo plano — estado da migração
 
@@ -95,7 +96,8 @@ Já convertidos e protegidos contra regressão:
 - editor de laudos Laboratório/LIS: abertura pós-criação confirmada, rascunho, validação, comunicação de crítico, assinatura/liberação e retificação inline;
 - operação Diagnóstico por Imagem/RIS: agendamento, transições da agenda, início/conclusão de execução, contraste e dose;
 - editor de laudos Diagnóstico por Imagem/RIS na PR #116: criação com navegação pós-confirmação, rascunho, criticidade/comunicação, assinatura/liberação e retificação inline;
-- governança do GED no pacote atual: arquivar, reativar, cancelar e assinar com feedback inline, preservando validação de integridade e RPCs.
+- governança do GED na PR #117: arquivar, reativar, cancelar e assinar com feedback inline, preservando validação de integridade e RPCs;
+- núcleo do Centro Cirúrgico no pacote atual: agendamento/classificação ANS, transições, checklist, OPME, vínculo CME, movimentação para ala, procedimentos e equipe. Anestesia/RPA, Suprimentos e o workspace CME permanecem pendentes de seus próprios pacotes.
 
 Exceções de navegação permanecem somente quando representam mudança real de etapa. Em LIS e RIS, **Iniciar laudo** cria/confirma o laudo no banco e só então abre o editor pelo cliente.
 

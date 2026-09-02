@@ -1,8 +1,10 @@
 "use client";
 
 import { UserPlus } from "lucide-react";
-import { useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { SurgicalActionFeedback } from "@/components/centro-cirurgico/surgical-background-form";
 import { ProfessionalRemotePicker } from "@/components/profissionais/professional-remote-picker";
+import { salvarMembroEquipeProcedimentoBackground, type SurgicalActionState } from "@/modules/centro-cirurgico/background-actions";
 
 type Requirements = {
   quantidade_auxiliares?: number;
@@ -14,14 +16,15 @@ type Requirements = {
 };
 
 type Props = {
-  action: (formData: FormData) => void | Promise<void>;
   empresaId: string;
   cirurgiaId: string;
   procedimentoId: string;
   requisitos?: Requirements | null;
 };
 
-export function ProcedureTeamForm({ action, empresaId, cirurgiaId, procedimentoId, requisitos }: Props) {
+const INITIAL_STATE: SurgicalActionState = { status: "idle" };
+
+export function ProcedureTeamForm({ empresaId, cirurgiaId, procedimentoId, requisitos }: Props) {
   const auxCount = Math.max(0, Number(requisitos?.quantidade_auxiliares ?? 0));
   const roles = [
     { value: "cirurgiao_principal", label: "Cirurgião" },
@@ -41,9 +44,18 @@ export function ProcedureTeamForm({ action, empresaId, cirurgiaId, procedimentoI
     { value: "tecnico_radiologia", label: "Técnico de radiologia" },
     { value: "outro", label: "Outro participante" },
   ];
-  const [papel, setPapel] = useState(roles[0]?.value ?? "outro");
+  const defaultRole = roles[0]?.value ?? "outro";
+  const [state, formAction, pending] = useActionState(salvarMembroEquipeProcedimentoBackground, INITIAL_STATE);
+  const [formVersion, setFormVersion] = useState(0);
+  const [papel, setPapel] = useState(defaultRole);
 
-  return <form action={action} className="grid gap-3 md:grid-cols-2">
+  useEffect(() => {
+    if (state.status !== "success") return;
+    setPapel(defaultRole);
+    setFormVersion((current) => current + 1);
+  }, [defaultRole, state.status]);
+
+  return <form key={formVersion} action={formAction} className="grid gap-3 md:grid-cols-2" aria-busy={pending}>
     <input type="hidden" name="cirurgia_id" value={cirurgiaId} />
     <input type="hidden" name="cirurgia_procedimento_id" value={procedimentoId} />
     <div className="md:col-span-2"><ProfessionalRemotePicker empresaId={empresaId} name="profissional_id" label="Profissional da equipe" required /></div>
@@ -54,6 +66,7 @@ export function ProcedureTeamForm({ action, empresaId, cirurgiaId, procedimentoI
     <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"><input type="checkbox" name="registrar_entrada" />Registrar entrada na sala agora</label>
     <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"><input type="checkbox" name="registrar_saida" />Registrar saída da sala agora</label>
     <input name="observacoes" className="ui-input" placeholder="Observações da participação" />
-    <button className="ui-button-secondary md:col-span-2"><UserPlus className="size-4" />Adicionar / atualizar membro</button>
+    <button disabled={pending} className="ui-button-secondary md:col-span-2 disabled:cursor-not-allowed disabled:opacity-50"><UserPlus className="size-4" />Adicionar / atualizar membro</button>
+    <div className="md:col-span-2"><SurgicalActionFeedback state={state} pending={pending} /></div>
   </form>;
 }
