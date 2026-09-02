@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
+import { especialidadesCompativeis } from "@/modules/fila-medica/especialidade";
 
 type AssumirPacienteData = { redirectTo?: string };
 type AssumirPacienteState = BackgroundActionState<AssumirPacienteData>;
@@ -79,9 +80,7 @@ export async function assumirPaciente(
   }
   if (!encaminhamento || encaminhamento.status !== "aguardando_profissional") return failure("indisponivel");
 
-  const especialidadeProf = normalizar(profissional.especialidade);
-  const especialidadeFila = normalizar(encaminhamento.especialidade);
-  if (!especialidadeProf || (!especialidadeProf.includes(especialidadeFila) && !especialidadeFila.includes(especialidadeProf))) return failure("especialidade");
+  if (!especialidadesCompativeis(profissional.especialidade, encaminhamento.especialidade)) return failure("especialidade");
 
   const { data: atendimento, error: atendimentoConsultaError } = await supabase.from("atendimentos")
     .select("id,paciente_id,setor_atual,origem,tipo_atendimento")
@@ -183,9 +182,12 @@ export async function assumirPaciente(
 
   revalidatePath("/fila-medica");
   revalidatePath(`/painel-chamadas/${unidadeId}`);
+  revalidatePath(`/prontuario/${encaminhamento.atendimento_id}`);
+  revalidatePath(`/prontuario/${encaminhamento.atendimento_id}/clinico`);
+  revalidatePath(`/prontuario/${encaminhamento.atendimento_id}/alta`);
   return {
     status: "success",
     message: "Paciente chamado e assumido. Abrindo o prontuário…",
-    data: { redirectTo: `/prontuario/${encaminhamento.atendimento_id}/clinico` },
+    data: { redirectTo: `/prontuario/${encaminhamento.atendimento_id}/clinico?claim=ok` },
   };
 }
