@@ -59,6 +59,9 @@ export async function gerarMensagemTissFinalBackground(
   _previous: BackgroundActionState<TissFinalGenerationData>,
   _formData: FormData,
 ): Promise<BackgroundActionState<TissFinalGenerationData>> {
+  void _previous;
+  void _formData;
+
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
 
   const { data: lote, error: loteError } = await supabase
