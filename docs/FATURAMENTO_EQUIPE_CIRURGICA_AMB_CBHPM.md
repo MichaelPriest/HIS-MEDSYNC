@@ -2,17 +2,29 @@
 
 ## Objetivo
 
-O faturamento cirúrgico passa a consumir a equipe clínica registrada no Centro Cirúrgico e criar um **snapshot de cobrança separado**. O faturista não recria a equipe assistencial: ele sincroniza os profissionais já vinculados ao procedimento, confere o cálculo e decide `Cobrar` e `Repasse` sem alterar o fato clínico.
+O faturamento cirúrgico consome a equipe registrada no Centro Cirúrgico e cria um **snapshot de cobrança separado**. Médicos, auxiliares, anestesista e instrumentador informados assistencialmente são carregados automaticamente na conta. Se um papel exigido pela tabela não tiver sido registrado no ato, o faturista pode complementar o profissional sem criar uma equipe paralela.
 
-## Autoridade dos dados
+## Autoridade dos dados e integração com Centro Cirúrgico
 
 A ordem de autoridade é:
 
-1. procedimento e equipe clínica em `cirurgia_procedimentos` / `cirurgia_equipe`;
+1. procedimento e equipe em `cirurgia_procedimentos` / `cirurgia_equipe`;
 2. item da tabela comercial vinculado ao procedimento;
 3. contrato e vínculo comercial vigentes;
 4. snapshot de faturamento em `faturamento_equipe_cirurgica`;
 5. item financeiro/honorário materializado na conta.
+
+O Centro Cirúrgico continua sendo a origem clínica. Registros feitos ali ficam com `origem_registro = centro_cirurgico` e `confirmado_assistencial = true`.
+
+Quando o faturamento precisa completar um papel ausente, o RPC `faturamento_complementar_membro_equipe_cirurgica` insere o profissional na própria `cirurgia_equipe` com:
+
+- `origem_registro = faturamento`;
+- `confirmado_assistencial = false`;
+- usuário e data da inclusão administrativa;
+- justificativa obrigatória;
+- evento auditável em `cirurgia_eventos`.
+
+Isso torna o complemento visível ao fluxo do Centro Cirúrgico sem fingir que ele foi registrado pela equipe assistencial. Se o Centro Cirúrgico posteriormente salvar o mesmo profissional/papel, o registro passa a ser confirmado assistencialmente.
 
 A quantidade de auxiliares e o CH do anestesista são lidos primeiro das colunas estruturadas `quantidade_auxiliares` e `ch_anestesista` do item da tabela. Metadados antigos são apenas fallback.
 
@@ -26,13 +38,13 @@ No pacote atual, conforme regra operacional definida para o HIS:
 - instrumentador: 10%;
 - anestesista: cálculo próprio pela informação anestésica da tabela/contrato.
 
-Auxiliares só são cobrados até a quantidade permitida pelo item da tabela. Um profissional registrado clinicamente além da quantidade contratual continua no histórico clínico, mas o snapshot fica não cobravel pela regra automática.
+Auxiliares só são cobrados até a quantidade permitida pelo item da tabela. Um profissional registrado além da quantidade contratual continua no histórico, mas o snapshot fica não cobravel pela regra automática.
 
 ## AMB 90 e AMB 92
 
 Para honorários profissionais, o motor usa os pontos/CH do item e o `valor_ch` negociado no vínculo contratual.
 
-Para anestesia, a prioridade é o `ch_anestesista` explícito importado no item. Somente quando essa informação estiver ausente e existir porte anestésico, o sistema admite o fallback de porte informado para a implantação:
+Para anestesia, a prioridade é o `ch_anestesista` explícito importado no item. Somente quando essa informação estiver ausente e existir porte anestésico, o sistema admite o fallback definido para a implantação:
 
 | Porte | CH fallback |
 | --- | ---: |
@@ -61,19 +73,48 @@ O motor reaproveita o resolvedor comercial contextual. Para anestesia, usa a cat
 
 ## Cobrar e Repasse
 
-`Cobrar` controla a inclusão do honorário na conta. `Repasse` é armazenado separadamente para a futura/atual cadeia de remuneração profissional e não muda sozinho o valor cobrado à operadora.
+`Cobrar` controla a inclusão do honorário na conta. `Repasse` é armazenado separadamente e não muda sozinho o valor cobrado à operadora.
 
 Se o usuário alterar `Cobrar` em relação à decisão automática (`cobrar_regra`), a justificativa é obrigatória. A alteração é auditada com antes/depois.
+
+## Separação do faturamento por tipo de atendimento
+
+Cada `contas_faturamento` possui uma natureza canônica própria em `tipo_atendimento_faturamento`:
+
+- `pronto_atendimento` — urgência, emergência, PS e demanda espontânea compatível com Pronto Atendimento;
+- `ambulatorio` — consulta, terapia ou procedimento ambulatorial eletivo;
+- `internacao` — qualquer episódio que possua internação hospitalar vinculada;
+- `sadt` — laboratório, imagem e exames/procedimentos diagnósticos eletivos realizados **fora do Pronto Atendimento e fora da Internação**.
+
+A classificação automática segue a precedência:
+
+`Internação > Pronto Atendimento > SADT eletivo > Ambulatório`.
+
+A conta guarda a memória da classificação. Exceções podem ser reclassificadas manualmente pelo faturamento antes da Guia TISS, com justificativa e auditoria. Na alta do atendimento, contas ainda automáticas são classificadas novamente para incorporar fatos que surgiram depois da abertura da conta, como uma internação posterior.
+
+## Guias e lotes TISS
+
+A separação não é apenas visual:
+
+- Internação gera contexto de `resumo_internacao`;
+- Pronto Atendimento e SADT usam contexto `sp_sadt` quando aplicável;
+- Ambulatório preserva a regra TISS do episódio, como consulta quando correspondente;
+- `tiss_lotes` grava `tipo_atendimento_faturamento`;
+- o novo RPC `criar_lote_tiss_por_tipo_transacional` seleciona somente guias da natureza escolhida;
+- um trigger impede vincular ao mesmo lote guias de naturezas diferentes.
+
+Portanto, para a mesma operadora e competência, PA, Ambulatório, Internação e SADT são gerados em lotes separados.
 
 ## Segurança e histórico
 
 - `faturamento_equipe_cirurgica` usa RLS + FORCE RLS;
-- `authenticated` não possui INSERT/UPDATE/DELETE direto;
-- escrita ocorre somente pelos RPCs de sincronização/ajuste;
-- uma Guia TISS ativa bloqueia alterações;
+- `authenticated` não possui INSERT/UPDATE/DELETE direto no snapshot;
+- escrita ocorre somente pelos RPCs de sincronização/ajuste/complementação;
+- uma Guia TISS ativa bloqueia alterações da equipe ou da classificação;
 - contas faturadas/canceladas ficam protegidas;
 - remoção de membro da equipe clínica não apaga o snapshot: ele fica inativo e não cobravel;
-- eventos são registrados em `auditoria_eventos`.
+- complementos do faturamento e alterações da classificação são auditados;
+- funções internas de classificação/trigger não são executáveis diretamente por `anon` ou `authenticated`.
 
 ## Tela
 
@@ -82,9 +123,12 @@ A área **Faturamento → Conta → Cirurgia / SADT → Equipe médica e honorá
 - tabela e código;
 - quantidade de auxiliares prevista;
 - porte/CH anestésico quando disponível;
-- equipe clínica registrada;
+- equipe registrada no Centro Cirúrgico;
+- somente os papéis faltantes para complementação pelo faturamento;
 - percentual ou CH aplicado;
 - base de cálculo;
 - honorário calculado;
 - opções `Cobrar` e `Repasse`;
 - pendências de configuração contratual.
+
+A área **Faturamento → Contas** separa os quatro tipos de atendimento, e **Faturamento → Lotes** exige a natureza faturável ao criar um novo lote TISS.
