@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { BookOpenCheck, Building2, Handshake, ReceiptText, Scale, ShieldCheck, Stethoscope, UsersRound } from "lucide-react";
+import { ArrowLeftRight, BookOpenCheck, Building2, Handshake, ReceiptText, Scale, ShieldCheck, Stethoscope, UsersRound } from "lucide-react";
 
 const items=[
   {href:"/cadastros/tiss",label:"Prontidão TISS",icon:ShieldCheck},
@@ -11,6 +11,7 @@ const items=[
   {href:"/comercial",label:"Credenciamento e contratos",icon:Handshake},
   {href:"/comercial/tabelas",label:"Fontes e edições",icon:ReceiptText},
   {href:"/comercial/regras",label:"Regras, CBHPM e pacotes",icon:Scale},
+  {href:"/comercial/depara",label:"DePara TUSS",icon:ArrowLeftRight},
 ] as const;
 
 export function CadastrosWorkspaceNav({active}:{active:string}){
