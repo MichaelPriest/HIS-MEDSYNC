@@ -23,11 +23,15 @@ const integer = (value: string) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
 };
+const nullableBoolean = (value: string) => value === "sim" ? true : value === "nao" ? false : null;
 
 function refreshCommercialWorkspace() {
   revalidatePath("/comercial");
   revalidatePath("/comercial/regras");
   revalidatePath("/comercial/tabelas");
+  revalidatePath("/comercial/vinculos");
+  revalidatePath("/comercial/mapeamentos");
+  revalidatePath("/comercial/historico");
   revalidatePath("/faturamento");
 }
 
@@ -44,11 +48,29 @@ function friendlyRpcMessage(message: string, fallback: string) {
   if (message.includes("COMERCIAL_PLANO_INCOMPATIVEL")) {
     return "O plano selecionado não pertence ao mesmo convênio/empresa deste contrato ou está inativo.";
   }
-  if (message.includes("COMERCIAL_VIGENCIA_INVALIDA")) {
+  if (message.includes("COMERCIAL_VIGENCIA_INVALIDA") || message.includes("VIGENCIA_INVALIDA")) {
     return "A data final da vigência não pode ser anterior à data inicial.";
   }
-  if (message.includes("COMERCIAL_SEM_PERMISSAO_EDITAR")) {
-    return "Seu perfil não possui permissão para alterar esta negociação comercial.";
+  if (message.includes("COMERCIAL_SEM_PERMISSAO_EDITAR") || message.includes("SEM_PERMISSAO_COMERCIAL") || message.includes("SEM_PERMISSAO_UNIDADE")) {
+    return "Seu perfil não possui permissão para alterar esta configuração comercial.";
+  }
+  if (message.includes("MOTIVO_STATUS_OBRIGATORIO")) {
+    return "Informe o motivo para ativar ou desativar este mapeamento.";
+  }
+  if (message.includes("TIPO_EVENTO_INVALIDO")) {
+    return "Selecione um tipo de evento de produção válido.";
+  }
+  if (message.includes("CODIGO_TABELA_OBRIGATORIO")) {
+    return "Informe o código da tabela de cobrança.";
+  }
+  if (message.includes("CODIGO_COBRANCA_OBRIGATORIO")) {
+    return "Informe o código que será usado na cobrança.";
+  }
+  if (message.includes("UNIDADE_FORA_DO_CONTRATO") || message.includes("UNIDADE_INVALIDA")) {
+    return "A unidade escolhida não é compatível com este contrato.";
+  }
+  if (message.includes("ITEM_ASSISTENCIAL_INVALIDO")) {
+    return "O item assistencial selecionado não pertence à empresa ou está inativo.";
   }
   return message || fallback;
 }
@@ -189,6 +211,56 @@ export async function atualizarNegociacaoTabelaBackground(
     status: "success",
     code: "negociacao-atualizada",
     message: "Negociação contratual atualizada em segundo plano.",
+    data: { id: String(data) },
+  };
+}
+
+export async function salvarMapeamentoProducaoBackground(
+  _previous: BackgroundActionState<CommercialWorkspaceActionData>,
+  formData: FormData,
+): Promise<BackgroundActionState<CommercialWorkspaceActionData>> {
+  const { supabase } = await getAssistencialContext();
+  const contratoId = text(formData, "contrato_id");
+  const tipoEvento = text(formData, "tipo_evento");
+  const codigoTabela = text(formData, "codigo_tabela");
+  const codigo = text(formData, "codigo");
+
+  if (!contratoId || !tipoEvento || !codigoTabela || !codigo) {
+    return { status: "error", code: "mapeamento-campos", message: "Informe contrato, tipo de evento, tabela e código de cobrança." };
+  }
+
+  const { data, error } = await supabase.rpc("comercial_salvar_mapeamento_producao", {
+    p_contrato_id: contratoId,
+    p_tipo_evento: tipoEvento,
+    p_codigo_tabela: codigoTabela,
+    p_codigo: codigo,
+    p_mapeamento_id: nullable(text(formData, "mapeamento_id")),
+    p_unidade_id: nullable(text(formData, "unidade_id")),
+    p_acomodacao: nullable(text(formData, "acomodacao")),
+    p_setor: nullable(text(formData, "setor")),
+    p_item_assistencial_id: nullable(text(formData, "item_assistencial_id")),
+    p_prioridade: integer(text(formData, "prioridade")) ?? 100,
+    p_vigencia_inicio: nullable(text(formData, "vigencia_inicio")),
+    p_vigencia_fim: nullable(text(formData, "vigencia_fim")),
+    p_ativo: checkbox(formData, "ativo"),
+    p_status_motivo: nullable(text(formData, "status_motivo")),
+    p_observacoes: nullable(text(formData, "observacoes")),
+    p_exige_autorizacao: nullableBoolean(text(formData, "exige_autorizacao")),
+  });
+
+  if (error || !data) {
+    return {
+      status: "error",
+      code: "mapeamento-salvar",
+      message: friendlyRpcMessage(error?.message ?? "", "Não foi possível salvar o mapeamento de produção."),
+    };
+  }
+
+  refreshCommercialWorkspace();
+  return {
+    status: "success",
+    code: "mapeamento-salvo",
+    message: "Mapeamento de produção atualizado em segundo plano e registrado no histórico comercial.",
     data: { id: String(data) },
   };
 }
