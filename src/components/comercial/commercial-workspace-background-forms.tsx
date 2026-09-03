@@ -6,6 +6,7 @@ import type { BackgroundActionState } from "@/lib/actions/background-action";
 import {
   atualizarContratoComercialBackground,
   atualizarNegociacaoTabelaBackground,
+  salvarMapeamentoProducaoBackground,
   vincularTabelaContratoBackground,
   type CommercialWorkspaceActionData,
 } from "@/modules/comercial/workspace-background-actions";
@@ -18,48 +19,33 @@ function Feedback({ pending, state }: { pending: boolean; state: BackgroundActio
   </div>;
 }
 
-function SubmitRow({
-  pending,
-  state,
-  label,
-  icon,
-}: {
-  pending: boolean;
-  state: BackgroundActionState<unknown>;
-  label: string;
-  icon: ReactNode;
-}) {
-  return <div className="flex flex-wrap items-center justify-between gap-3 md:col-span-2 xl:col-span-4">
+function SubmitRow({ pending, state, label, icon, columns = "md:col-span-2 xl:col-span-4" }: { pending: boolean; state: BackgroundActionState<unknown>; label: string; icon: ReactNode; columns?: string }) {
+  return <div className={`flex flex-wrap items-center justify-between gap-3 ${columns}`}>
     <Feedback pending={pending} state={state} />
-    <button disabled={pending} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">
-      {icon}{label}
-    </button>
+    <button disabled={pending} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">{icon}{label}</button>
   </div>;
 }
 
 export function CommercialContractBackgroundForm({ children, className = "" }: { children: ReactNode; className?: string }) {
   const initialState: BackgroundActionState<CommercialWorkspaceActionData> = { status: "idle" };
   const [state, action, pending] = useActionState(atualizarContratoComercialBackground, initialState);
-  return <form action={action} className={className}>
-    {children}
-    <SubmitRow pending={pending} state={state} label="Salvar contrato" icon={<Save className="size-4" />} />
-  </form>;
+  return <form action={action} className={className}>{children}<SubmitRow pending={pending} state={state} label="Salvar contrato" icon={<Save className="size-4" />} /></form>;
 }
 
 export function CommercialTableLinkBackgroundForm({ children, className = "" }: { children: ReactNode; className?: string }) {
   const initialState: BackgroundActionState<CommercialWorkspaceActionData> = { status: "idle" };
   const [state, action, pending] = useActionState(vincularTabelaContratoBackground, initialState);
-  return <form action={action} className={className}>
-    {children}
-    <SubmitRow pending={pending} state={state} label="Vincular tabela" icon={<Link2 className="size-4" />} />
-  </form>;
+  return <form action={action} className={className}>{children}<SubmitRow pending={pending} state={state} label="Vincular tabela" icon={<Link2 className="size-4" />} /></form>;
 }
 
 export function CommercialNegotiationBackgroundForm({ children, className = "" }: { children: ReactNode; className?: string }) {
   const initialState: BackgroundActionState<CommercialWorkspaceActionData> = { status: "idle" };
   const [state, action, pending] = useActionState(atualizarNegociacaoTabelaBackground, initialState);
-  return <form action={action} className={className}>
-    {children}
-    <SubmitRow pending={pending} state={state} label="Salvar negociação" icon={<Save className="size-4" />} />
-  </form>;
+  return <form action={action} className={className}>{children}<SubmitRow pending={pending} state={state} label="Salvar negociação" icon={<Save className="size-4" />} /></form>;
+}
+
+export function CommercialProductionMappingBackgroundForm({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const initialState: BackgroundActionState<CommercialWorkspaceActionData> = { status: "idle" };
+  const [state, action, pending] = useActionState(salvarMapeamentoProducaoBackground, initialState);
+  return <form action={action} className={className}>{children}<SubmitRow pending={pending} state={state} label="Salvar mapeamento" icon={<Save className="size-4" />} columns="md:col-span-2 xl:col-span-6" /></form>;
 }
