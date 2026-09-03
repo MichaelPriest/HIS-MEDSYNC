@@ -19,12 +19,18 @@ type Admission = {
   atendimento: Rel<Attendance>;
 };
 type Reason = { codigo: string; display: string };
+type Search = { erro?: string };
 
 const one = <T,>(value: Rel<T>): T | null => Array.isArray(value) ? value[0] ?? null : value;
 const fmt = (value: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
+const errors: Record<string, string> = {
+  "declaracao-obito": "Informe o número da Declaração de Óbito para concluir este encerramento.",
+  "documento-externo": "Informe o número do documento do SVO ou IML para concluir este encerramento.",
+  encerramento: "Não foi possível concluir o encerramento. Revise o motivo, os documentos e as pendências da internação.",
+};
 
-export default async function EncerrarInternacaoPage({ params }: { params: Promise<{ internacaoId: string }> }) {
-  const { internacaoId } = await params;
+export default async function EncerrarInternacaoPage({ params, searchParams }: { params: Promise<{ internacaoId: string }>; searchParams: Promise<Search> }) {
+  const [{ internacaoId }, query] = await Promise.all([params, searchParams]);
   const { supabase, empresaId, unidadeId } = await getAssistencialContext();
 
   const [{ data: admissionData }, { data: reasonsData }] = await Promise.all([
@@ -57,6 +63,7 @@ export default async function EncerrarInternacaoPage({ params }: { params: Promi
     description={`Atendimento / Guia #${attendance?.numero_atendimento ?? "—"} · RA ${patient?.ra ?? "—"}`}
     actions={<div className="flex flex-wrap gap-2"><Link href={`/internacao/altas/${internacaoId}` as Route} className="ui-button-secondary">Voltar à alta</Link><Link href="/internacao/contas" className="ui-button-secondary">Contas da internação</Link></div>}
   >
+    {query.erro ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{errors[query.erro] ?? errors.encerramento}</div> : null}
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Info label="Entrada" value={fmt(admission.data_internacao)} />
       <Info label="Setor" value={admission.setor || "—"} />
