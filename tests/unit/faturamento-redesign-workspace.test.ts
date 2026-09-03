@@ -44,7 +44,8 @@ describe("workspace do ciclo da receita", () => {
     expect(page).toContain('name="status"');
     expect(page).toContain("Internação");
     expect(page).toContain("Ambulatório");
-    expect(page).toContain("Pronto-socorro");
+    expect(page).toContain("Pronto Atendimento");
+    expect(page).toContain("SADT");
     expect(page).not.toMatch(/\.insert\(|\.update\(|\.delete\(|\.upsert\(/);
   });
 
@@ -78,7 +79,7 @@ describe("workspace do ciclo da receita", () => {
     expect(forms).toContain("GlosaAppealModal");
     expect(forms).toContain("NewNfseModal");
     expect(forms).toContain("Salvando…");
-    expect(lots).toContain("NewTissBatchModal");
+    expect(lots).toContain("NewTissBatchByTypeModal");
     expect(lots).not.toContain("criarLoteTiss");
     expect(denials).toContain("GlosaAppealModal");
     expect(denials).not.toContain("criarRecursoGlosa");
