@@ -15,13 +15,13 @@ const ERROS: Record<string, string> = {
   "conselho-incompleto": "O profissional está com conselho, número ou UF incompletos. Corrija o cadastro profissional antes de faturar.",
   "cbo-ausente": "O profissional selecionado não possui CBO cadastrado. A abertura por convênio foi bloqueada para evitar glosa.",
   "cnes-ausente": "A unidade não possui CNES cadastrado. Corrija a estrutura da unidade antes da abertura por convênio.",
-  "registro-ans-ausente": "A operadora selecionada não possui Registro ANS cadastrado.",
+  "registro-ans-ausente": "A operadora selecionada está com o cadastro regulatório incompleto.",
   "carteira-vencida": "A carteirinha está vencida. Atualize o vínculo do beneficiário antes de abrir o atendimento.",
   "validade-carteira": "O plano exige validade da carteirinha. Informe a data de validade.",
   "carteirinha-padrao": "A carteirinha não corresponde ao padrão configurado para o plano selecionado.",
-  tuss: "Selecione um procedimento TUSS válido para este atendimento.",
+  tuss: "Selecione um procedimento válido para este atendimento.",
   "indicacao-clinica": "A indicação clínica é obrigatória para SADT, exames, pequena cirurgia e sessão de terapia.",
-  "classificacao-tiss": "Revise os domínios regulatórios ANS/TISS e a classificação operacional do atendimento.",
+  "classificacao-tiss": "Revise a classificação operacional do atendimento antes de concluir a abertura.",
   permissao: "Seu perfil não possui permissão para abrir atendimentos nesta unidade.",
   "senha-invalida": "Esta senha não está mais disponível para admissão. Ela pode ter sido processada por outro guichê.",
   "agendamento-invalido": "Este agendamento não está mais disponível para abertura de atendimento. Verifique o check-in ou se ele já foi admitido.",
@@ -130,7 +130,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
 
   if (pacienteInicialError) console.error("[admissao] falha ao carregar paciente da origem", { code: pacienteInicialError.code });
   if (profissionalInicialError) console.error("[admissao] falha ao carregar profissional inicial", { code: profissionalInicialError.code });
-  if (dominiosAnsError) console.error("[admissao] falha ao carregar domínios ANS", { code: dominiosAnsError.code });
+  if (dominiosAnsError) console.error("[admissao] falha ao carregar classificações regulatórias", { code: dominiosAnsError.code });
 
   const initialPatient = (pacienteInicial ?? null) as AdmissionPatient | null;
   const ans = (dominiosAns ?? []) as AnsDomain[];
@@ -139,7 +139,7 @@ export default async function NovoAtendimentoPage({ searchParams }: { searchPara
   const action = isAgenda && agendamentoId ? abrirAtendimentoAgendado.bind(null, agendamentoId) : abrirAtendimento.bind(null, String(senhaId));
   const title = isAgenda ? "Abrir atendimento agendado" : `Abrir atendimento · Senha ${senha?.senha ?? "—"}`;
   const description = isAgenda
-    ? "Check-in confirmado. Revise beneficiário, cobertura, profissional e classificação TISS antes de abrir o episódio."
+    ? "Check-in confirmado. Revise beneficiário, cobertura, profissional e classificação do atendimento antes de abrir o episódio."
     : `Admissão vinculada à senha do Totem${senha?.ponto_atendimento ? ` · ${senha.ponto_atendimento}` : ""}.`;
   const admissionReturn = senhaId ? `/atendimentos/novo?senha=${encodeURIComponent(senhaId)}` : null;
   const createPatientHref = admissionReturn ? `/pacientes/novo?retorno=${encodeURIComponent(admissionReturn)}` : null;
