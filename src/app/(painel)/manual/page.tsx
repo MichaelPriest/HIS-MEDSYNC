@@ -4,9 +4,10 @@ import { SectionPage } from "@/components/painel/section-page";
 import { knowledgeBaseArticles } from "@/modules/knowledge-base/articles";
 import { commercialKnowledgeBaseArticles } from "@/modules/knowledge-base/comercial-articles";
 import { commercialLinkKnowledgeBaseArticles } from "@/modules/knowledge-base/commercial-link-articles";
+import { surgicalBillingKnowledgeBaseArticles } from "@/modules/knowledge-base/faturamento-equipe-cirurgica-articles";
 
 export default function ManualPage() {
-  const articles = [...knowledgeBaseArticles, ...commercialKnowledgeBaseArticles, ...commercialLinkKnowledgeBaseArticles];
+  const articles = [...knowledgeBaseArticles, ...commercialKnowledgeBaseArticles, ...commercialLinkKnowledgeBaseArticles, ...surgicalBillingKnowledgeBaseArticles];
   const categories = ["Todas", ...Array.from(new Set(articles.map((article) => article.category)))];
   const audiences = new Set(articles.flatMap((article) => article.audience));
 
