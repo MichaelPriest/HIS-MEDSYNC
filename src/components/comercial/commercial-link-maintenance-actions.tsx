@@ -43,7 +43,7 @@ export function CommercialLinkMaintenanceActions({ vinculoId, ativo }: { vinculo
           Motivo do desvínculo
           <input name="motivo" required className="ui-input" placeholder="Ex.: nova negociação, tabela substituída, contrato revisado" />
         </label>
-        <button disabled={unlinkPending} className="ui-button-danger disabled:opacity-50">
+        <button disabled={unlinkPending} className="ui-button-secondary border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50">
           <Unlink className="size-4" />Desvincular tabela
         </button>
       </form>
