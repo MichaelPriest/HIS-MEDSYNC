@@ -16,6 +16,7 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
       "Use Itens da tabela para conferir códigos, TUSS, atributos e quantidade de itens da edição. Edições publicadas são históricas; crie uma nova versão para alterações futuras.",
       "Quando a fonte usar código diferente do TUSS, abra DePara TUSS, selecione o mesmo contrato e a fonte vinculada e registre código de origem, TUSS confirmado e vigência. Se a equivalência mudar, encerre a vigência anterior e crie uma nova versão.",
       "Antes de liberar o contrato para uso, abra Prontidão comercial, escolha a data de referência e trate os bloqueios e avisos apresentados.",
+      "Depois, use o Simulador de preço para testar códigos reais e confirmar a memória de cálculo antes de depender da configuração em uma conta faturada.",
     ],
     warnings: [
       "Tabela comercial fornece referência e atributos; o contrato define a cobrança. Não cadastre um preço apenas para remover um alerta.",
@@ -26,11 +27,12 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
     links: [
       { label: "Contratos comerciais", href: "/comercial" },
       { label: "Prontidão comercial", href: "/comercial/prontidao" },
+      { label: "Simulador de preço", href: "/comercial/simulador" },
       { label: "Fontes e edições", href: "/comercial/tabelas" },
       { label: "DePara TUSS", href: "/comercial/depara" },
       { label: "Regras, CBHPM e pacotes", href: "/comercial/regras" },
     ],
-    keywords: ["comercial", "contrato", "credenciamento", "tabela", "amb", "cbhpm", "brasindice", "cmed", "simpro", "tuss", "depara", "ch", "uco", "filme"],
+    keywords: ["comercial", "contrato", "credenciamento", "tabela", "amb", "cbhpm", "brasindice", "cmed", "simpro", "tuss", "depara", "ch", "uco", "filme", "simulador", "preço"],
     sourceDocs: ["docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
   },
   {
@@ -47,6 +49,7 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
       "Para CBHPM, confira UCO e valores monetários de porte de procedimento/anestesia na vigência aplicável.",
       "Revise avisos de TUSS/DePara quando o item não tiver TUSS direto; confirme se o uso correto é tabela própria 00 ou se existe equivalência explícita a cadastrar.",
       "Use o botão de correção de cada diagnóstico para abrir Contrato, Negociação, CBHPM ou DePara já no contexto adequado e execute novamente a prontidão após a correção.",
+      "Com a prontidão sem bloqueios, valide códigos reais no Simulador de preço antes da homologação operacional.",
     ],
     warnings: [
       "Prontidão verde não equivale a homologação com operadora ou validação jurídica do contrato; ela indica apenas ausência de pendências comerciais conhecidas pelo motor para a data escolhida.",
@@ -55,11 +58,43 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
     ],
     links: [
       { label: "Prontidão comercial", href: "/comercial/prontidao" },
+      { label: "Simulador de preço", href: "/comercial/simulador" },
       { label: "Contratos comerciais", href: "/comercial" },
       { label: "DePara TUSS", href: "/comercial/depara" },
       { label: "Regras e CBHPM", href: "/comercial/regras" },
     ],
-    keywords: ["prontidão", "contrato", "bloqueio", "aviso", "homologação", "amb", "cbhpm", "tuss", "depara", "base de preço", "vigência"],
+    keywords: ["prontidão", "contrato", "bloqueio", "aviso", "homologação", "amb", "cbhpm", "tuss", "depara", "base de preço", "vigência", "simulador"],
+    sourceDocs: ["docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
+  },
+  {
+    slug: "comercial-simulador-precificacao",
+    title: "Simular a precificação antes do faturamento",
+    category: "Receita",
+    audience: ["Comercial", "Credenciamento", "Faturamento", "Auditoria"],
+    summary: "Como reproduzir a cadeia contratual de um código sem criar conta, gravar preço ou alterar histórico, conferindo tabela, DePara, CBHPM e regras aplicadas.",
+    steps: [
+      "Abra Simulador de preço e selecione o contrato que está em homologação ou revisão.",
+      "Informe um código da fonte, código próprio ou TUSS e escolha a data e a categoria comercial compatíveis com o atendimento que deseja testar.",
+      "Quando necessário, marque urgência, horário especial, acomodação individual, anestesia, mesma via e informe sequência, auxiliares, via de acesso ou origem/tipo.",
+      "Execute a simulação e confira o valor base resolvido pela tabela/vínculo, o valor final e a quantidade de regras aplicadas.",
+      "Abra a Memória da base para confirmar fonte, edição, código de origem, TUSS, DePara, método, pontos, porte, UCO, filme e ajuste contratual usados pelo motor.",
+      "Revise o caminho de regras para conferir a prioridade, operação e o valor antes/depois de cada regra aplicada.",
+      "Se o simulador indicar contrato contextual diferente, revise sobreposição, plano, unidade e vigência; não use o valor retornado como homologação do contrato selecionado.",
+      "Se retornar sem preço contratual, corrija a prontidão, negociação, CBHPM ou DePara e execute novamente o mesmo cenário.",
+    ],
+    warnings: [
+      "A simulação é somente leitura e não cria snapshot. O valor definitivo da conta continua sendo registrado no contexto real do atendimento/faturamento.",
+      "Não altere dados comerciais apenas para produzir um valor no simulador. Ausência de preço seguro deve permanecer visível até a configuração documental correta.",
+      "O simulador reproduz regras cadastradas; ele não valida se o conteúdo do contrato assinado foi parametrizado corretamente sem revisão humana/institucional.",
+    ],
+    links: [
+      { label: "Simulador de preço", href: "/comercial/simulador" },
+      { label: "Prontidão comercial", href: "/comercial/prontidao" },
+      { label: "Contratos comerciais", href: "/comercial" },
+      { label: "DePara TUSS", href: "/comercial/depara" },
+      { label: "Regras e CBHPM", href: "/comercial/regras" },
+    ],
+    keywords: ["simulador", "precificação", "preço", "memória de cálculo", "contrato", "tuss", "depara", "cbhpm", "regra", "urgência", "múltiplos procedimentos"],
     sourceDocs: ["docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
   },
   {
@@ -85,10 +120,11 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
     links: [
       { label: "Regras, CBHPM e pacotes", href: "/comercial/regras" },
       { label: "Prontidão comercial", href: "/comercial/prontidao" },
+      { label: "Simulador de preço", href: "/comercial/simulador" },
       { label: "Contratos comerciais", href: "/comercial" },
       { label: "DePara TUSS", href: "/comercial/depara" },
     ],
-    keywords: ["regra", "cbhpm", "porte", "anestesia", "urgencia", "acomodacao", "multiplo", "via", "pacote", "vigencia", "faturamento"],
+    keywords: ["regra", "cbhpm", "porte", "anestesia", "urgencia", "acomodacao", "multiplo", "via", "pacote", "vigencia", "faturamento", "simulador"],
     sourceDocs: ["docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
   },
 ];
