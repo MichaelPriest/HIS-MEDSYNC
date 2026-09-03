@@ -1,10 +1,13 @@
 import { BookOpenCheck, Layers3, Search, UsersRound } from "lucide-react";
 import { KnowledgeBaseBrowser } from "@/components/manual/knowledge-base-browser";
 import { SectionPage } from "@/components/painel/section-page";
-import { knowledgeBaseArticles, knowledgeBaseCategories } from "@/modules/knowledge-base/articles";
+import { knowledgeBaseArticles } from "@/modules/knowledge-base/articles";
+import { commercialKnowledgeBaseArticles } from "@/modules/knowledge-base/comercial-articles";
 
 export default function ManualPage() {
-  const audiences = new Set(knowledgeBaseArticles.flatMap((article) => article.audience));
+  const articles = [...knowledgeBaseArticles, ...commercialKnowledgeBaseArticles];
+  const categories = ["Todas", ...Array.from(new Set(articles.map((article) => article.category)))];
+  const audiences = new Set(articles.flatMap((article) => article.audience));
 
   return (
     <SectionPage
@@ -13,8 +16,8 @@ export default function ManualPage() {
       description="Guias operacionais pesquisáveis para aprender a usar os módulos mantendo o mesmo atendimento, as regras de segurança e a sequência correta entre os setores."
     >
       <section className="grid gap-3 sm:grid-cols-3">
-        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Guias disponíveis</p><BookOpenCheck className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{knowledgeBaseArticles.length}</p></div>
-        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Categorias</p><Layers3 className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{knowledgeBaseCategories.length - 1}</p></div>
+        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Guias disponíveis</p><BookOpenCheck className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{articles.length}</p></div>
+        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Categorias</p><Layers3 className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{categories.length - 1}</p></div>
         <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Perfis orientados</p><UsersRound className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{audiences.size}</p></div>
       </section>
 
@@ -23,7 +26,7 @@ export default function ManualPage() {
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Search className="size-5" /></span>
           <div>
             <h2 className="font-black text-slate-900">Procure pela tarefa que precisa executar</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “triagem”, “dispensação”, “laudo”, “TISS”, “glosa” ou “NFS-e”. Cada guia informa a sequência de uso, cuidados e atalhos para as telas relacionadas.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “triagem”, “dispensação”, “laudo”, “TISS”, “glosa”, “contrato”, “CBHPM” ou “NFS-e”. Cada guia informa a sequência de uso, cuidados e atalhos para as telas relacionadas.</p>
           </div>
         </div>
       </section>
@@ -33,7 +36,7 @@ export default function ManualPage() {
         <p className="mt-1 text-sm leading-6 text-amber-800">Os guias ensinam o comportamento atualmente implementado, mas não substituem protocolos institucionais, treinamento assistencial, regras contratuais ou homologações externas. Integrações como PACS/DICOM, TISS, webservices de operadoras e NFS-e devem refletir a infraestrutura real da instituição.</p>
       </div>
 
-      <KnowledgeBaseBrowser articles={knowledgeBaseArticles} categories={knowledgeBaseCategories} />
+      <KnowledgeBaseBrowser articles={articles} categories={categories} />
     </SectionPage>
   );
 }
