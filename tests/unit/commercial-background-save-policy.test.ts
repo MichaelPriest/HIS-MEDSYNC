@@ -45,6 +45,45 @@ describe("Comercial / contratos", () => {
     expect(page).toContain("não existe valor monetário genérico embutido no sistema");
   });
 
+  it("salva contrato e negociação do workspace em segundo plano e somente por RPC", () => {
+    const actions = read("src/modules/comercial/workspace-background-actions.ts");
+    expect(actions).toContain("BackgroundActionState");
+    expect(actions).toContain("comercial_atualizar_contrato_contextual");
+    expect(actions).toContain("comercial_salvar_vinculo_tabela");
+    expect(actions).toContain("comercial_salvar_negociacao_tabela_v2");
+    expect(actions).toContain("p_valor_filme_m2");
+    expect(actions).toContain("p_base_preco");
+    expect(actions).not.toContain('from "next/navigation"');
+    expect(actions).not.toContain('.from("contrato_tabelas_comerciais").upsert');
+  });
+
+  it("mantém feedback inline também no workspace principal", () => {
+    const forms = read("src/components/comercial/commercial-workspace-background-forms.tsx");
+    expect(forms).toContain("useActionState");
+    expect(forms).toContain('aria-live="polite"');
+    expect(forms).toContain("Salvando em segundo plano…");
+    expect(forms).toContain("CommercialContractBackgroundForm");
+    expect(forms).toContain("CommercialTableLinkBackgroundForm");
+    expect(forms).toContain("CommercialNegotiationBackgroundForm");
+  });
+
+  it("expõe plano, base de preço, filme e categorias granulares no workspace", () => {
+    const page = read("src/app/(painel)/comercial/page.tsx");
+    expect(page).toContain('name="plano_id"');
+    expect(page).toContain('name="base_preco"');
+    expect(page).toContain('name="valor_filme_m2"');
+    expect(page).toContain('["cirurgias", "Cirurgias"]');
+    expect(page).toContain('["sadt", "SADT / exames"]');
+    expect(page).toContain('["honorarios", "Honorários"]');
+    expect(page).toContain('["anestesia", "Anestesia"]');
+    expect(page).toContain('["auxiliares", "Auxiliares"]');
+    expect(page).toContain("CommercialContractBackgroundForm");
+    expect(page).toContain("CommercialNegotiationBackgroundForm");
+    expect(page).not.toContain("vincularTabelaContratoWorkspace");
+    expect(page).not.toContain("atualizarNegociacaoTabela,");
+    expect(page).not.toContain("atualizarContratoComercial,");
+  });
+
   it("mantém preço contextual fail-closed e histórico fechado protegido", () => {
     const migration = read("supabase/migrations/20260903014600_comercial_motor_cobranca_contextual.sql");
     expect(migration).toContain("conta_historica_fechada");
@@ -74,5 +113,14 @@ describe("Comercial / contratos", () => {
     expect(migration).toContain("'legado_json'::text");
     expect(migration).toContain("cbhpm_porte_uco_versionado");
     expect(migration).toContain("cbhpm_porte_anestesico_versionado");
+  });
+
+  it("cria vínculos comerciais por RPC e aceita as categorias usadas pelo motor", () => {
+    const migration = read("supabase/migrations/20260903022310_comercial_vinculo_tabela_background_rpc.sql");
+    expect(migration).toContain("comercial_salvar_vinculo_tabela");
+    expect(migration).toContain("comercial_salvar_negociacao_tabela_v2");
+    expect(migration).toContain("'cirurgias','sadt','honorarios','anestesia','auxiliares'");
+    expect(migration).toContain("COMERCIAL_FONTE_EMPRESA_INCOMPATIVEL");
+    expect(migration).toContain("COMERCIAL_SEM_PERMISSAO_EDITAR");
   });
 });
