@@ -1,7 +1,13 @@
 import Link from "next/link";
-import { Activity, Clock3, Plus, Stethoscope } from "lucide-react";
+import { Activity, Clock3, Plus, Stethoscope, UsersRound } from "lucide-react";
 import { notFound } from "next/navigation";
 import { BillingActBackgroundForm } from "@/components/faturamento/billing-act-background-form";
+import {
+  SurgicalTeamBillingPanel,
+  type SurgicalBillingMember,
+  type SurgicalClinicalMember,
+  type SurgicalProcedureBilling,
+} from "@/components/faturamento/surgical-team-billing";
 import { SectionPage } from "@/components/painel/section-page";
 import { requirePermission } from "@/lib/permissions/server";
 
@@ -9,6 +15,8 @@ type Rel<T> = T | T[] | null;
 type Paciente = { nome_completo: string | null; ra: string | null; numero_registro: string | null };
 type Atendimento = { numero_atendimento: number | string | null };
 type Convenio = { nome_fantasia: string | null };
+type Professional = { nome_completo: string | null; conselho: string | null; numero_conselho: string | null; uf_conselho: string | null };
+type ClinicalMemberRaw = Omit<SurgicalClinicalMember, "profissional"> & { profissional: Rel<Professional> };
 
 function one<T>(value: Rel<T>): T | null { return Array.isArray(value) ? value[0] ?? null : value; }
 function brl(value: number | string | null | undefined) { return Number(value ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
@@ -27,11 +35,18 @@ export default async function ProcedimentosCirurgicosPage({params}:{params:Promi
   const { supabase, empresaId, unidadeId } = await requirePermission("faturamento.criar");
 
   const { data: conta } = await supabase.from("contas_faturamento")
-    .select("id,status,tipo_cobranca,valor_bruto,convenio_id,atendimento:atendimentos(numero_atendimento),paciente:pacientes(nome_completo,ra,numero_registro),convenio:convenios(nome_fantasia)")
+    .select("id,atendimento_id,status,tipo_cobranca,valor_bruto,convenio_id,atendimento:atendimentos(numero_atendimento),paciente:pacientes(nome_completo,ra,numero_registro),convenio:convenios(nome_fantasia)")
     .eq("id",contaId).eq("empresa_id",empresaId).eq("unidade_id",unidadeId).maybeSingle();
   if (!conta) notFound();
 
-  const [{data:grupos},{data:itens},{count:guiasAtivas}] = await Promise.all([
+  const [
+    {data:grupos},
+    {data:itens},
+    {count:guiasAtivas},
+    {data:procedimentosCirurgicos},
+    {data:equipeClinicaRaw},
+    {data:equipeFaturamento},
+  ] = await Promise.all([
     supabase.from("conta_faturamento_grupos_ato")
       .select("id,codigo_grupo,data_ato,procedimento_principal_codigo,procedimento_principal_descricao,sala,inicio_ato,fim_ato,porte_sala,porte_anestesico,potencial_contaminacao,sala_contaminada,via_acesso,acomodacao,urgencia,horario_especial,observacoes")
       .eq("conta_id",contaId).order("data_ato").order("created_at"),
@@ -39,6 +54,15 @@ export default async function ProcedimentosCirurgicosPage({params}:{params:Promi
       .select("id,origem_tipo,tabela,codigo,descricao,quantidade,valor_unitario,valor_total,grupo_ato_id,sequencia_ato,via_acesso,anestesia,numero_auxiliares,filme_m2")
       .eq("conta_id",contaId).in("origem_tipo",["procedimento","honorario","laboratorio","imagem"]).order("data_execucao").limit(1500),
     supabase.from("tiss_guias").select("id",{count:"exact",head:true}).eq("conta_id",contaId).neq("status","cancelada"),
+    supabase.from("cirurgia_procedimentos")
+      .select("id,codigo,descricao,tabela_referencia,porte,porte_anestesico,requisitos_equipe")
+      .eq("atendimento_id",conta.atendimento_id).order("sequencia").order("created_at"),
+    supabase.from("cirurgia_equipe")
+      .select("id,cirurgia_procedimento_id,papel,ordem_participacao,faturavel,profissional:profissionais(nome_completo,conselho,numero_conselho,uf_conselho)")
+      .eq("atendimento_id",conta.atendimento_id).not("cirurgia_procedimento_id","is",null).order("created_at"),
+    supabase.from("faturamento_equipe_cirurgica")
+      .select("id,cirurgia_procedimento_id,cirurgia_equipe_id,papel,ordem_participacao,fonte_codigo,fonte_tipo,porte_anestesico,quantidade_auxiliares_regra,percentual_honorario,ch_anestesista,valor_ch,valor_base_procedimento,valor_calculado,cobrar_regra,cobrar,repasse,ajuste_manual,justificativa_ajuste,status_calculo,origem_regra,ativo")
+      .eq("conta_id",contaId).order("created_at"),
   ]);
 
   const paciente = one(conta.paciente as Rel<Paciente>);
@@ -46,22 +70,28 @@ export default async function ProcedimentosCirurgicosPage({params}:{params:Promi
   const convenio = one(conta.convenio as Rel<Convenio>);
   const atos = grupos ?? [];
   const lancamentos = itens ?? [];
+  const procedures = (procedimentosCirurgicos ?? []) as SurgicalProcedureBilling[];
+  const clinicalMembers = ((equipeClinicaRaw ?? []) as unknown as ClinicalMemberRaw[]).map((item) => ({...item, profissional: one(item.profissional)}));
+  const billingMembers = (equipeFaturamento ?? []) as SurgicalBillingMember[];
   const editavel = !["faturada","cancelada"].includes(conta.status) && (guiasAtivas ?? 0) === 0;
 
   return <SectionPage
     eyebrow="Faturamento / Conta / Procedimentos cirúrgicos"
-    title="Procedimentos cirúrgicos e SADT"
+    title="Procedimentos cirúrgicos, SADT e equipe"
     description={`${paciente?.nome_completo??"Paciente"} · RA ${paciente?.ra??"—"} · Atendimento #${atendimento?.numero_atendimento??"—"} · ${convenio?.nome_fantasia??(conta.tipo_cobranca==="particular"?"Particular":"Convênio")}`}
-    actions={<div className="flex flex-wrap gap-2"><Link href={`/faturamento/${contaId}/lancamentos`} className="ui-button-secondary">Lançamentos</Link><Link href={`/faturamento/${contaId}/catalogo`} className="ui-button-primary"><Plus className="size-4"/>Adicionar procedimento</Link></div>}
+    actions={<div className="flex flex-wrap gap-2"><Link href={`/faturamento/${contaId}/lancamentos`} className="ui-button-secondary">Lançamentos</Link><a href="#equipe-medica" className="ui-button-secondary"><UsersRound className="size-4"/>Equipe médica</a><Link href={`/faturamento/${contaId}/catalogo`} className="ui-button-primary"><Plus className="size-4"/>Adicionar procedimento</Link></div>}
   >
     {!editavel?<div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Alterações bloqueadas: {(guiasAtivas??0)>0?"a conta já possui Guia TISS ativa":"o status atual da conta não permite edição"}.</div>:null}
 
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <Kpi label="Atos cadastrados" value={String(atos.length)}/>
-      <Kpi label="Itens cirúrgicos / SADT" value={String(lancamentos.length)}/>
-      <Kpi label="Itens vinculados" value={String(lancamentos.filter(i=>i.grupo_ato_id).length)}/>
+      <Kpi label="Procedimentos CC" value={String(procedures.length)}/>
+      <Kpi label="Equipe clínica" value={String(clinicalMembers.length)}/>
+      <Kpi label="Honorários gerados" value={String(billingMembers.filter((item)=>item.ativo).length)}/>
       <Kpi label="Valor bruto da conta" value={brl(conta.valor_bruto)}/>
     </section>
+
+    <SurgicalTeamBillingPanel contaId={contaId} procedures={procedures} clinicalMembers={clinicalMembers} billingMembers={billingMembers} disabled={!editavel}/>
 
     <section className="ui-card mt-5 p-5">
       <div className="flex items-center gap-3"><Stethoscope className="size-5 text-brand-700"/><div><h2 className="font-black text-slate-950">Novo ato cirúrgico / SADT</h2><p className="text-sm text-slate-500">Agrupe o procedimento, sala, período e características que influenciam a cobrança.</p></div></div>
