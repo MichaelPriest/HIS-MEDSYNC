@@ -1,0 +1,4 @@
+-- Etapa intermediária aplicada no Supabase em 2026-09-03.
+-- A implementação final do sincronizador e o backfill idempotente estão consolidados
+-- na migration imediatamente seguinte, 20260903121636, que preserva esta versão
+-- no histórico de migrations e corrige a vigência para contratos com edição fixa.
