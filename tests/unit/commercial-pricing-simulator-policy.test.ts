@@ -50,14 +50,13 @@ describe("Comercial / simulador de precificação", () => {
     const page = read("src/app/(painel)/comercial/simulador/page.tsx");
     expect(page).toContain("comercial_simular_precificacao");
     expect(page).toContain("comercial_prontidao_contrato");
-    expect(page).toContain('name="urgencia"');
-    expect(page).toContain('name="horario_especial"');
-    expect(page).toContain('name="acomodacao_individual"');
-    expect(page).toContain('name="anestesia"');
+    for (const field of ["urgencia", "horario_especial", "acomodacao_individual", "anestesia", "mesma_via"]) {
+      expect(page).toContain(`["${field}"`);
+    }
+    expect(page).toContain('name={String(name)}');
     expect(page).toContain('name="auxiliares"');
     expect(page).toContain('name="sequencia"');
     expect(page).toContain('name="via_acesso"');
-    expect(page).toContain('name="mesma_via"');
     expect(page).toContain("Memória da base");
     expect(page).toContain("Caminho do valor base ao valor final");
     expect(page).toContain("Simulação somente leitura");
