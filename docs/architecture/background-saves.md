@@ -35,7 +35,7 @@ Filtros e buscas que alteram deliberadamente a consulta podem continuar na URL. 
 - GED: assinatura e status inline, com SHA-256 antes de `assinar_documento_ged`.
 - Internação/NIR: alocação de leito inline.
 - Centro Cirúrgico/CME: núcleo, procedimentos, Anestesia/RPA, Suprimentos e CME.
-- Ciclo da Receita: entradas, ledger financeiro, conta hospitalar incluindo lançamentos e Atos/SADT, Guia TISS, Lote TISS, complementos de Comunicação, complemento de item e geração/validação XSD da mensagem final.
+- Ciclo da Receita: entradas, ledger financeiro, conta hospitalar incluindo lançamentos e Atos/SADT, Guia TISS, Lote TISS, complementos de Comunicação, complemento de item, geração/validação XSD da mensagem final e registro manual de NFS-e.
 
 ## Ciclo da Receita / Faturamento
 
@@ -99,9 +99,13 @@ Baixa, conciliação e estorno usam `registrar_recebimento_financeiro_operaciona
 
 Abertura de recurso usa `criar_recurso_glosa_tiss_transacional` e navega apenas quando o banco retorna o recurso real. Registro de glosa no lote usa `registrar_glosa_tiss_transacional` inline.
 
+O detalhe do recurso expõe glosa relacionada, valor recursado, deferido, indeferido, pendente, protocolo, envio/retorno e vínculo com a Guia TISS. Essa tela não grava manualmente retorno financeiro: enquanto não existir RPC transacional canônico para deferimento/indeferimento e persistência de retorno, a operação permanece fail-closed e somente leitura.
+
 ### NFS-e
 
 A criação de rascunho usa `criar_nfse_lote_operacional`. Criar rascunho não equivale a emitir documento fiscal.
+
+O registro manual de uma NFS-e já emitida no portal municipal usa `NfseManualBackgroundForm` + `registrarEmissaoManualNfseBackground`, mantendo `registrar_estado_nfse_operacional` como autoridade e feedback inline sem reload. A emissão automática via SEFIN/adapter municipal continua tratada como operação externa auditada, com transações persistidas por `registrar_transacao_nfse_operacional`.
 
 ### Produção
 
@@ -117,6 +121,6 @@ Agendamento/classificação ANS, transições, checklist, OPME, CME, múltiplos 
 
 ## Regressão
 
-A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem Enfermagem, Farmácia, LIS, RIS, GED, Centro Cirúrgico/CME, NIR, Ciclo da Receita, `tests/unit/tiss-xsd-ans-040300.test.ts`, `tests/unit/tiss-mensagem-final-040300.test.ts` e `tests/unit/faturamento-lancamentos-background-saves.test.ts`.
+A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem Enfermagem, Farmácia, LIS, RIS, GED, Centro Cirúrgico/CME, NIR, Ciclo da Receita, `tests/unit/tiss-xsd-ans-040300.test.ts`, `tests/unit/tiss-mensagem-final-040300.test.ts`, `tests/unit/faturamento-lancamentos-background-saves.test.ts` e `tests/unit/nfse-recursos-background.test.ts`.
 
 A conversão global continua incremental. Não declarar o HIS inteiro convertido enquanto existirem mutações legadas fora das exceções justificadas.
