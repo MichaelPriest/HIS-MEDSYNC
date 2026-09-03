@@ -1,44 +1,213 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { getAssistencialContext } from "@/modules/assistencial/context";
 
-const text=(fd:FormData,k:string)=>String(fd.get(k)??"").trim();
-const num=(v:string)=>{const n=Number(v.replace(/\./g,"").replace(",","."));return Number.isFinite(n)?n:null};
+export type ComercialRuleActionData = { id: string };
+export type ComercialPackageActionData = { id: string };
+export type ComercialPackageItemActionData = { id: string };
 
-export async function salvarRegraFaturamento(formData:FormData){
-  const {supabase}=await getAssistencialContext();
-  const contratoId=text(formData,"contrato_id"), categoria=text(formData,"categoria"), codigo=text(formData,"codigo_regra"), descricao=text(formData,"descricao");
-  if(!contratoId||!categoria||!codigo||!descricao) redirect("/comercial/regras?erro=campos");
-  const condicoesRaw=text(formData,"condicoes_json");
-  let condicoes:Record<string,unknown>={};
-  if(condicoesRaw){try{condicoes=JSON.parse(condicoesRaw)}catch{redirect("/comercial/regras?erro=json")}}
-  const {error}=await supabase.from("contrato_regras_faturamento").insert({contrato_id:contratoId,categoria,codigo_regra:codigo,descricao,percentual:num(text(formData,"percentual")),valor_fixo:num(text(formData,"valor_fixo")),prioridade:Number(text(formData,"prioridade")||100),condicoes,ativo:true,vigencia_inicio:text(formData,"vigencia_inicio")||null,vigencia_fim:text(formData,"vigencia_fim")||null});
-  if(error) redirect("/comercial/regras?erro=salvar"); revalidatePath("/comercial/regras");
-}
+const text = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
+const nullable = (value: string) => value || null;
+const decimal = (value: string) => {
+  if (!value) return null;
+  const compact = value.replace(/\s/g, "");
+  const normalized = compact.includes(",")
+    ? compact.replace(/\./g, "").replace(",", ".")
+    : compact;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const integer = (value: string) => {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const checkbox = (fd: FormData, key: string) => fd.get(key) === "on" || fd.get(key) === "true";
 
-export async function salvarPacoteContrato(formData:FormData){
-  const {supabase}=await getAssistencialContext();
-  const contratoId=text(formData,"contrato_id"),codigo=text(formData,"codigo"),nome=text(formData,"nome"),valor=num(text(formData,"valor"));
-  if(!contratoId||!codigo||!nome||valor===null) redirect("/comercial/regras?erro=pacote");
-  const parse=(v:string)=>v? v.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean):[];
-  const {error}=await supabase.from("contrato_pacotes").insert({contrato_id:contratoId,codigo,nome,valor,vigencia_inicio:text(formData,"vigencia_inicio")||null,vigencia_fim:text(formData,"vigencia_fim")||null,inclusoes:parse(text(formData,"inclusoes")),exclusoes:parse(text(formData,"exclusoes")),observacoes:text(formData,"observacoes")||null,ativo:true});
-  if(error) redirect("/comercial/regras?erro=pacote-salvar"); revalidatePath("/comercial/regras");
-}
-
-export async function adicionarItemPacote(formData:FormData){
-  const {supabase}=await getAssistencialContext();
-  const pacoteId=text(formData,"pacote_id"),codigo=text(formData,"codigo"),tabela=text(formData,"tabela");
-  if(!pacoteId||!codigo) redirect("/comercial/regras?erro=item-pacote");
-  const payload={quantidade_inclusa:num(text(formData,"quantidade_inclusa")),cobranca_excedente:formData.get("cobranca_excedente")==="on"};
-  let consulta=supabase.from("contrato_pacote_itens").select("id").eq("pacote_id",pacoteId).eq("codigo",codigo);
-  consulta=tabela?consulta.eq("tabela",tabela):consulta.is("tabela",null);
-  const {data:existente,error:consultaError}=await consulta.limit(1).maybeSingle();
-  if(consultaError) redirect("/comercial/regras?erro=item-pacote-salvar");
-  const resultado=existente
-    ? await supabase.from("contrato_pacote_itens").update(payload).eq("id",existente.id)
-    : await supabase.from("contrato_pacote_itens").insert({pacote_id:pacoteId,codigo,tabela:tabela||null,...payload});
-  if(resultado.error) redirect("/comercial/regras?erro=item-pacote-salvar");
+function refreshCommercialPaths() {
+  revalidatePath("/comercial");
   revalidatePath("/comercial/regras");
+  revalidatePath("/faturamento");
+}
+
+function conditionBoolean(fd: FormData, field: string) {
+  const value = text(fd, field);
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+function buildConditions(formData: FormData): Record<string, string | number | boolean> {
+  const conditions: Record<string, string | number | boolean> = {};
+  const numberFields: Array<[string, string]> = [
+    ["sequencia", "sequencia"],
+    ["sequencia_min", "sequencia_min"],
+    ["sequencia_max", "sequencia_max"],
+    ["quantidade_auxiliares_min", "quantidade_auxiliares_min"],
+  ];
+  for (const [formField, targetField] of numberFields) {
+    const value = integer(text(formData, formField));
+    if (value !== null) conditions[targetField] = value;
+  }
+
+  const booleanFields: Array<[string, string]> = [
+    ["urgencia_condicao", "urgencia"],
+    ["horario_especial_condicao", "horario_especial"],
+    ["acomodacao_individual_condicao", "acomodacao_individual"],
+    ["anestesia_condicao", "anestesia"],
+    ["mesma_via_condicao", "mesma_via"],
+  ];
+  for (const [formField, targetField] of booleanFields) {
+    const value = conditionBoolean(formData, formField);
+    if (value !== undefined) conditions[targetField] = value;
+  }
+
+  const textFields: Array<[string, string]> = [
+    ["via_acesso", "via_acesso"],
+    ["origem_tipo", "origem_tipo"],
+    ["codigo_item", "codigo"],
+  ];
+  for (const [formField, targetField] of textFields) {
+    const value = text(formData, formField);
+    if (value) conditions[targetField] = value;
+  }
+  return conditions;
+}
+
+export async function salvarRegraFaturamentoBackground(
+  _previous: BackgroundActionState<ComercialRuleActionData>,
+  formData: FormData,
+): Promise<BackgroundActionState<ComercialRuleActionData>> {
+  const { supabase } = await getAssistencialContext();
+  const contratoId = text(formData, "contrato_id");
+  const categoria = text(formData, "categoria");
+  const codigo = text(formData, "codigo_regra");
+  const descricao = text(formData, "descricao");
+  const operacao = text(formData, "operacao") || "multiplicar_percentual";
+  const aplicaSobre = text(formData, "aplica_sobre") || "valor_atual";
+  const prioridade = integer(text(formData, "prioridade")) ?? 100;
+  if (!contratoId || !categoria || !codigo || !descricao) {
+    return { status: "error", code: "campos-obrigatorios", message: "Informe contrato, categoria, código e descrição da regra." };
+  }
+
+  const { data, error } = await supabase.rpc("comercial_salvar_regra_faturamento", {
+    p_id: nullable(text(formData, "regra_id")),
+    p_contrato_id: contratoId,
+    p_categoria: categoria,
+    p_codigo_regra: codigo,
+    p_descricao: descricao,
+    p_operacao: operacao,
+    p_aplica_sobre: aplicaSobre,
+    p_percentual: decimal(text(formData, "percentual")),
+    p_valor_fixo: decimal(text(formData, "valor_fixo")),
+    p_prioridade: prioridade,
+    p_condicoes: buildConditions(formData),
+    p_vigencia_inicio: nullable(text(formData, "vigencia_inicio")),
+    p_vigencia_fim: nullable(text(formData, "vigencia_fim")),
+    p_encerra_processamento: checkbox(formData, "encerra_processamento"),
+    p_ativo: true,
+  });
+  if (error || !data) {
+    return { status: "error", code: "regra-salvar", message: error?.message || "Não foi possível salvar a regra contratual." };
+  }
+
+  refreshCommercialPaths();
+  return {
+    status: "success",
+    code: text(formData, "regra_id") ? "regra-atualizada" : "regra-criada",
+    message: text(formData, "regra_id") ? "Regra contratual atualizada." : "Regra contratual criada e pronta para o cálculo.",
+    data: { id: String(data) },
+  };
+}
+
+export async function salvarPacoteContratoBackground(
+  _previous: BackgroundActionState<ComercialPackageActionData>,
+  formData: FormData,
+): Promise<BackgroundActionState<ComercialPackageActionData>> {
+  const { supabase } = await getAssistencialContext();
+  const contratoId = text(formData, "contrato_id");
+  const codigo = text(formData, "codigo");
+  const nome = text(formData, "nome");
+  const valor = decimal(text(formData, "valor"));
+  if (!contratoId || !codigo || !nome || valor === null) {
+    return { status: "error", code: "pacote-campos", message: "Informe contrato, código, nome e valor do pacote." };
+  }
+  const parseList = (value: string) => value
+    ? value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean)
+    : [];
+
+  const { data, error } = await supabase.rpc("comercial_salvar_pacote", {
+    p_id: nullable(text(formData, "pacote_id")),
+    p_contrato_id: contratoId,
+    p_codigo: codigo,
+    p_nome: nome,
+    p_valor: valor,
+    p_vigencia_inicio: nullable(text(formData, "vigencia_inicio")),
+    p_vigencia_fim: nullable(text(formData, "vigencia_fim")),
+    p_inclusoes: parseList(text(formData, "inclusoes")),
+    p_exclusoes: parseList(text(formData, "exclusoes")),
+    p_observacoes: nullable(text(formData, "observacoes")),
+    p_ativo: true,
+  });
+  if (error || !data) {
+    return { status: "error", code: "pacote-salvar", message: error?.message || "Não foi possível salvar o pacote comercial." };
+  }
+
+  refreshCommercialPaths();
+  return {
+    status: "success",
+    code: text(formData, "pacote_id") ? "pacote-atualizado" : "pacote-criado",
+    message: text(formData, "pacote_id") ? "Pacote comercial atualizado." : "Pacote comercial criado.",
+    data: { id: String(data) },
+  };
+}
+
+export async function adicionarItemPacoteBackground(
+  _previous: BackgroundActionState<ComercialPackageItemActionData>,
+  formData: FormData,
+): Promise<BackgroundActionState<ComercialPackageItemActionData>> {
+  const { supabase } = await getAssistencialContext();
+  const pacoteId = text(formData, "pacote_id");
+  const codigo = text(formData, "codigo");
+  const tabela = text(formData, "tabela");
+  if (!pacoteId || !codigo) {
+    return { status: "error", code: "item-pacote-campos", message: "Informe o código do item do pacote." };
+  }
+
+  let itemId = nullable(text(formData, "item_id"));
+  if (!itemId) {
+    let lookup = supabase
+      .from("contrato_pacote_itens")
+      .select("id")
+      .eq("pacote_id", pacoteId)
+      .eq("codigo", codigo);
+    lookup = tabela ? lookup.eq("tabela", tabela) : lookup.is("tabela", null);
+    const { data: existente, error: lookupError } = await lookup.limit(1).maybeSingle();
+    if (lookupError) {
+      return { status: "error", code: "item-pacote-consulta", message: lookupError.message };
+    }
+    itemId = existente?.id ?? null;
+  }
+
+  const { data, error } = await supabase.rpc("comercial_salvar_item_pacote", {
+    p_id: itemId,
+    p_pacote_id: pacoteId,
+    p_codigo: codigo,
+    p_tabela: nullable(tabela),
+    p_quantidade_inclusa: decimal(text(formData, "quantidade_inclusa")),
+    p_cobranca_excedente: checkbox(formData, "cobranca_excedente"),
+  });
+  if (error || !data) {
+    return { status: "error", code: "item-pacote-salvar", message: error?.message || "Não foi possível salvar o item do pacote." };
+  }
+
+  refreshCommercialPaths();
+  return {
+    status: "success",
+    code: itemId ? "item-pacote-atualizado" : "item-pacote-criado",
+    message: itemId ? "Item do pacote atualizado." : "Item incluído no pacote.",
+    data: { id: String(data) },
+  };
 }
