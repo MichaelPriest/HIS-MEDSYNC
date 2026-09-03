@@ -3,10 +3,10 @@ import type { KnowledgeBaseArticle } from "@/modules/knowledge-base/articles";
 export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
   {
     slug: "comercial-contratos-tabelas",
-    title: "Configurar contratos e tabelas comerciais",
+    title: "Configurar contratos, tabelas e DePara TUSS",
     category: "Receita",
     audience: ["Comercial", "Credenciamento", "Faturamento", "Auditoria"],
-    summary: "Como definir a abrangência do contrato, vincular a tabela correta e registrar a metodologia de cobrança sem criar preço ou DePara implícito.",
+    summary: "Como definir a abrangência do contrato, vincular a tabela correta e registrar metodologia e DePara de cobrança sem criar preço ou equivalência implícitos.",
     steps: [
       "Abra Comercial / Contratos e selecione o convênio e o contrato que deseja parametrizar.",
       "Na aba Contrato, confira vigência e selecione o plano/produto quando a negociação não valer para todos os planos do convênio.",
@@ -14,16 +14,19 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
       "Defina se a edição será fixa ou vigente na data do serviço. Para Brasíndice, CMED ou SIMPRO, informe explicitamente a base de preço prevista no contrato.",
       "Preencha somente os componentes negociados, como CH, HM, SADT, UCO, filme radiológico por m², ajuste, prioridade, arredondamento e adicionais.",
       "Use Itens da tabela para conferir códigos, TUSS, atributos e quantidade de itens da edição. Edições publicadas são históricas; crie uma nova versão para alterações futuras.",
+      "Quando a fonte usar código diferente do TUSS, abra DePara TUSS, selecione o mesmo contrato e a fonte vinculada e registre código de origem, TUSS confirmado e vigência. Se a equivalência mudar, encerre a vigência anterior e crie uma nova versão.",
       "Revise os alertas de edição ausente, tabela vazia ou base de preço pendente antes de liberar o contrato para uso no faturamento.",
     ],
     warnings: [
       "Tabela comercial fornece referência e atributos; o contrato define a cobrança. Não cadastre um preço apenas para remover um alerta.",
-      "DePara TUSS deve existir como equivalência explícita e auditável. O sistema não deve inferir um código equivalente.",
-      "Alterações futuras de contrato ou tabela não devem recalcular silenciosamente contas históricas fechadas.",
+      "DePara TUSS deve existir como equivalência explícita e auditável. O sistema não sugere nem infere um código equivalente.",
+      "Uma fonte precisa estar vinculada ao contrato antes de receber DePara. Vigências ativas do mesmo código/fonte não podem se sobrepor.",
+      "Alterações futuras de contrato, tabela ou DePara não devem recalcular silenciosamente contas históricas fechadas.",
     ],
     links: [
       { label: "Contratos comerciais", href: "/comercial" },
       { label: "Fontes e edições", href: "/comercial/tabelas" },
+      { label: "DePara TUSS", href: "/comercial/depara" },
       { label: "Regras, CBHPM e pacotes", href: "/comercial/regras" },
     ],
     keywords: ["comercial", "contrato", "credenciamento", "tabela", "amb", "cbhpm", "brasindice", "cmed", "simpro", "tuss", "depara", "ch", "uco", "filme"],
@@ -52,6 +55,7 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
     links: [
       { label: "Regras, CBHPM e pacotes", href: "/comercial/regras" },
       { label: "Contratos comerciais", href: "/comercial" },
+      { label: "DePara TUSS", href: "/comercial/depara" },
     ],
     keywords: ["regra", "cbhpm", "porte", "anestesia", "urgencia", "acomodacao", "multiplo", "via", "pacote", "vigencia", "faturamento"],
     sourceDocs: ["docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
