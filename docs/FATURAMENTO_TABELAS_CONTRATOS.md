@@ -30,6 +30,34 @@ Migrations desta etapa:
 - `20260903031508_comercial_depara_tuss_contratual`;
 - `20260903031635_comercial_depara_tuss_motor_contextual`.
 
+## Prontidão comercial — PR #131
+
+A evolução seguinte adiciona `/comercial/prontidao` e o RPC somente leitura `comercial_prontidao_contrato(uuid,date)`, versionado em `20260903033044_comercial_prontidao_contratual`.
+
+A prontidão não altera nenhum dado e não cria valores para “fechar” a configuração. Ela avalia o contrato na data informada e separa:
+
+- **bloqueios**, que impedem considerar a configuração comercial pronta para precificação;
+- **avisos**, que exigem revisão antes de faturamento/TISS, mas não autorizam preenchimento automático;
+- **ok**, somente quando não há bloqueio nem aviso conhecido pelo diagnóstico.
+
+Bloqueios atualmente cobertos:
+
+- contrato inativo ou fora da vigência simulada;
+- ausência de tabela vinculada;
+- fonte inativa/incompatível com a empresa;
+- edição fixa/vigente não resolvida;
+- edição sem itens ativos;
+- Brasíndice/CMED/SIMPRO sem base explícita;
+- itens sem valor na base escolhida;
+- AMB sem SADT necessário ao motor ou sem valor de filme/m² quando a edição contém filme;
+- CH, HM ou SADT sem valor contratual em edições `ch_hm_sadt`;
+- CBHPM com UCO necessária sem UCO contratual;
+- CBHPM com porte de procedimento sem valor monetário vigente.
+
+Avisos incluem prazo de pagamento ausente, porte anestésico pendente, item sem TUSS direto/DePara explícito e empate de prioridade entre vínculos da mesma categoria.
+
+Cada diagnóstico informa a categoria, um código estável, mensagem e contexto técnico mínimo. A interface converte isso em ações para Contrato, Negociação, CBHPM ou DePara. **Prontidão verde não é homologação**: contrato real, operadora, dados importados e validação institucional continuam sendo autoridades externas ao diagnóstico.
+
 ## Princípio de autoridade
 
 O HIS-MEDSYNC não trata TUSS, AMB, CBHPM, Brasíndice ou SIMPRO como uma tabela universal de preços.
