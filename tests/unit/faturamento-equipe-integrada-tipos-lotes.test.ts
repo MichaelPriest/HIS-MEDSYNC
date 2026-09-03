@@ -53,7 +53,7 @@ describe("separação do faturamento por natureza de atendimento", () => {
     expect(dischargeMigration).toContain("not exists(select 1 from public.tiss_guias");
   });
 
-  it("não permite misturar tipos de atendimento no mesmo lote TISS", () => {
+  it("não permite misturar tipos de atendimento no mesmo lote", () => {
     expect(typeMigration).toContain("validar_tipo_atendimento_lote_tiss_internal");
     expect(typeMigration).toContain("TISS_LOTE_TIPO_ATENDIMENTO_MISTO");
     expect(typeMigration).toContain("criar_lote_tiss_por_tipo_transacional");
@@ -67,6 +67,7 @@ describe("separação do faturamento por natureza de atendimento", () => {
       expect(accounts + batches).toContain(label);
     }
     expect(accounts).toContain("SADT corresponde ao exame eletivo fora do Pronto Atendimento e da Internação");
-    expect(batches).toContain("não misturar tipos de atendimento");
+    expect(batches).toContain("bloqueia qualquer mistura entre PA, Ambulatório, Internação e SADT");
+    expect(batches).toContain("gere outro lote separado");
   });
 });
