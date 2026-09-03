@@ -11,8 +11,10 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 - A produção do merge SHA `202326de...` ainda não está confirmada: o pós-merge retornou `Deployment rate limited`. A última produção de `main` confirmada por SHA permanece `c91d2ebccb1a549b9bae8db24b24c3d6877db04c` até existir deployment de produção do merge atual ou posterior.
 - PR #122 — Internação/NIR continua aberta sobre `main`; head-base confirmado `1b513a0cf898728b44c894b7d322c3a58eff2768` após receber o redesign do Ciclo da Receita.
 - PR #123 — redesign do Ciclo da Receita foi mesclada na branch da #122 como merge commit `1b513a0cf898728b44c894b7d322c3a58eff2768`; portanto não deve ser mesclada separadamente em `main`.
-- PR #124 — `feat(tiss): concluir mensagem final e XSD ANS 4.03.00` está aberta e empilhada sobre a #122. Além da mensagem final/XSD, o pacote inclui Prontidão Cadastral TISS e padronização do cadastro profissional com CBO TUSS 24, conselho TUSS 26, UF fechada e habilitação TISS explícita. O CI #998 do head `77ba370e...` passou lint, typecheck, testes, build, smoke público e E2E autenticado; o Vercel do mesmo SHA ficou bloqueado por rate limit.
-- PR #125 — `refactor(faturamento): salvar lançamentos e atos sem reload` está aberta e empilhada sobre a #124. Ela converte inclusão/edição de lançamentos, Catálogo da Conta e Atos/SADT para `useActionState` sem duplicar a resolução comercial.
+- PR #124 — `feat(tiss): concluir mensagem final e XSD ANS 4.03.00` está aberta e empilhada sobre a #122. Além da mensagem final/XSD, o pacote inclui Prontidão Cadastral TISS, padronização do cadastro profissional com CBO TUSS 24/conselho TUSS 26/UF fechada/habilitação TISS explícita e as evoluções de Faturamento incorporadas pelas PRs #125 e #128.
+- PR #125 — `refactor(faturamento): salvar lançamentos e atos sem reload` foi mesclada na branch da #124. O merge cumulativo levou a #124 ao SHA `2500be61395dbe1432b8a205c03d42dca6835edf` antes da evolução seguinte.
+- PR #128 — `refactor(financeiro): evoluir NFS-e e recursos de glosa` passou CI #1019 completo e Vercel `READY` no head `c4b45f4fb94a1593948887f7361c9a26466d02b4`, sem threads de revisão, e foi mesclada na #124 como `4c3fecaec3362ba8c0435e372aedf7e459f64111`.
+- O head cumulativo da #124 foi avançado depois do merge da #128 apenas por documentação. Ele deve passar CI/Vercel novamente no **SHA final** antes de qualquer merge na #122.
 - O wire converte deterministicamente UF válida (`SP → 35`) sem alterar o snapshot, recusa valores desconhecidos e o banco também bloqueia domínios inválidos. Fixtures positivos seguem o XSD oficial em vez de afrouxar a validação.
 - Os status Vercel de alguns heads recentes permanecem sujeitos a `build-rate-limit`; isso bloqueia merge, mas não autoriza empty commit ou promoção de um SHA diferente.
 - PR #111 permanece aberta para fallback comercial TUSS; a migration correspondente já está aplicada no Supabase e não deve ser confundida com homologação da PR.
@@ -43,11 +45,11 @@ Este documento registra o estado **real confirmado** do MedSync HIS. Rota, tabel
 | Base de Conhecimento | `/manual` com 17 guias, busca, filtros, público, passos, alertas e fontes versionadas; manual específico de Cadastros TISS versionado em `docs/`. | integrar novos guias contextuais e confirmar produção da `main` |
 | GED | Storage privado, versões, hash, assinatura e mudanças de status inline consolidadas pela #121. | retenção, temporalidade e governança documental |
 | Centro Cirúrgico / CME | Núcleo/procedimentos, Anestesia/RPA, Suprimentos e CME dedicada consolidados pela #121, ligados ao mesmo RA e RPCs canônicos. | homologação presencial de cirurgia/CME, equipamentos, indicadores e protocolos locais |
-| Internação / NIR | A #122 converte a alocação NIR para feedback inline e mantém `movimentar_internacao_leito` como autoridade. | concluir cadeia #125 → #124 → #122, Vercel/merge e homologação NIR |
+| Internação / NIR | A #122 converte a alocação NIR para feedback inline e mantém `movimentar_internacao_leito` como autoridade. | concluir gate da #124, incorporar na #122, validar o head cumulativo e homologar NIR |
 | Compras / Almoxarifado / Estoque | Cotação, pedido, recebimento, lote, saldo, inventário, reposição e transferências transacionais. | alçadas reais, curva ABC, inventários e mutações legadas |
 | Comercial / Contratos / Tabelas | Contratos, versões, itens, auditoria e AMB estruturada. | referências reais, precificação e mapeamentos |
 | Urgência / Emergência | Transições, prioridade, SLA, reavaliação e observação com base operacional. | parametrização e homologação |
-| Faturamento / TISS / Financeiro | Workspace unificado e redesign #123 incorporado à #122. A #124 implementa `mensagemTISS/ENVIO_LOTE_GUIAS`, MD5 regulatório, XSD oficial, solicitante SP/SADT separado, origem/unidade por item, domínios `dm_UF`/tipo atendimento, staging transacional e saída ISO-8859-1. A #125 converte lançamentos e Atos/SADT para background save preservando resolução comercial e RPCs. | CI/Vercel da #125; consolidar cadeia; homologação com operadoras |
+| Faturamento / TISS / Financeiro | Workspace unificado e redesign #123 incorporado à #122. A #124 implementa `mensagemTISS/ENVIO_LOTE_GUIAS`, MD5 regulatório, XSD oficial, solicitante SP/SADT separado, origem/unidade por item, domínios `dm_UF`/tipo atendimento, staging transacional e saída ISO-8859-1. A #125, já incorporada, converte lançamentos e Atos/SADT para background save. A #128, também incorporada, converte registro manual de NFS-e para `useActionState` e moderniza o recurso de glosa com visão glosado/recursado/deferido/indeferido/pendente sem DML manual de retorno. | gate final da #124; RPC transacional para retorno de recurso de glosa; homologação com operadoras e municípios |
 | Auditoria / Contas Médicas | Fila pós-alta, revalidação e handoff corrigidos nas PRs #108/#109. | homologar ciclo pós-alta ponta a ponta |
 
 ## Supabase — referência confirmada
@@ -140,9 +142,9 @@ Mudanças implementadas incluem:
 
 Ações convertidas para `BackgroundActionState` + `useActionState` incluem abertura de conta, criação de lote/recurso/NFS-e, sincronização de produção, ledger financeiro, operações da conta, revalidação da Guia TISS, protocolo/glosa/importação/envio manual e validação XSD.
 
-## Lançamentos e Atos/SADT — PR #125
+## Lançamentos e Atos/SADT — PR #125 incorporada à #124
 
-A #125 remove os redirects de sucesso/erro dos fluxos de lançamento restantes do Faturamento:
+A #125 removeu os redirects de sucesso/erro dos fluxos de lançamento restantes do Faturamento:
 
 - Catálogo da Conta adiciona itens sem perder a busca atual;
 - inclusão manual e edição de lançamento usam `BillingItemBackgroundForm`;
@@ -151,6 +153,21 @@ A #125 remove os redirects de sucesso/erro dos fluxos de lançamento restantes d
 - criação/edição de Atos/SADT, vínculo dos itens e recálculo usam `BillingActBackgroundForm`;
 - conta faturada/cancelada e conta com Guia TISS ativa continuam bloqueadas no servidor;
 - `recalcular_item_contratual_avancado` continua autoridade do recálculo contratual;
+- nenhuma migration foi necessária.
+
+## NFS-e e Recursos de Glosa — PR #128 incorporada à #124
+
+A #128 evolui o pós-faturamento sem abrir autoridade paralela:
+
+- registro manual de NFS-e usa `NfseManualBackgroundForm` + `registrarEmissaoManualNfseBackground`;
+- o RPC `registrar_estado_nfse_operacional` continua autoridade fiscal do registro manual;
+- emissão automática via SEFIN/adapter permanece operação externa auditada e não foi mascarada como autosave comum;
+- detalhe do recurso de glosa mostra glosado, recursado, deferido, indeferido e pendente;
+- timeline expõe criação, envio, protocolo e retorno persistidos;
+- itens mantêm vínculo com a Guia TISS e contexto do paciente;
+- não existe gravação manual de deferimento/indeferimento por DML direto;
+- até existir RPC transacional canônico para retorno de recurso, essa etapa permanece fail-closed/somente leitura;
+- `tests/unit/nfse-recursos-background.test.ts` protege essa fronteira;
 - nenhuma migration foi necessária.
 
 ## Mensagem final TISS — PR #124
@@ -169,22 +186,21 @@ Novos pontos principais:
 - download e webservice em bytes compatíveis com a declaração ISO-8859-1;
 - envio manual e webservice restritos à mensagem final validada;
 - Cadastros → Prontidão TISS com correção na origem;
-- cadastro profissional sem CBO/conselho/UF livres quando habilitado para TISS.
+- cadastro profissional sem CBO/conselho/UF livres quando habilitado para TISS;
+- incorpora a evolução de lançamentos/Atos da #125 e NFS-e/recursos da #128.
 
-A PR #124 permanece em gate por causa do Vercel do mesmo SHA, apesar do CI #998 estar completamente verde.
+A branch da #124 precisa passar novamente CI, Vercel e revisão no seu **SHA final cumulativo** após as incorporações e documentação, antes de qualquer merge na #122.
 
 ## Gates e critério de merge
 
 1. confirmar GitHub, Supabase e Vercel antes da escrita;
-2. executar CI completo no SHA final da #125;
-3. verificar Vercel no **mesmo SHA final** e reviews/threads da #125;
-4. mesclar #125 na #124 somente com gates verdes;
-5. executar novamente CI/Vercel no novo head cumulativo da #124;
-6. mesclar #124 na #122 somente com gates verdes;
-7. executar novamente os gates do novo head cumulativo da #122;
-8. mesclar #122 em `main` somente com o head cumulativo verde;
-9. após merge, confirmar nova `main` e produção correspondente;
-10. nunca usar preview intermediário como gate de outro head;
-11. rate limit externo do Vercel não justifica empty commit.
+2. executar CI completo no SHA final cumulativo da #124;
+3. verificar Vercel no **mesmo SHA final** e reviews/threads da #124;
+4. mesclar #124 na #122 somente com gates verdes;
+5. executar novamente CI/Vercel no novo head cumulativo da #122;
+6. mesclar #122 em `main` somente com o head cumulativo verde;
+7. após merge, confirmar nova `main` e produção correspondente;
+8. nunca usar preview intermediário como gate de outro head;
+9. rate limit externo do Vercel não justifica empty commit.
 
 Este status descreve maturidade técnica e integração confirmadas. **Não declara homologação hospitalar, clínica, TISS, financeira ou fiscal.**
