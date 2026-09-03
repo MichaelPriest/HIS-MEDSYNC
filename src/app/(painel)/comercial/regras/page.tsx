@@ -1,6 +1,7 @@
 import { Calculator, GitBranch, PackageCheck, ShieldCheck } from "lucide-react";
 import { CadastrosWorkspaceNav, CadastroKpi } from "@/components/cadastros/cadastros-workspace-nav";
 import {
+  CommercialCbhpmPortBackgroundForm,
   CommercialPackageBackgroundForm,
   CommercialPackageItemBackgroundForm,
   CommercialRuleBackgroundForm,
@@ -60,7 +61,13 @@ const categoryOptions = [
 
 export default async function RegrasPage() {
   const supabase = await createClient();
-  const [{ data: contratos }, { data: regras }, { data: pacotes }] = await Promise.all([
+  const [
+    { data: contratos },
+    { data: regras },
+    { data: pacotes },
+    { data: vinculosComerciais },
+    { data: portesCbhpm },
+  ] = await Promise.all([
     supabase
       .from("credenciamento_contratos")
       .select("id,numero_contrato,convenio:convenios(nome_fantasia)")
@@ -76,24 +83,37 @@ export default async function RegrasPage() {
       .select("id,codigo,nome,valor,vigencia_inicio,vigencia_fim,inclusoes,exclusoes,contrato:credenciamento_contratos(numero_contrato,convenio:convenios(nome_fantasia)),itens:contrato_pacote_itens(id,codigo,tabela,quantidade_inclusa,cobranca_excedente)")
       .eq("ativo", true)
       .order("codigo"),
+    supabase
+      .from("contrato_tabelas_comerciais")
+      .select("id,contrato_id,categoria,prioridade,ativo,fonte:tabelas_comerciais_fontes(nome,codigo,tipo),contrato:credenciamento_contratos(numero_contrato,convenio:convenios(nome_fantasia))")
+      .eq("ativo", true)
+      .order("prioridade"),
+    supabase
+      .from("contrato_cbhpm_portes")
+      .select("id,vinculo_id,tipo,porte,valor,vigencia_inicio,vigencia_fim,ativo,observacoes,updated_at")
+      .order("updated_at", { ascending: false }),
   ]);
 
+  const cbhpmLinks = (vinculosComerciais ?? []).filter((link) => one(link.fonte)?.tipo === "cbhpm");
+  const cbhpmLinkMap = new Map(cbhpmLinks.map((link) => [link.id, link]));
   const semVigencia = (regras ?? []).filter((rule) => !rule.vigencia_inicio && !rule.vigencia_fim).length;
   const rulesWithConditions = (regras ?? []).filter((rule) => {
     const conditions = rule.condicoes;
     return Boolean(conditions && typeof conditions === "object" && !Array.isArray(conditions) && Object.keys(conditions).length);
   }).length;
+  const activePorts = (portesCbhpm ?? []).filter((row) => row.ativo).length;
 
   return <SectionPage
     eyebrow="Comercial / Contratos"
-    title="Motor de regras e pacotes"
+    title="Motor de regras, CBHPM e pacotes"
     description="Defina a cobrança contratual com prioridade, vigência e condições estruturadas. As alterações são salvas em segundo plano por RPC e ficam disponíveis para a memória de cálculo do faturamento."
   >
     <CadastrosWorkspaceNav active="/comercial/regras" />
 
-    <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <CadastroKpi label="Contratos ativos" value={contratos?.length ?? 0} />
       <CadastroKpi label="Regras ativas" value={regras?.length ?? 0} detail={`${rulesWithConditions} com condições explícitas`} />
+      <CadastroKpi label="Vínculos CBHPM" value={cbhpmLinks.length} detail={`${activePorts} valores de porte ativos`} />
       <CadastroKpi label="Pacotes ativos" value={pacotes?.length ?? 0} />
       <CadastroKpi
         label="Regras sem vigência"
@@ -250,6 +270,81 @@ export default async function RegrasPage() {
             }) : <tr><td colSpan={6} className="p-8 text-center text-slate-500">Nenhuma regra ativa cadastrada.</td></tr>}
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <section className="ui-card mt-6 overflow-hidden">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Portes CBHPM versionados</h2>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Cadastre o valor monetário negociado para cada porte por vínculo e vigência. O HIS usa o porte da edição CBHPM como atributo e resolve o valor contratual aqui; não existe valor monetário genérico embutido no sistema.</p>
+          </div>
+          <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{activePorts} ativo(s)</span>
+        </div>
+      </div>
+
+      <div className="grid gap-5 p-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <CommercialCbhpmPortBackgroundForm className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <Field label="Vínculo CBHPM">
+                <select name="vinculo_id" required defaultValue="" className="ui-input">
+                  <option value="">Selecione contrato e tabela CBHPM</option>
+                  {cbhpmLinks.map((link) => {
+                    const source = one(link.fonte);
+                    const contract = one(link.contrato);
+                    const convenio = contract ? one(contract.convenio) : null;
+                    return <option key={link.id} value={link.id}>{convenio?.nome_fantasia ?? "Convênio"} · {contract?.numero_contrato || "s/n"} · {link.categoria} · {source?.nome ?? source?.codigo ?? "CBHPM"}</option>;
+                  })}
+                </select>
+              </Field>
+            </div>
+            <Field label="Tipo de porte">
+              <select name="tipo" defaultValue="procedimento" className="ui-input">
+                <option value="procedimento">Procedimento</option>
+                <option value="anestesia">Anestesia</option>
+              </select>
+            </Field>
+            <Field label="Porte">
+              <input name="porte" required className="ui-input" placeholder="Porte conforme edição/contrato" />
+            </Field>
+            <Field label="Valor contratual">
+              <input name="valor" required inputMode="decimal" className="ui-input" placeholder="0,00" />
+            </Field>
+            <Field label="Início da vigência">
+              <input type="date" name="vigencia_inicio" className="ui-input" />
+            </Field>
+            <Field label="Fim da vigência">
+              <input type="date" name="vigencia_fim" className="ui-input" />
+            </Field>
+            <div className="md:col-span-2"><Field label="Observações"><textarea name="observacoes" className="ui-input min-h-20" placeholder="Fonte contratual, aditivo ou observação para auditoria" /></Field></div>
+          </div>
+          {!cbhpmLinks.length ? <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">Nenhum vínculo CBHPM ativo foi encontrado. Vincule uma fonte CBHPM ao contrato antes de cadastrar valores de porte.</p> : null}
+        </CommercialCbhpmPortBackgroundForm>
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr><th className="px-4 py-3">Contrato / tabela</th><th className="px-4 py-3">Tipo</th><th className="px-4 py-3">Porte</th><th className="px-4 py-3">Valor</th><th className="px-4 py-3">Vigência</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {portesCbhpm?.length ? portesCbhpm.map((row) => {
+                const link = cbhpmLinkMap.get(row.vinculo_id);
+                const source = link ? one(link.fonte) : null;
+                const contract = link ? one(link.contrato) : null;
+                const convenio = contract ? one(contract.convenio) : null;
+                return <tr key={row.id} className={row.ativo ? "align-top" : "align-top opacity-60"}>
+                  <td className="px-4 py-3"><div className="font-medium text-slate-800">{convenio?.nome_fantasia ?? "Vínculo histórico"}</div><div className="mt-1 text-xs text-slate-500">{contract?.numero_contrato || "s/n"} · {source?.nome ?? source?.codigo ?? "CBHPM"}{link?.categoria ? ` · ${link.categoria}` : ""}</div></td>
+                  <td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{row.tipo === "anestesia" ? "Anestesia" : "Procedimento"}</span></td>
+                  <td className="px-4 py-3 font-mono font-semibold">{row.porte}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-900">{money(row.valor)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-xs"><div>{row.vigencia_inicio || "—"} → {row.vigencia_fim || "aberta"}</div><div className={row.ativo ? "mt-1 font-semibold text-emerald-700" : "mt-1 font-semibold text-slate-500"}>{row.ativo ? "Ativo" : "Inativo"}</div></td>
+                </tr>;
+              }) : <tr><td colSpan={5} className="p-8 text-center text-slate-500">Nenhum valor de porte CBHPM versionado ainda.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 
