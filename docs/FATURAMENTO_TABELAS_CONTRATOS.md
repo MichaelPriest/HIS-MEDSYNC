@@ -2,12 +2,13 @@
 
 ## Estado implementado na PR #130
 
-A etapa comercial do Ciclo da Receita está consolidada em quatro camadas de autoridade:
+A etapa comercial do Ciclo da Receita está consolidada em cinco camadas de autoridade:
 
 1. **Contrato contextual** por empresa, unidade, convênio, plano e vigência;
 2. **Vínculo de tabela comercial** por categoria, prioridade, edição e metodologia/base de preço;
-3. **Regras e pacotes versionados**, com condições estruturadas e memória de aplicação;
-4. **Snapshot na conta**, preservando o resultado histórico quando contrato, tabela ou regra forem alterados futuramente.
+3. **DePara TUSS contratual**, explícito por fonte e vigência, com fallback legado apenas quando não houver regra contratual;
+4. **Regras e pacotes versionados**, com condições estruturadas e memória de aplicação;
+5. **Snapshot na conta**, preservando o resultado histórico quando contrato, tabela, DePara ou regra forem alterados futuramente.
 
 O workspace `/comercial` foi atualizado para expor plano/produto, base de preço, CH, HM, SADT, UCO, filme radiológico por m², prioridade, edição, arredondamento e adicionais contratados. Edições publicadas continuam históricas e somente uma nova versão rascunho pode ser alterada.
 
@@ -17,13 +18,17 @@ O workspace `/comercial/regras` utiliza campos estruturados para urgência, hor�
 
 CBHPM possui valores monetários de porte versionados em `contrato_cbhpm_portes`, separados entre procedimento e anestesia, com vigência, bloqueio de sobreposição e fallback apenas para configuração legada já existente. O texto do porte nunca gera preço por si só.
 
+O workspace `/comercial/depara` administra `contrato_depara_tuss`. Cada correspondência pertence ao contrato e à fonte comercial, possui vigência própria, não aceita sobreposição ativa para o mesmo código de origem e só pode ser alterada pelo RPC `comercial_salvar_depara_tuss`. O resolvedor registra na memória do cálculo o ID e a origem do DePara utilizado.
+
 Migrations desta etapa:
 
 - `20260903014600_comercial_motor_cobranca_contextual`;
 - `20260903015147_comercial_regras_background_rpc`;
 - `20260903015639_comercial_negociacao_contextual_v2`;
 - `20260903020319_comercial_cbhpm_portes_versionados`;
-- `20260903022310_comercial_vinculo_tabela_background_rpc`.
+- `20260903022310_comercial_vinculo_tabela_background_rpc`;
+- `20260903031508_comercial_depara_tuss_contratual`;
+- `20260903031635_comercial_depara_tuss_motor_contextual`.
 
 ## Princípio de autoridade
 
@@ -46,10 +51,10 @@ Para cada item da conta, na data do atendimento:
 2. percorrer `contrato_tabelas_comerciais` por categoria específica antes de `geral` e depois por `prioridade` crescente;
 3. resolver a edição fixa ou a edição vigente na data;
 4. procurar primeiro vínculo explícito com `item_assistencial_id`/código original;
-5. usar DePara somente quando existir `referencia_equivalencias` ativa e compatível com a fonte;
+5. resolver o DePara da fonte nesta ordem: `contrato_depara_tuss` ativo e vigente; somente na ausência dele usar `referencia_equivalencias` ativa e compatível com a fonte;
 6. calcular a base conforme metodologia da edição + configuração contratual;
 7. aplicar regras de cobrança compatíveis, em ordem determinística de prioridade;
-8. registrar contrato, fonte, edição, código original, TUSS resultante, base, fatores, regra(s), fallback e valor final na memória de cálculo.
+8. registrar contrato, fonte, edição, código original, TUSS resultante, ID/origem do DePara, base, fatores, regra(s), fallback e valor final na memória de cálculo.
 
 Se nenhuma combinação válida for encontrada, o resultado é **sem preço contratual**. Não usar preço aleatório e não inventar DePara.
 
@@ -122,14 +127,20 @@ Categorias comerciais devem permanecer independentes para permitir cadeias difer
 
 DePara é relacionamento cadastrado e auditável, nunca inferência automática.
 
-Registrar sempre:
+O contexto comercial usa `contrato_depara_tuss` para registrar:
 
-- sistema/tabela de origem;
-- código original;
-- TUSS destino;
-- status/vigência quando disponível;
-- sentido utilizado na resolução;
-- tabela TISS final (18, 19, 20, 22, 00, 98 etc.).
+- contrato;
+- fonte/tabela de origem;
+- código e descrição de origem;
+- código e descrição TUSS de destino;
+- tabela TISS quando conhecida (18, 19, 20, 22, 00, 98 etc.);
+- vigência inicial/final;
+- status;
+- observação documental/auditável.
+
+Uma fonte precisa estar ativa e vinculada ao contrato antes de receber um DePara. Duas correspondências ativas do mesmo código de origem/fonte não podem ter períodos sobrepostos. Para alterar uma equivalência ao longo do tempo, encerre a vigência anterior e crie a nova versão.
+
+O motor tenta primeiro o DePara contratual vigente. Se ele não existir, mantém compatibilidade usando `referencia_equivalencias` global quando a relação estiver explicitamente cadastrada e ativa. A memória de cálculo informa `depara_tuss_id`, `depara_origem`, código TUSS resolvido e código da fonte usado no sentido reverso quando aplicável.
 
 Um código próprio sem vínculo TUSS permanece próprio e deve ser transmitido/armazenado conforme a configuração TISS aplicável.
 
@@ -154,4 +165,4 @@ Escopos previstos incluem procedimentos, cirurgia, SADT, honorários, anestesia,
 
 Contas fechadas não são recalculadas silenciosamente quando contrato/tabela muda.
 
-A conta mantém snapshots suficientes para reproduzir o preço histórico. Alterações futuras exigem nova edição/regra/vigência e não sobrescrevem a base usada no atendimento anterior.
+A conta mantém snapshots suficientes para reproduzir o preço histórico. Alterações futuras exigem nova edição/regra/DePara/vigência e não sobrescrevem a base usada no atendimento anterior.
