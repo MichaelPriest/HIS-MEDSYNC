@@ -38,9 +38,11 @@ function message(code: string | undefined) {
 export async function sincronizarEquipeCirurgicaBackground(
   contaId: string,
   procedureId: string,
-  _previous: BackgroundActionState<SurgicalTeamBillingActionData>,
-  _formData: FormData,
+  previous: BackgroundActionState<SurgicalTeamBillingActionData>,
+  formData: FormData,
 ): Promise<BackgroundActionState<SurgicalTeamBillingActionData>> {
+  void previous;
+  void formData;
   const { supabase } = await requirePermission("faturamento.criar");
   const { data, error } = await supabase.rpc("faturamento_sincronizar_equipe_cirurgica", {
     p_conta_id: contaId,
@@ -60,9 +62,10 @@ export async function sincronizarEquipeCirurgicaBackground(
 export async function atualizarEquipeCirurgicaBackground(
   contaId: string,
   billingTeamId: string,
-  _previous: BackgroundActionState<SurgicalTeamBillingActionData>,
+  previous: BackgroundActionState<SurgicalTeamBillingActionData>,
   formData: FormData,
 ): Promise<BackgroundActionState<SurgicalTeamBillingActionData>> {
+  void previous;
   const { supabase } = await requirePermission("faturamento.criar");
   const cobrar = checked(formData, "cobrar");
   const repasse = checked(formData, "repasse");
