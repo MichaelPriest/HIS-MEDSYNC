@@ -15,7 +15,7 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
       "Preencha somente os componentes negociados, como CH, HM, SADT, UCO, filme radiológico por m², ajuste, prioridade, arredondamento e adicionais.",
       "Use Itens da tabela para conferir códigos, TUSS, atributos e quantidade de itens da edição. Edições publicadas são históricas; crie uma nova versão para alterações futuras.",
       "Quando a fonte usar código diferente do TUSS, abra DePara TUSS, selecione o mesmo contrato e a fonte vinculada e registre código de origem, TUSS confirmado e vigência. Se a equivalência mudar, encerre a vigência anterior e crie uma nova versão.",
-      "Revise os alertas de edição ausente, tabela vazia ou base de preço pendente antes de liberar o contrato para uso no faturamento.",
+      "Antes de liberar o contrato para uso, abra Prontidão comercial, escolha a data de referência e trate os bloqueios e avisos apresentados.",
     ],
     warnings: [
       "Tabela comercial fornece referência e atributos; o contrato define a cobrança. Não cadastre um preço apenas para remover um alerta.",
@@ -25,11 +25,41 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
     ],
     links: [
       { label: "Contratos comerciais", href: "/comercial" },
+      { label: "Prontidão comercial", href: "/comercial/prontidao" },
       { label: "Fontes e edições", href: "/comercial/tabelas" },
       { label: "DePara TUSS", href: "/comercial/depara" },
       { label: "Regras, CBHPM e pacotes", href: "/comercial/regras" },
     ],
     keywords: ["comercial", "contrato", "credenciamento", "tabela", "amb", "cbhpm", "brasindice", "cmed", "simpro", "tuss", "depara", "ch", "uco", "filme"],
+    sourceDocs: ["docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
+  },
+  {
+    slug: "comercial-prontidao-contratual",
+    title: "Validar a prontidão comercial do contrato",
+    category: "Receita",
+    audience: ["Comercial", "Credenciamento", "Faturamento", "Auditoria"],
+    summary: "Como revisar bloqueios e avisos comerciais por data antes de depender do contrato no faturamento ou na preparação TISS.",
+    steps: [
+      "Abra Prontidão comercial e selecione o contrato que deseja verificar.",
+      "Informe a data de referência correspondente ao atendimento ou à vigência que deseja simular.",
+      "Trate primeiro os bloqueios: contrato fora de vigência, tabela/edição sem resolução, edição sem itens, base de preço obrigatória ausente ou componentes de cálculo sem valor contratual.",
+      "Para AMB, confirme os componentes exigidos pela edição, inclusive SADT e filme/m² quando houver quantidade de filme.",
+      "Para CBHPM, confira UCO e valores monetários de porte de procedimento/anestesia na vigência aplicável.",
+      "Revise avisos de TUSS/DePara quando o item não tiver TUSS direto; confirme se o uso correto é tabela própria 00 ou se existe equivalência explícita a cadastrar.",
+      "Use o botão de correção de cada diagnóstico para abrir Contrato, Negociação, CBHPM ou DePara já no contexto adequado e execute novamente a prontidão após a correção.",
+    ],
+    warnings: [
+      "Prontidão verde não equivale a homologação com operadora ou validação jurídica do contrato; ela indica apenas ausência de pendências comerciais conhecidas pelo motor para a data escolhida.",
+      "O diagnóstico é somente leitura: nunca crie valor, porte, edição ou DePara apenas para transformar o resultado em verde.",
+      "Uma conta histórica fechada preserva o snapshot original e não deve ser recalculada silenciosamente após uma mudança futura do contrato.",
+    ],
+    links: [
+      { label: "Prontidão comercial", href: "/comercial/prontidao" },
+      { label: "Contratos comerciais", href: "/comercial" },
+      { label: "DePara TUSS", href: "/comercial/depara" },
+      { label: "Regras e CBHPM", href: "/comercial/regras" },
+    ],
+    keywords: ["prontidão", "contrato", "bloqueio", "aviso", "homologação", "amb", "cbhpm", "tuss", "depara", "base de preço", "vigência"],
     sourceDocs: ["docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
   },
   {
@@ -54,6 +84,7 @@ export const commercialKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
     ],
     links: [
       { label: "Regras, CBHPM e pacotes", href: "/comercial/regras" },
+      { label: "Prontidão comercial", href: "/comercial/prontidao" },
       { label: "Contratos comerciais", href: "/comercial" },
       { label: "DePara TUSS", href: "/comercial/depara" },
     ],
