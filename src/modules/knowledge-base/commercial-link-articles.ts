@@ -16,7 +16,7 @@ export const commercialLinkKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
       "Ao vincular ou alterar a edição, o sistema sincroniza DePara automaticamente somente quando existe código TUSS explícito no item ou equivalência ativa e explícita cadastrada para TUSS.",
       "Use Sincronizar DePara quando quiser executar novamente essa materialização após revisar a tabela ou as equivalências cadastradas.",
       "Se precisar corrigir um DePara automático, edite-o pelo fluxo de DePara TUSS. A partir dessa intervenção ele passa a ser manual e não será sobrescrito por sincronizações automáticas futuras.",
-      "Consulte Histórico comercial para conferir mudanças de vínculo, regras e DePara e, depois, execute novamente Prontidão, Simulador e Homologação quando a configuração vigente tiver sido alterada.",
+      "Consulte Histórico comercial para conferir mudanças de contrato, vínculo, regras, DePara, fontes e edições e, depois, execute novamente Prontidão, Simulador e Homologação quando a configuração vigente tiver sido alterada.",
     ],
     warnings: [
       "Automático não significa inferido: o HIS não usa semelhança de texto, aproximação de código ou preço para escolher um TUSS.",
@@ -26,6 +26,7 @@ export const commercialLinkKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
     ],
     links: [
       { label: "Vínculos e histórico", href: "/comercial/vinculos" },
+      { label: "Histórico comercial", href: "/comercial/historico" },
       { label: "Contratos comerciais", href: "/comercial" },
       { label: "DePara TUSS", href: "/comercial/depara" },
       { label: "Prontidão comercial", href: "/comercial/prontidao" },
@@ -34,5 +35,34 @@ export const commercialLinkKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
     ],
     keywords: ["vínculo", "desvincular", "reativar", "histórico", "tabela", "contrato", "depara", "tuss", "equivalência", "comercial"],
     sourceDocs: ["docs/COMERCIAL_VINCULOS_HISTORICO_DEPARA.md", "docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
+  },
+  {
+    slug: "comercial-central-historico-auditavel",
+    title: "Consultar o histórico auditável da área Comercial",
+    category: "Receita",
+    audience: ["Comercial", "Credenciamento", "Faturamento", "Auditoria"],
+    summary: "Como localizar quem alterou contratos, vínculos, DePara, regras, fontes, edições e itens de tabela sem modificar a trilha de auditoria.",
+    steps: [
+      "Abra Comercial / Histórico comercial.",
+      "Filtre por contrato quando quiser acompanhar toda a evolução de uma negociação específica.",
+      "Use Entidade para separar alterações do contrato, vínculos, DePara, regras, fontes, edições ou itens de tabela.",
+      "Use Ação para localizar criações, alterações ou exclusões e delimite o período quando houver muitos eventos.",
+      "Em cada evento, confira data/hora, usuário e os campos Antes e Depois que realmente mudaram.",
+      "Para grandes importações de tabela, mantenha o filtro de entidade/período para evitar revisar milhares de mutações sem necessidade.",
+      "Se uma divergência for identificada, volte ao módulo comercial correspondente e faça a correção pela operação oficial; o Histórico é somente leitura.",
+    ],
+    warnings: [
+      "A Central de Histórico não permite editar ou apagar eventos de auditoria.",
+      "Eventos de processo interno podem não ter um usuário humano associado.",
+      "O histórico de configuração não substitui os snapshots financeiros já consolidados em contas fechadas.",
+    ],
+    links: [
+      { label: "Histórico comercial", href: "/comercial/historico" },
+      { label: "Vínculos e histórico", href: "/comercial/vinculos" },
+      { label: "Contratos comerciais", href: "/comercial" },
+      { label: "DePara TUSS", href: "/comercial/depara" },
+    ],
+    keywords: ["histórico", "auditoria", "antes", "depois", "contrato", "vínculo", "depara", "tabela", "comercial"],
+    sourceDocs: ["docs/COMERCIAL_HISTORICO_AUDITAVEL.md", "docs/COMERCIAL_VINCULOS_HISTORICO_DEPARA.md"],
   },
 ];
