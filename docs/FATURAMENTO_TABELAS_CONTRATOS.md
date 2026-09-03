@@ -1,5 +1,30 @@
 # Faturamento — Tabelas Comerciais, Contratos e Regras de Cobrança
 
+## Estado implementado na PR #130
+
+A etapa comercial do Ciclo da Receita está consolidada em quatro camadas de autoridade:
+
+1. **Contrato contextual** por empresa, unidade, convênio, plano e vigência;
+2. **Vínculo de tabela comercial** por categoria, prioridade, edição e metodologia/base de preço;
+3. **Regras e pacotes versionados**, com condições estruturadas e memória de aplicação;
+4. **Snapshot na conta**, preservando o resultado histórico quando contrato, tabela ou regra forem alterados futuramente.
+
+O workspace `/comercial` foi atualizado para expor plano/produto, base de preço, CH, HM, SADT, UCO, filme radiológico por m², prioridade, edição, arredondamento e adicionais contratados. Edições publicadas continuam históricas e somente uma nova versão rascunho pode ser alterada.
+
+As mutações normais de contrato e negociação são gravadas em segundo plano por RPC (`comercial_atualizar_contrato_contextual`, `comercial_salvar_vinculo_tabela` e `comercial_salvar_negociacao_tabela_v2`). Não há `upsert` direto do navegador para o vínculo contratual. Publicação de edição permanece uma transição explícita.
+
+O workspace `/comercial/regras` utiliza campos estruturados para urgência, horário especial, acomodação, anestesia, auxiliares, sequência/múltiplos procedimentos, via e código específico. Pacotes e seus itens também utilizam RPCs e feedback inline.
+
+CBHPM possui valores monetários de porte versionados em `contrato_cbhpm_portes`, separados entre procedimento e anestesia, com vigência, bloqueio de sobreposição e fallback apenas para configuração legada já existente. O texto do porte nunca gera preço por si só.
+
+Migrations desta etapa:
+
+- `20260903014600_comercial_motor_cobranca_contextual`;
+- `20260903015147_comercial_regras_background_rpc`;
+- `20260903015639_comercial_negociacao_contextual_v2`;
+- `20260903020319_comercial_cbhpm_portes_versionados`;
+- `20260903022310_comercial_vinculo_tabela_background_rpc`.
+
 ## Princípio de autoridade
 
 O HIS-MEDSYNC não trata TUSS, AMB, CBHPM, Brasíndice ou SIMPRO como uma tabela universal de preços.
@@ -44,8 +69,10 @@ O cálculo deve suportar, conforme o contrato:
 - quantidade de UCO × valor da UCO contratada;
 - porte anestésico;
 - auxiliares;
-- adicionais de urgência/horário/accomodação somente quando a regra contratual vigente os habilitar;
+- adicionais de urgência/horário/acomodação somente quando a regra contratual vigente os habilitar;
 - regras de múltiplos procedimentos e vias de acesso versionadas.
+
+Os valores de porte são cadastrados por vínculo CBHPM, tipo e vigência. Vigências ativas do mesmo porte não podem se sobrepor. O resolvedor registra na memória se utilizou a origem `versionado` ou, quando já existia configuração anterior, `legado_json`.
 
 Nunca derivar valor monetário apenas do texto do porte sem uma tabela de valores/contrato correspondente.
 
@@ -64,13 +91,13 @@ A edição precisa preservar, quando disponível:
 - tipo de lista CMED;
 - data/edição da referência.
 
-O contrato deve declarar explicitamente a base utilizada (`PF`, `PMC`, outra referência válida) e o percentual/desconto/acréscimo. O motor não escolhe PF/PMC implicitamente.
+O contrato deve declarar explicitamente a base utilizada (`valor_fabrica`, `valor_pmc`, `valor_referencia` ou `valor_maximo`, conforme os dados da edição e o instrumento contratual) e o percentual/desconto/acréscimo. O motor não escolhe PF/PMC implicitamente.
 
 ## SIMPRO
 
 A edição SIMPRO deve ser versionada e vinculada ao item/material correto. O contrato deve declarar o tratamento comercial da referência: preço integral, desconto, acréscimo, taxa de comercialização ou fallback documental, conforme negociação.
 
-Não existe percentual global do HIS para SIMPRO.
+Não existe percentual global do HIS para SIMPRO. Vínculo SIMPRO ativo sem base de preço explícita falha fechado e não participa da precificação.
 
 ## Diárias, taxas e gases
 
@@ -115,8 +142,11 @@ Um código próprio sem vínculo TUSS permanece próprio e deve ser transmitido/
 - prioridade;
 - vigência;
 - condição explícita;
+- operação (`multiplicar_percentual`, `acrescentar_percentual`, `descontar_percentual`, `somar_valor_fixo` ou `substituir_valor`);
+- base de aplicação (`valor_atual` ou `valor_base`);
 - percentual e/ou valor fixo quando aplicável;
-- memória de aplicação.
+- indicador opcional de encerramento do processamento;
+- memória de aplicação com valor antes/depois.
 
 Escopos previstos incluem procedimentos, cirurgia, SADT, honorários, anestesia, auxiliares, múltiplos procedimentos, via de acesso, urgência, horário especial, acomodação, diárias, taxas, gases, materiais, medicamentos e OPME.
 
@@ -124,4 +154,4 @@ Escopos previstos incluem procedimentos, cirurgia, SADT, honorários, anestesia,
 
 Contas fechadas não são recalculadas silenciosamente quando contrato/tabela muda.
 
-A conta deve manter snapshots suficientes para reproduzir o preço histórico. Alterações futuras exigem nova edição/regra/vigência e não sobrescrevem a base usada no atendimento anterior.
+A conta mantém snapshots suficientes para reproduzir o preço histórico. Alterações futuras exigem nova edição/regra/vigência e não sobrescrevem a base usada no atendimento anterior.
