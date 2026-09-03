@@ -5,9 +5,10 @@ import type { BackgroundActionState } from "@/lib/actions/background-action";
 import { requirePermission } from "@/lib/permissions/server";
 
 export type SurgicalTeamBillingActionData = {
-  kind: "sync" | "update";
+  kind: "sync" | "update" | "complete";
   procedureId?: string;
   billingTeamId?: string;
+  clinicalMemberId?: string;
 };
 
 const text = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
@@ -17,6 +18,8 @@ function refresh(contaId: string) {
   revalidatePath(`/faturamento/${contaId}`);
   revalidatePath(`/faturamento/${contaId}/procedimentos-cirurgicos`);
   revalidatePath(`/faturamento/${contaId}/lancamentos`);
+  revalidatePath("/assistencial/centro-cirurgico");
+  revalidatePath("/assistencial/centro-cirurgico/procedimentos");
 }
 
 function message(code: string | undefined) {
@@ -30,7 +33,11 @@ function message(code: string | undefined) {
     FAT_EQUIPE_CONTRATO_NAO_LOCALIZADO: "Nenhum contrato ativo foi localizado para esta cirurgia.",
     FAT_EQUIPE_TABELA_NAO_VINCULADA_AO_CONTRATO: "A tabela usada na cirurgia não está vinculada ao contrato ativo.",
     FAT_EQUIPE_CALCULO_PENDENTE: "Este membro ainda não possui cálculo contratual válido para cobrança.",
-    FAT_EQUIPE_JUSTIFICATIVA_OBRIGATORIA: "Informe a justificativa para alterar a decisão de cobrança sugerida pela regra.",
+    FAT_EQUIPE_JUSTIFICATIVA_OBRIGATORIA: "Informe a justificativa para complementar ou alterar a equipe sugerida.",
+    FAT_EQUIPE_PAPEL_INVALIDO: "O papel informado para a equipe cirúrgica é inválido.",
+    FAT_EQUIPE_ORDEM_AUXILIAR_INVALIDA: "Informe a ordem do auxiliar entre 1 e 4.",
+    FAT_EQUIPE_ORDEM_RESTRITA_AUXILIAR: "A ordem de participação só pode ser usada para auxiliares do cirurgião.",
+    FAT_EQUIPE_PROFISSIONAL_INVALIDO: "O profissional selecionado não está ativo na empresa.",
   };
   return code ? messages[code] ?? `Não foi possível concluir a operação (${code}).` : "Não foi possível concluir a operação.";
 }
@@ -56,6 +63,43 @@ export async function sincronizarEquipeCirurgicaBackground(
     code: "equipe-sincronizada",
     message: `Equipe sincronizada: ${result?.membros ?? 0} membro(s), ${result?.pendencias ?? 0} pendência(s).`,
     data: { kind: "sync", procedureId },
+  };
+}
+
+export async function complementarEquipeCirurgicaBackground(
+  contaId: string,
+  procedureId: string,
+  previous: BackgroundActionState<SurgicalTeamBillingActionData>,
+  formData: FormData,
+): Promise<BackgroundActionState<SurgicalTeamBillingActionData>> {
+  void previous;
+  const { supabase } = await requirePermission("faturamento.criar");
+  const profissionalId = text(formData, "profissional_id");
+  const papelSelecao = text(formData, "papel_selecao");
+  const justificativa = text(formData, "justificativa");
+  const [papel, ordemRaw] = papelSelecao.split(":");
+  const ordem = papel === "cirurgiao_auxiliar" ? Number(ordemRaw) : null;
+
+  if (!profissionalId || !papel || !justificativa) {
+    return { status: "error", code: "campos", message: "Selecione o profissional, o papel faltante e informe a justificativa." };
+  }
+
+  const { data, error } = await supabase.rpc("faturamento_complementar_membro_equipe_cirurgica", {
+    p_conta_id: contaId,
+    p_cirurgia_procedimento_id: procedureId,
+    p_profissional_id: profissionalId,
+    p_papel: papel,
+    p_ordem: Number.isFinite(ordem) ? ordem : null,
+    p_justificativa: justificativa,
+  });
+  if (error) return { status: "error", code: error.message, message: message(error.message) };
+  refresh(contaId);
+  const result = data as { membro_id?: string } | null;
+  return {
+    status: "success",
+    code: "equipe-complementada",
+    message: "Membro incluído como complemento do Faturamento e honorários sincronizados. O Centro Cirúrgico poderá confirmar o registro assistencialmente.",
+    data: { kind: "complete", procedureId, clinicalMemberId: result?.membro_id },
   };
 }
 
