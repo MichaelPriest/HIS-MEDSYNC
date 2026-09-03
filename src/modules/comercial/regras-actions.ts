@@ -7,6 +7,7 @@ import { getAssistencialContext } from "@/modules/assistencial/context";
 export type ComercialRuleActionData = { id: string };
 export type ComercialPackageActionData = { id: string };
 export type ComercialPackageItemActionData = { id: string };
+export type ComercialCbhpmPortActionData = { id: string };
 
 const text = (fd: FormData, key: string) => String(fd.get(key) ?? "").trim();
 const nullable = (value: string) => value || null;
@@ -208,6 +209,56 @@ export async function adicionarItemPacoteBackground(
     status: "success",
     code: itemId ? "item-pacote-atualizado" : "item-pacote-criado",
     message: itemId ? "Item do pacote atualizado." : "Item incluído no pacote.",
+    data: { id: String(data) },
+  };
+}
+
+export async function salvarPorteCbhpmBackground(
+  _previous: BackgroundActionState<ComercialCbhpmPortActionData>,
+  formData: FormData,
+): Promise<BackgroundActionState<ComercialCbhpmPortActionData>> {
+  const { supabase } = await getAssistencialContext();
+  const vinculoId = text(formData, "vinculo_id");
+  const tipo = text(formData, "tipo");
+  const porte = text(formData, "porte");
+  const valor = decimal(text(formData, "valor"));
+  if (!vinculoId || !["procedimento", "anestesia"].includes(tipo) || !porte || valor === null || valor < 0) {
+    return {
+      status: "error",
+      code: "porte-campos",
+      message: "Informe vínculo CBHPM, tipo, porte e um valor contratual válido.",
+    };
+  }
+
+  const { data, error } = await supabase.rpc("comercial_salvar_porte_cbhpm", {
+    p_id: nullable(text(formData, "porte_id")),
+    p_vinculo_id: vinculoId,
+    p_tipo: tipo,
+    p_porte: porte,
+    p_valor: valor,
+    p_vigencia_inicio: nullable(text(formData, "vigencia_inicio")),
+    p_vigencia_fim: nullable(text(formData, "vigencia_fim")),
+    p_observacoes: nullable(text(formData, "observacoes")),
+    p_ativo: text(formData, "ativo") ? checkbox(formData, "ativo") : true,
+  });
+  if (error || !data) {
+    const overlap = error?.message.includes("COMERCIAL_PORTE_VIGENCIA_SOBREPOSTA");
+    return {
+      status: "error",
+      code: overlap ? "porte-vigencia-sobreposta" : "porte-salvar",
+      message: overlap
+        ? "Já existe um valor ativo para este porte com vigência sobreposta. Encerre a vigência anterior antes de criar a próxima."
+        : error?.message || "Não foi possível salvar o valor do porte CBHPM.",
+    };
+  }
+
+  refreshCommercialPaths();
+  return {
+    status: "success",
+    code: text(formData, "porte_id") ? "porte-atualizado" : "porte-criado",
+    message: text(formData, "porte_id")
+      ? "Valor do porte CBHPM atualizado."
+      : "Valor do porte CBHPM versionado e salvo.",
     data: { id: String(data) },
   };
 }
