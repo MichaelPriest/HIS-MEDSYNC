@@ -5,10 +5,26 @@ function envSecret(reference: string | null | undefined) {
   return process.env[reference] ?? null;
 }
 
-function soapEnvelope(xml: string, config: TissWebserviceConfig) {
+function usesLatin1(xml: string) {
+  return /<\?xml[^>]*encoding=["']ISO-8859-1["']/i.test(xml);
+}
+
+function stripXmlDeclaration(xml: string) {
+  return xml.replace(/^\s*<\?xml[^>]*\?>\s*/i, "");
+}
+
+function encodeBody(value: string, latin1: boolean): ArrayBuffer {
+  const bytes = Buffer.from(value, latin1 ? "latin1" : "utf8");
+  const body = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(body).set(bytes);
+  return body;
+}
+
+function soapEnvelope(xml: string, config: TissWebserviceConfig, latin1: boolean) {
   const ns = config.namespace_operacao || "http://www.ans.gov.br/padroes/tiss/schemas";
   const operation = config.operacao_envio || "recepcaoLoteGuias";
-  return `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tiss="${ns}"><soapenv:Header/><soapenv:Body><tiss:${operation}>${xml}</tiss:${operation}></soapenv:Body></soapenv:Envelope>`;
+  const encoding = latin1 ? "ISO-8859-1" : "UTF-8";
+  return `<?xml version="1.0" encoding="${encoding}"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tiss="${ns}"><soapenv:Header/><soapenv:Body><tiss:${operation}>${stripXmlDeclaration(xml)}</tiss:${operation}></soapenv:Body></soapenv:Envelope>`;
 }
 
 export async function sendTiss(config: TissWebserviceConfig, request: TissSendRequest): Promise<TissSendResult> {
@@ -16,15 +32,18 @@ export async function sendTiss(config: TissWebserviceConfig, request: TissSendRe
   if (config.transporte === "sftp") return { ok: false, codigoErro: "SFTP_PENDENTE", mensagemErro: "Adapter SFTP preparado no contrato, mas ainda não habilitado." };
   if (!config.endpoint_url) return { ok: false, codigoErro: "ENDPOINT_AUSENTE", mensagemErro: "Endpoint do webservice não configurado." };
 
+  const latin1 = usesLatin1(request.xml);
+  const charset = latin1 ? "iso-8859-1" : "utf-8";
   const headers: Record<string, string> = { Accept: "application/xml, text/xml, */*" };
-  let body = request.xml;
+  let bodyText = request.xml;
   if (config.transporte === "soap") {
-    headers["Content-Type"] = "text/xml; charset=utf-8";
+    headers["Content-Type"] = `text/xml; charset=${charset}`;
     if (config.soap_action) headers.SOAPAction = config.soap_action;
-    body = soapEnvelope(request.xml, config);
+    bodyText = soapEnvelope(request.xml, config, latin1);
   } else {
-    headers["Content-Type"] = "application/xml; charset=utf-8";
+    headers["Content-Type"] = `application/xml; charset=${charset}`;
   }
+  const body = encodeBody(bodyText, latin1);
 
   if (config.tipo_autenticacao === "basic") {
     const secret = envSecret(config.segredo_referencia);
@@ -60,7 +79,11 @@ export async function sendTiss(config: TissWebserviceConfig, request: TissSendRe
 }
 
 function extractProtocol(xml: string) {
-  const patterns = [/<numeroProtocolo>([^<]+)<\/numeroProtocolo>/i, /<protocolo>([^<]+)<\/protocolo>/i, /<nrProtocolo>([^<]+)<\/nrProtocolo>/i];
+  const patterns = [
+    /<(?:[A-Za-z_][\w.-]*:)?numeroProtocolo>([^<]+)<\/(?:[A-Za-z_][\w.-]*:)?numeroProtocolo>/i,
+    /<(?:[A-Za-z_][\w.-]*:)?protocolo>([^<]+)<\/(?:[A-Za-z_][\w.-]*:)?protocolo>/i,
+    /<(?:[A-Za-z_][\w.-]*:)?nrProtocolo>([^<]+)<\/(?:[A-Za-z_][\w.-]*:)?nrProtocolo>/i,
+  ];
   for (const pattern of patterns) {
     const match = xml.match(pattern);
     if (match?.[1]) return match[1].trim();

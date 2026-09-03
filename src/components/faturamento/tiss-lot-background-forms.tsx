@@ -1,11 +1,11 @@
 "use client";
 
-import { BadgeDollarSign, FileCode2, Send, ShieldCheck, Upload, WalletCards } from "lucide-react";
+import { BadgeDollarSign, Send, ShieldCheck, Upload, WalletCards } from "lucide-react";
 import { useActionState } from "react";
 import { BillingModal } from "@/components/faturamento/billing-modal";
+import { TissFinalMessageForm } from "@/components/faturamento/tiss-final-message-form";
 import type { BackgroundActionState } from "@/lib/actions/background-action";
 import {
-  gerarXmlPreliminarTissBackground,
   importarXmlManualTissBackground,
   registrarEnvioManualTissBackground,
   registrarGlosaTissBackground,
@@ -28,13 +28,13 @@ function Feedback({ state, pending }: { state: BackgroundActionState<TissLotActi
   </div>;
 }
 
+/**
+ * Nome mantido por compatibilidade com a página do lote. O antigo artefato
+ * preliminar deixa de ser a ação principal: agora este ponto gera a mensagem
+ * ENVIO_LOTE_GUIAS real e somente a libera após o XSD oficial.
+ */
 export function TissPreliminaryXmlForm({ loteId }: { loteId: string }) {
-  const action = gerarXmlPreliminarTissBackground.bind(null, loteId);
-  const [state, formAction, pending] = useActionState(action, initialState);
-  return <form action={formAction} className="space-y-1">
-    <button disabled={pending} className="ui-button-secondary disabled:opacity-60"><FileCode2 className="size-4" />Gerar artefato preliminar</button>
-    <Feedback state={state} pending={pending} />
-  </form>;
+  return <TissFinalMessageForm loteId={loteId} />;
 }
 
 export function TissXmlXsdValidationForm({ loteId, xmlId }: { loteId: string; xmlId: string }) {
@@ -52,19 +52,20 @@ export function TissXmlXsdValidationForm({ loteId, xmlId }: { loteId: string; xm
 export function TissManualSendModal({ loteId, xmls }: { loteId: string; xmls: ValidatedXml[] }) {
   const action = registrarEnvioManualTissBackground.bind(null, loteId);
   const [state, formAction, pending] = useActionState(action, initialState);
+  const finalXmls = xmls.filter((xml) => xml.tipo_mensagem === "ENVIO_LOTE_GUIAS" && xml.versao_comunicacao === "04.03.00");
   return <BillingModal
     title="Registrar envio manual"
-    description="Use somente após enviar externamente um XML já validado pelo XSD oficial aplicável."
+    description="Use somente após enviar externamente a mensagem ENVIO_LOTE_GUIAS 04.03.00 já validada pelo XSD oficial."
     trigger={<><Send className="size-4" />Registrar envio</>}
     triggerClassName="ui-button-secondary"
     size="lg"
   >
     <form action={formAction} className="space-y-4">
-      <label className="block space-y-1.5 text-sm font-semibold text-slate-700"><span>XML validado *</span><select name="xml_id" defaultValue="" required className="ui-input"><option value="">Selecione o XML</option>{xmls.map((xml)=><option key={xml.id} value={xml.id}>{xml.tipo_mensagem} · {xml.versao_comunicacao}</option>)}</select></label>
+      <label className="block space-y-1.5 text-sm font-semibold text-slate-700"><span>XML final validado *</span><select name="xml_id" defaultValue="" required className="ui-input"><option value="">Selecione o XML</option>{finalXmls.map((xml)=><option key={xml.id} value={xml.id}>{xml.tipo_mensagem} · {xml.versao_comunicacao}</option>)}</select></label>
       <input name="protocolo_externo" className="ui-input" placeholder="Protocolo/comprovante externo" />
       <textarea name="observacoes" rows={3} className="ui-input" placeholder="Ex.: enviado pelo portal da operadora" />
       <Feedback state={state} pending={pending} />
-      <button disabled={pending || !xmls.length} className="ui-button-primary w-full disabled:opacity-50">Registrar envio manual</button>
+      <button disabled={pending || !finalXmls.length} className="ui-button-primary w-full disabled:opacity-50">Registrar envio manual</button>
     </form>
   </BillingModal>;
 }

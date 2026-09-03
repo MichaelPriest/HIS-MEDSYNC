@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { BookOpenCheck, Building2, Handshake, ReceiptText, Stethoscope, UsersRound } from "lucide-react";
+import { BookOpenCheck, Building2, Handshake, ReceiptText, ShieldCheck, Stethoscope, UsersRound } from "lucide-react";
 
 const items=[
+  {href:"/cadastros/tiss",label:"Prontidão TISS",icon:ShieldCheck},
   {href:"/pacientes",label:"Pacientes",icon:UsersRound},
   {href:"/profissionais",label:"Profissionais",icon:Stethoscope},
   {href:"/convenios",label:"Convênios",icon:Building2},

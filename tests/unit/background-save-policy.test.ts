@@ -22,8 +22,12 @@ const strictBackgroundServerActions = [
   "src/modules/faturamento/workspace-background-actions.ts",
   "src/modules/faturamento/producao-background-actions.ts",
   "src/modules/faturamento/conta-background-actions.ts",
+  "src/modules/faturamento/conta-item-background-actions.ts",
+  "src/modules/faturamento/atos-background-actions.ts",
   "src/modules/tiss/guia-background-actions.ts",
+  "src/modules/tiss/guia-complement-background-actions.ts",
   "src/modules/tiss/lote-background-actions.ts",
+  "src/modules/tiss/mensagem-final-background-actions.ts",
   "src/modules/financeiro/background-actions.ts",
 ];
 
@@ -50,8 +54,13 @@ const backgroundForms = [
   "src/components/internacao/nir-bed-allocation-background-form.tsx",
   "src/components/faturamento/billing-workspace-actions.tsx",
   "src/components/faturamento/account-background-forms.tsx",
+  "src/components/faturamento/billing-item-background-form.tsx",
+  "src/components/faturamento/billing-act-background-form.tsx",
   "src/components/faturamento/guide-validation-background-form.tsx",
+  "src/components/faturamento/tiss-guide-communication-form.tsx",
+  "src/components/faturamento/tiss-item-complement-form.tsx",
   "src/components/faturamento/tiss-lot-background-forms.tsx",
+  "src/components/faturamento/tiss-final-message-form.tsx",
   "src/components/financeiro/receivable-background-forms.tsx",
 ];
 
@@ -231,20 +240,44 @@ describe("política de salvamento em segundo plano", () => {
     expect(detail).not.toContain("searchParams");
   });
 
-  it("mantém detalhes de conta, guia e lote TISS nas camadas de segundo plano", () => {
+  it("mantém conta, lançamentos, atos, guia e lote TISS nas camadas de segundo plano", () => {
     const account = read("src/app/(painel)/faturamento/[contaId]/page.tsx");
+    const catalog = read("src/app/(painel)/faturamento/[contaId]/catalogo/page.tsx");
+    const acts = read("src/app/(painel)/faturamento/[contaId]/procedimentos-cirurgicos/page.tsx");
     const guide = read("src/app/(painel)/faturamento/guias/[guiaId]/page.tsx");
     const lot = read("src/app/(painel)/faturamento/lotes/[loteId]/page.tsx");
     expect(account).toContain("AccountBackgroundForm");
-    expect(account).toContain("AccountItemDeleteButton");
+    expect(account).toContain("BillingItemBackgroundForm");
+    expect(account).toContain("BillingActBackgroundForm");
+    expect(account).not.toContain("salvarLancamentoConta");
+    expect(catalog).toContain("BillingItemBackgroundForm");
+    expect(catalog).not.toContain("salvarLancamentoConta");
+    expect(acts).toContain("BillingActBackgroundForm");
+    expect(acts).not.toContain("criarGrupoAto");
     expect(guide).toContain("GuideValidationBackgroundForm");
+    expect(guide).toContain("TissGuideCommunicationForm");
+    expect(guide).toContain("TissItemComplementForm");
     expect(guide).not.toContain("validarGuiaTiss");
     expect(lot).toContain("TissProtocolModal");
     expect(lot).toContain("TissDenialModal");
     expect(lot).toContain("TissManualImportModal");
     expect(lot).toContain("TissManualSendModal");
+    expect(lot).toContain("TissPreliminaryXmlForm");
     expect(lot).toContain("enviarLoteWebservice");
     expect(lot).not.toContain("registrarProtocolo.bind");
     expect(lot).not.toContain("registrarGlosa.bind");
+  });
+
+  it("mantém geração final TISS sem redirect e só promove após XSD", () => {
+    const action = read("src/modules/tiss/mensagem-final-background-actions.ts");
+    const form = read("src/components/faturamento/tiss-final-message-form.tsx");
+    const lotForms = read("src/components/faturamento/tiss-lot-background-forms.tsx");
+    expect(action).toContain("serializeTissWireLoteGuias040300");
+    expect(action).toContain("validateTissXmlXsd");
+    expect(action).toContain("salvar_xml_candidato_tiss_operacional");
+    expect(action).toContain("registrar_validacao_xsd_tiss_operacional");
+    expect(action).not.toContain("redirect(");
+    expect(form).toContain("gerarMensagemTissFinalBackground");
+    expect(lotForms).toContain("<TissFinalMessageForm loteId={loteId} />");
   });
 });

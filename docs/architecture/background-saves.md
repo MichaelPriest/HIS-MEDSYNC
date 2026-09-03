@@ -35,7 +35,7 @@ Filtros e buscas que alteram deliberadamente a consulta podem continuar na URL. 
 - GED: assinatura e status inline, com SHA-256 antes de `assinar_documento_ged`.
 - Internação/NIR: alocação de leito inline.
 - Centro Cirúrgico/CME: núcleo, procedimentos, Anestesia/RPA, Suprimentos e CME.
-- Ciclo da Receita: entradas, ledger financeiro, ações principais da conta, Guia TISS, Lote TISS e validação XSD.
+- Ciclo da Receita: entradas, ledger financeiro, conta hospitalar incluindo lançamentos e Atos/SADT, Guia TISS, Lote TISS, complementos de Comunicação, complemento de item, geração/validação XSD da mensagem final e registro manual de NFS-e.
 
 ## Ciclo da Receita / Faturamento
 
@@ -55,28 +55,41 @@ Competência/desconto, sincronização de produção, recálculo contratual, val
 - `validar_conta_tiss`;
 - `excluir_item_conta_faturamento`.
 
-Adicionar/editar lançamento e grupos/atos ainda são legados por concentrarem regras comerciais extensas.
+Adicionar/editar lançamento usa `BillingItemBackgroundForm` + `salvarLancamentoContaBackground`. A resolução comercial não foi duplicada: `saveBillingAccountItem` é o serviço único que preserva `obter_valor_item_comercial`, DePara TUSS, memória de cálculo e `salvar_item_conta_faturamento`. O Catálogo da Conta e a edição da conta consomem o mesmo serviço.
+
+Atos cirúrgicos/SADT usam `BillingActBackgroundForm` para criar/editar grupos, associar lançamentos e recalcular regras contratuais. O bloqueio por conta faturada/cancelada ou Guia TISS ativa continua no servidor, e `recalcular_item_contratual_avancado` permanece autoridade do recálculo.
+
+### Guia TISS
+
+A validação da guia e os complementos 04.03.00 usam Server Actions sem refresh. `TissGuideCommunicationForm` grava os campos que não podem ser inferidos — inclusive solicitante independente do executante em SP/SADT — e reexecuta a validação canônica. `TissItemComplementForm` registra a unidade de medida TISS das despesas sem assumir um valor padrão.
+
+A autoridade permanece nos RPCs `salvar_complemento_comunicacao_tiss_operacional`, `salvar_item_complemento_tiss_operacional` e `validar_guia_tiss`.
 
 ### Lote TISS
 
-Criação continua exclusivamente em `criar_lote_tiss_transacional`. No detalhe, protocolo e glosa usam seus RPCs transacionais; o registro de envio manual passou a usar `registrar_envio_manual_tiss_operacional` em vez de DML direto.
+Criação continua exclusivamente em `criar_lote_tiss_transacional`. No detalhe, protocolo e glosa usam seus RPCs transacionais; o registro de envio manual usa `registrar_envio_manual_tiss_operacional` em vez de DML direto.
 
-Importação XML, protocolo, glosa e registro de envio manual ficam em modais com `useActionState`.
+Importação XML, protocolo, glosa e registro de envio manual ficam em modais com `useActionState`. A ação principal de geração utiliza `TissFinalMessageForm` + `gerarMensagemTissFinalBackground`; o antigo artefato preliminar deixou de ser a ação operacional principal.
 
-### XSD ANS 04.03.00
+### XSD ANS 04.03.00 / wire 4.03.00
 
 A validação XSD real usa `xmllint-wasm`/libxml2 no servidor. O contrato dos schemas oficiais está versionado por manifesto e SHA-256 em `vendor/tiss/040300`; `prebuild` materializa somente bytes cujo hash coincida com o contrato.
 
-`validarXmlLoteTissBackground`:
+Na geração final:
 
-1. lê o XML real do lote;
-2. recusa `PRELIMINAR_INTERNO`;
-3. exige Comunicação `04.03.00`;
-4. executa `validateTissXmlXsd` contra `tissV4_03_00.xsd` ou `tissWebServicesV4_03_00.xsd`;
-5. persiste resultado/hash/erros pelo RPC `registrar_validacao_xsd_tiss_operacional`;
-6. revalida lote e filas dependentes.
+1. a Server Action carrega lote, guias, itens e críticas reais;
+2. o serializer canônico prepara a mensagem;
+3. a camada wire converte a tag `Padrao` para `4.03.00`, aplica namespace `ans:` e ajusta diferenças estruturais específicas das guias;
+4. o MD5 TISS é recalculado sobre os valores das tags na ordem física, em LATIN1;
+5. `validateTissXmlXsd` executa o XSD oficial;
+6. somente XML válido segue para `salvar_xml_candidato_tiss_operacional`;
+7. o PostgreSQL recalcula SHA-256 e MD5 e valida o vínculo com o lote;
+8. `registrar_validacao_xsd_tiss_operacional` promove o candidato para `ENVIO_LOTE_GUIAS`;
+9. `revalidatePath` atualiza lote e filas dependentes sem navegar ou recarregar a página inteira.
 
 DTD/`ENTITY` são recusados. Dependências XSD são pré-carregadas localmente e a validação não resolve schemas pela rede. `xsd_validado=true` nunca é resultado de uma checagem superficial de XML bem-formado.
+
+O download e o transporte convertem a mensagem final em bytes ISO-8859-1 quando essa é a codificação declarada. Envio manual e webservice filtram exclusivamente `ENVIO_LOTE_GUIAS` validado na versão interna `04.03.00`.
 
 ### Recebíveis
 
@@ -86,9 +99,13 @@ Baixa, conciliação e estorno usam `registrar_recebimento_financeiro_operaciona
 
 Abertura de recurso usa `criar_recurso_glosa_tiss_transacional` e navega apenas quando o banco retorna o recurso real. Registro de glosa no lote usa `registrar_glosa_tiss_transacional` inline.
 
+O detalhe do recurso expõe glosa relacionada, valor recursado, deferido, indeferido, pendente, protocolo, envio/retorno e vínculo com a Guia TISS. Essa tela não grava manualmente retorno financeiro: enquanto não existir RPC transacional canônico para deferimento/indeferimento e persistência de retorno, a operação permanece fail-closed e somente leitura.
+
 ### NFS-e
 
 A criação de rascunho usa `criar_nfse_lote_operacional`. Criar rascunho não equivale a emitir documento fiscal.
+
+O registro manual de uma NFS-e já emitida no portal municipal usa `NfseManualBackgroundForm` + `registrarEmissaoManualNfseBackground`, mantendo `registrar_estado_nfse_operacional` como autoridade e feedback inline sem reload. A emissão automática via SEFIN/adapter municipal continua tratada como operação externa auditada, com transações persistidas por `registrar_transacao_nfse_operacional`.
 
 ### Produção
 
@@ -104,6 +121,6 @@ Agendamento/classificação ANS, transições, checklist, OPME, CME, múltiplos 
 
 ## Regressão
 
-A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem Enfermagem, Farmácia, LIS, RIS, GED, Centro Cirúrgico/CME, NIR, Ciclo da Receita e `tests/unit/tiss-xsd-ans-040300.test.ts`.
+A política global é protegida por `tests/unit/background-save-policy.test.ts`. Coberturas específicas incluem Enfermagem, Farmácia, LIS, RIS, GED, Centro Cirúrgico/CME, NIR, Ciclo da Receita, `tests/unit/tiss-xsd-ans-040300.test.ts`, `tests/unit/tiss-mensagem-final-040300.test.ts`, `tests/unit/faturamento-lancamentos-background-saves.test.ts` e `tests/unit/nfse-recursos-background.test.ts`.
 
 A conversão global continua incremental. Não declarar o HIS inteiro convertido enquanto existirem mutações legadas fora das exceções justificadas.
