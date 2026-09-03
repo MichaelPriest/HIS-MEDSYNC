@@ -6,7 +6,9 @@ import type { BackgroundActionState } from "@/lib/actions/background-action";
 import {
   adicionarItemPacoteBackground,
   salvarPacoteContratoBackground,
+  salvarPorteCbhpmBackground,
   salvarRegraFaturamentoBackground,
+  type ComercialCbhpmPortActionData,
   type ComercialPackageActionData,
   type ComercialPackageItemActionData,
   type ComercialRuleActionData,
@@ -97,6 +99,32 @@ export function CommercialPackageItemBackgroundForm({
       <ActionFeedback pending={pending} state={state} />
       <button disabled={pending} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">
         {editing ? <Save className="size-4" /> : <Plus className="size-4" />}{editing ? "Salvar item" : "Adicionar item"}
+      </button>
+    </div>
+  </form>;
+}
+
+export function CommercialCbhpmPortBackgroundForm({
+  children,
+  className = "",
+  portId,
+}: {
+  children: ReactNode;
+  className?: string;
+  portId?: string | null;
+}) {
+  const initialState: BackgroundActionState<ComercialCbhpmPortActionData> = { status: "idle" };
+  const [state, formAction, pending] = useActionState(salvarPorteCbhpmBackground, initialState);
+  const editing = Boolean(portId);
+
+  return <form action={formAction} className={className}>
+    {portId ? <input type="hidden" name="porte_id" value={portId} /> : null}
+    {children}
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 md:col-span-full">
+      <ActionFeedback pending={pending} state={state} />
+      <button disabled={pending} className="ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">
+        {editing ? <Save className="size-4" /> : <Plus className="size-4" />}
+        {editing ? "Salvar valor do porte" : "Versionar valor do porte"}
       </button>
     </div>
   </form>;
