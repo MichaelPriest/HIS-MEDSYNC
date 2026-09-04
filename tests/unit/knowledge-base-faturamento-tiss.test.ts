@@ -26,6 +26,8 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     const page = read("src/app/(painel)/manual/page.tsx");
     expect(page).toContain("billingTissKnowledgeBaseArticles");
     expect(page).toContain("...billingTissKnowledgeBaseArticles");
+    expect(page).toContain("audiences={audiences}");
+    expect(page).toContain("Todos os perfis");
   });
 
   it("leva o usuário ao artigo correspondente à etapa atual do ciclo da receita", () => {
@@ -45,5 +47,14 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     expect(browser).toContain("HTMLDetailsElement");
     expect(browser).toContain('addEventListener("hashchange"');
     expect(browser).toContain("scrollIntoView");
+  });
+
+  it("permite filtrar os guias pelo perfil operacional sem esconder a ajuda contextual", () => {
+    const browser = read("src/components/manual/knowledge-base-browser.tsx");
+    expect(browser).toContain('const [audience, setAudience] = useState("Todos os perfis")');
+    expect(browser).toContain('article.audience.includes(audience)');
+    expect(browser).toContain('aria-label="Filtrar por perfil operacional"');
+    expect(browser).toContain("Limpar filtros");
+    expect(browser).toContain('setAudience("Todos os perfis")');
   });
 });
