@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpenCheck, CircleAlert, Search, UsersRound } from "lucide-react";
 import type { KnowledgeBaseArticle } from "@/modules/knowledge-base/articles";
 
@@ -18,6 +18,21 @@ function normalize(value: string) {
 export function KnowledgeBaseBrowser({ articles, categories }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
+
+  useEffect(() => {
+    const openContextArticle = () => {
+      const slug = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+      if (!slug) return;
+      const article = document.getElementById(slug);
+      const details = article?.querySelector("details");
+      if (details instanceof HTMLDetailsElement) details.open = true;
+      window.requestAnimationFrame(() => article?.scrollIntoView({ block: "start" }));
+    };
+
+    openContextArticle();
+    window.addEventListener("hashchange", openContextArticle);
+    return () => window.removeEventListener("hashchange", openContextArticle);
+  }, []);
 
   const filtered = useMemo(() => {
     const needle = normalize(query.trim());
