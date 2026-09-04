@@ -1,10 +1,11 @@
 "use client";
 
+import type { Route } from "next";
 import Link from "next/link";
 import { BookOpenCheck } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-const contextualHelp: Array<{ prefix: string; href: string; label: string }> = [
+const contextualHelp: Array<{ prefix: string; href: Route; label: string }> = [
   { prefix: "/assistencial/enfermagem", href: "/manual#enfermagem-administracao", label: "Enfermagem e administração" },
   { prefix: "/assistencial/medicamentos", href: "/manual#farmacia-fefo", label: "Farmácia e medicamentos" },
   { prefix: "/assistencial/laboratorio", href: "/manual#laboratorio-lis", label: "Laboratório / LIS" },
@@ -20,7 +21,7 @@ const contextualHelp: Array<{ prefix: string; href: string; label: string }> = [
 export function AssistencialContextHelp() {
   const pathname = usePathname();
   const current = contextualHelp.find((item) => pathname === item.prefix || pathname.startsWith(`${item.prefix}/`));
-  const href = current?.href ?? "/manual";
+  const href: Route = current?.href ?? "/manual";
   const label = current?.label ?? "Base de Conhecimento assistencial";
 
   return (
