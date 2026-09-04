@@ -38,4 +38,12 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     expect(nav).toContain("/manual#faturamento-equipe-cirurgica-amb-cbhpm");
     expect(nav).toContain("Ajuda desta etapa");
   });
+
+  it("abre automaticamente o passo a passo quando a ajuda chega por hash", () => {
+    const browser = read("src/components/manual/knowledge-base-browser.tsx");
+    expect(browser).toContain("window.location.hash");
+    expect(browser).toContain("HTMLDetailsElement");
+    expect(browser).toContain('addEventListener("hashchange"');
+    expect(browser).toContain("scrollIntoView");
+  });
 });
