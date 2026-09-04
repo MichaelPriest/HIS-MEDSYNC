@@ -1,0 +1,38 @@
+import type { KnowledgeBaseArticle } from "@/modules/knowledge-base/articles";
+
+export const commercialLinkKnowledgeBaseArticles: KnowledgeBaseArticle[] = [
+  {
+    slug: "comercial-vinculos-historico-depara-auto",
+    title: "Editar vínculos de tabelas sem perder o histórico",
+    category: "Receita",
+    audience: ["Comercial", "Credenciamento", "Faturamento", "Auditoria"],
+    summary: "Como editar negociações, desvincular ou reativar tabelas e manter o DePara TUSS sincronizado sem apagar configurações anteriores.",
+    steps: [
+      "Abra Comercial / Vínculos e histórico e selecione o contrato que deseja revisar.",
+      "Edite no vínculo ativo a edição, base de preço, ajuste, prioridade, CH, HM, SADT, UCO, filme/m², adicionais, arredondamento e observações que tenham respaldo na negociação real.",
+      "Para trocar a fonte ou a categoria do vínculo, desvincule a configuração anterior e crie um novo vínculo; não transforme o vínculo histórico em outra tabela.",
+      "Ao desvincular, informe obrigatoriamente o motivo. O vínculo fica inativo, as regras derivadas deixam de ser aplicadas e o histórico permanece disponível.",
+      "Se a configuração anterior voltar a valer, use Reativar vínculo. O HIS reutiliza os valores históricos salvos e executa novamente a sincronização do DePara.",
+      "Ao vincular ou alterar a edição, o sistema sincroniza DePara automaticamente somente quando existe código TUSS explícito no item ou equivalência ativa e explícita cadastrada para TUSS.",
+      "Use Sincronizar DePara quando quiser executar novamente essa materialização após revisar a tabela ou as equivalências cadastradas.",
+      "Se precisar corrigir um DePara automático, edite-o pelo fluxo de DePara TUSS. A partir dessa intervenção ele passa a ser manual e não será sobrescrito por sincronizações automáticas futuras.",
+      "Consulte Histórico comercial para conferir mudanças de vínculo, regras e DePara e, depois, execute novamente Prontidão, Simulador e Homologação quando a configuração vigente tiver sido alterada.",
+    ],
+    warnings: [
+      "Automático não significa inferido: o HIS não usa semelhança de texto, aproximação de código ou preço para escolher um TUSS.",
+      "DePara manual vigente tem prioridade sobre o automático para o mesmo código e vigência.",
+      "Desvincular não exclui a configuração nem seus eventos. Contas históricas fechadas mantêm seus snapshots e não são recalculadas silenciosamente.",
+      "Alterar fonte ou categoria criando um novo vínculo é necessário para manter a identidade histórica da configuração anterior.",
+    ],
+    links: [
+      { label: "Vínculos e histórico", href: "/comercial/vinculos" },
+      { label: "Contratos comerciais", href: "/comercial" },
+      { label: "DePara TUSS", href: "/comercial/depara" },
+      { label: "Prontidão comercial", href: "/comercial/prontidao" },
+      { label: "Simulador de preço", href: "/comercial/simulador" },
+      { label: "Homologação comercial", href: "/comercial/homologacao" },
+    ],
+    keywords: ["vínculo", "desvincular", "reativar", "histórico", "tabela", "contrato", "depara", "tuss", "equivalência", "comercial"],
+    sourceDocs: ["docs/COMERCIAL_VINCULOS_HISTORICO_DEPARA.md", "docs/FATURAMENTO_TABELAS_CONTRATOS.md"],
+  },
+];

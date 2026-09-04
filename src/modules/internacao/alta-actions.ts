@@ -211,13 +211,31 @@ export async function assinarSumarioAltaSeguro(formData: FormData) {
 export async function concluirAltaSegura(formData: FormData) {
   const internacaoId = text(formData, "internacao_id");
   if (!internacaoId) redirect(asRoute("/internacao/altas?erro=internacao"));
+
+  const motivoCodigo = text(formData, "motivo_codigo");
+  if (!motivoCodigo) redirect(asRoute(`/internacao/altas/${internacaoId}/encerrar`));
+
   const { supabase } = await getAssistencialContext();
-  const { error } = await supabase.rpc("dar_alta_internacao", {
+  const { error } = await supabase.rpc("dar_alta_internacao_tiss", {
     p_internacao_id: internacaoId,
-    p_motivo: text(formData, "motivo") || "Alta hospitalar",
+    p_motivo_tiss_codigo: motivoCodigo,
+    p_declaracao_obito_numero: text(formData, "declaracao_obito_numero") || null,
+    p_documento_svo_iml_numero: text(formData, "documento_svo_iml_numero") || null,
+    p_observacao: text(formData, "observacao_encerramento") || null,
+    p_data_alta: null,
   });
-  if (error) goDetail(internacaoId, "erro=alta-bloqueada");
+
+  if (error) {
+    console.error("[internacao.alta] falha ao concluir encerramento", { code: error.code, message: error.message });
+    if (error.message.includes("DO_OBRIGATORIA")) redirect(asRoute(`/internacao/altas/${internacaoId}/encerrar?erro=declaracao-obito`));
+    if (error.message.includes("SVO_IML_DOCUMENTO")) redirect(asRoute(`/internacao/altas/${internacaoId}/encerrar?erro=documento-externo`));
+    if (error.message.includes("PENDENCIAS_BLOQUEANTES")) goDetail(internacaoId, "erro=alta-bloqueada");
+    redirect(asRoute(`/internacao/altas/${internacaoId}/encerrar?erro=encerramento`));
+  }
 
   revalidateAlta(internacaoId);
+  revalidatePath("/internacao/contas");
+  revalidatePath("/faturamento");
+  revalidatePath("/faturamento/contas");
   redirect(asRoute("/internacao/altas?sucesso=alta"));
 }

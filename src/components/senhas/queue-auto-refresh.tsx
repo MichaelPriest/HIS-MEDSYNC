@@ -1,6 +1,7 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { LayoutDashboard, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -84,14 +85,17 @@ export function QueueAutoRefresh({
   };
 
   return (
-    <button
-      type="button"
-      onClick={atualizarAgora}
-      className="btn-secondary h-9 text-xs"
-      title="Atualização em tempo real com sincronização automática de segurança"
-    >
-      <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
-      Tempo real
-    </button>
+    <div className="flex flex-wrap items-center gap-2">
+      {unidadeId ? <Link href="/senhas/cockpit" className="btn-secondary h-9 text-xs"><LayoutDashboard className="size-3.5" />Cockpit</Link> : null}
+      <button
+        type="button"
+        onClick={atualizarAgora}
+        className="btn-secondary h-9 text-xs"
+        title="Atualização em tempo real com sincronização automática de segurança"
+      >
+        <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
+        Tempo real
+      </button>
+    </div>
   );
 }

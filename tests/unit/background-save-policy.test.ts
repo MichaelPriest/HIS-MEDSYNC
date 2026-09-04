@@ -18,6 +18,17 @@ const strictBackgroundServerActions = [
   "src/modules/centro-cirurgico/anestesia-rpa-background-actions.ts",
   "src/modules/centro-cirurgico/suprimentos-background-actions.ts",
   "src/modules/centro-cirurgico/cme-background-actions.ts",
+  "src/modules/internacao/nir-actions.ts",
+  "src/modules/faturamento/workspace-background-actions.ts",
+  "src/modules/faturamento/producao-background-actions.ts",
+  "src/modules/faturamento/conta-background-actions.ts",
+  "src/modules/faturamento/conta-item-background-actions.ts",
+  "src/modules/faturamento/atos-background-actions.ts",
+  "src/modules/tiss/guia-background-actions.ts",
+  "src/modules/tiss/guia-complement-background-actions.ts",
+  "src/modules/tiss/lote-background-actions.ts",
+  "src/modules/tiss/mensagem-final-background-actions.ts",
+  "src/modules/financeiro/background-actions.ts",
 ];
 
 const backgroundForms = [
@@ -40,6 +51,17 @@ const backgroundForms = [
   "src/components/centro-cirurgico/rpa-autosave-form.tsx",
   "src/components/centro-cirurgico/surgical-supply-background-form.tsx",
   "src/components/centro-cirurgico/cme-background-form.tsx",
+  "src/components/internacao/nir-bed-allocation-background-form.tsx",
+  "src/components/faturamento/billing-workspace-actions.tsx",
+  "src/components/faturamento/account-background-forms.tsx",
+  "src/components/faturamento/billing-item-background-form.tsx",
+  "src/components/faturamento/billing-act-background-form.tsx",
+  "src/components/faturamento/guide-validation-background-form.tsx",
+  "src/components/faturamento/tiss-guide-communication-form.tsx",
+  "src/components/faturamento/tiss-item-complement-form.tsx",
+  "src/components/faturamento/tiss-lot-background-forms.tsx",
+  "src/components/faturamento/tiss-final-message-form.tsx",
+  "src/components/financeiro/receivable-background-forms.tsx",
 ];
 
 describe("política de salvamento em segundo plano", () => {
@@ -62,7 +84,6 @@ describe("política de salvamento em segundo plano", () => {
   it("mantém navegação da Agenda apenas para check-in que muda de etapa", () => {
     const source = read("src/modules/agenda/actions.ts");
     const redirects = source.match(/\bredirect\s*\(/g) ?? [];
-
     expect(source).toContain("BackgroundActionState");
     expect(source).not.toContain("agendaRedirect");
     expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/agenda/);
@@ -74,7 +95,6 @@ describe("política de salvamento em segundo plano", () => {
   it("mantém erros da Admissão inline e navega apenas após abertura real do atendimento", () => {
     const source = read("src/modules/atendimentos/actions.ts");
     const redirects = source.match(/\bredirect\s*\(/g) ?? [];
-
     expect(source).toContain("BackgroundActionState");
     expect(source).not.toMatch(/redirect\s*\(\s*["'`]\/atendimentos\/novo/);
     expect(redirects).toHaveLength(2);
@@ -86,7 +106,6 @@ describe("política de salvamento em segundo plano", () => {
     const triage = read("src/modules/triagem/actions.ts");
     const queue = read("src/modules/fila-medica/actions.ts");
     const authorizations = read("src/modules/autorizacoes/actions.ts");
-
     for (const source of [triage, queue, authorizations]) {
       expect(source).not.toContain('from "next/navigation"');
       expect(source).not.toMatch(/\bredirect\s*\(/);
@@ -101,7 +120,6 @@ describe("política de salvamento em segundo plano", () => {
     const pharmacyPage = read("src/app/(painel)/assistencial/medicamentos/page.tsx");
     const wards = read("src/app/(painel)/assistencial/enfermagem/andares/page.tsx");
     const emergency = read("src/app/(painel)/assistencial/enfermagem/pronto-socorro/page.tsx");
-
     expect(pharmacyPage).toContain("PharmacyBackgroundForm");
     expect(pharmacyPage).not.toContain("dispensarPrescricaoAction");
     expect(wards).toContain("NursingEvolutionBackgroundForm");
@@ -112,7 +130,6 @@ describe("política de salvamento em segundo plano", () => {
     const listPage = read("src/app/(painel)/assistencial/imagem/page.tsx");
     const editor = read("src/app/(painel)/assistencial/imagem/laudos/[laudoId]/page.tsx");
     const reportForm = read("src/components/imagem/radiology-report-background-form.tsx");
-
     expect(listPage).toContain("RadiologyBackgroundForm");
     expect(listPage).toContain("OpenRadiologyReportForm");
     expect(editor).toContain('kind="save"');
@@ -124,7 +141,6 @@ describe("política de salvamento em segundo plano", () => {
   it("mantém assinatura e status do GED no componente de segundo plano", () => {
     const actions = read("src/modules/ged/background-actions.ts");
     const page = read("src/app/(painel)/ged/[documentoId]/page.tsx");
-
     expect(actions).toContain("atualizar_status_documento_ged");
     expect(actions).toContain("assinar_documento_ged");
     expect(actions).toContain('createHash("sha256")');
@@ -137,7 +153,6 @@ describe("política de salvamento em segundo plano", () => {
     const proceduresPage = read("src/app/(painel)/assistencial/centro-cirurgico/procedimentos/page.tsx");
     const anesthesia = read("src/components/centro-cirurgico/anesthesia-autosave-form.tsx");
     const rpa = read("src/components/centro-cirurgico/rpa-autosave-form.tsx");
-
     expect(page).toContain("SurgicalBackgroundForm");
     expect(proceduresPage).toContain("SurgeryProcedureAddForm");
     expect(proceduresPage).toContain("ProcedureTeamForm");
@@ -152,7 +167,6 @@ describe("política de salvamento em segundo plano", () => {
     const actions = read("src/modules/centro-cirurgico/suprimentos-background-actions.ts");
     const detail = read("src/app/(painel)/assistencial/centro-cirurgico/suprimentos/[cirurgiaId]/page.tsx");
     const list = read("src/app/(painel)/assistencial/centro-cirurgico/suprimentos/page.tsx");
-
     expect(actions).toContain("centro_cirurgico_requisitar_suprimentos_operacional");
     expect(actions).toContain("centro_cirurgico_receber_suprimentos_operacional");
     expect(actions).toContain("centro_cirurgico_consumir_suprimento_operacional");
@@ -172,7 +186,6 @@ describe("política de salvamento em segundo plano", () => {
     const actions = read("src/modules/centro-cirurgico/cme-background-actions.ts");
     const page = read("src/app/(painel)/assistencial/centro-cirurgico/cme/page.tsx");
     const form = read("src/components/centro-cirurgico/cme-background-form.tsx");
-
     expect(actions).toContain("cme_salvar_ciclo_operacional");
     expect(actions).toContain("CME_LIBERACAO_EXIGE_RESULTADO_E_INDICADORES");
     expect(actions).toContain("CME_USUARIO_SEM_PROFISSIONAL");
@@ -180,5 +193,91 @@ describe("política de salvamento em segundo plano", () => {
     expect(page).not.toContain("salvarCicloCme");
     expect(page).not.toContain("searchParams");
     expect(form).toContain('state.data?.status === "liberado"');
+  });
+
+  it("mantém NIR inline sem remover filtros de consulta", () => {
+    const actions = read("src/modules/internacao/nir-actions.ts");
+    const page = read("src/app/(painel)/internacao/nir/page.tsx");
+    const form = read("src/components/internacao/nir-bed-allocation-background-form.tsx");
+    expect(actions).toContain("movimentar_internacao_leito");
+    expect(actions).toContain("LEITO_RESERVADO_PARA_OUTRO_ATENDIMENTO");
+    expect(page).toContain("NirBedAllocationBackgroundForm");
+    expect(page).toContain('name="q"');
+    expect(page).toContain('name="risco"');
+    expect(page).toContain('name="setor"');
+    expect(page).not.toContain("action={alocarLeitoNir}");
+    expect(page).not.toContain("sp.sucesso");
+    expect(page).not.toContain("sp.erro");
+    expect(form).toContain("useActionState");
+  });
+
+  it("mantém ações principais do ciclo da receita sem feedback por redirect", () => {
+    const workspace = read("src/modules/faturamento/workspace-background-actions.ts");
+    const production = read("src/modules/faturamento/producao-background-actions.ts");
+    const forms = read("src/components/faturamento/billing-workspace-actions.tsx");
+    expect(workspace).toContain("criar_lote_tiss_transacional");
+    expect(workspace).toContain("criar_recurso_glosa_tiss_transacional");
+    expect(workspace).toContain("criar_nfse_lote_operacional");
+    expect(production).toContain("sincronizar_producao_atendimento");
+    expect(forms).toContain("router.push");
+    expect(forms).not.toContain("router.refresh");
+  });
+
+  it("mantém o ledger financeiro append-only sem redirects de feedback", () => {
+    const actions = read("src/modules/financeiro/background-actions.ts");
+    const forms = read("src/components/financeiro/receivable-background-forms.tsx");
+    const detail = read("src/app/(painel)/financeiro/recebiveis/[recebivelId]/page.tsx");
+    expect(actions).toContain("registrar_recebimento_financeiro_operacional");
+    expect(actions).toContain("conciliar_recebimento_financeiro_operacional");
+    expect(actions).toContain("estornar_recebimento_financeiro_operacional");
+    expect(forms).toContain("ReceivablePaymentForm");
+    expect(forms).toContain("ReceivableLedgerActions");
+    expect(detail).toContain("ReceivablePaymentForm");
+    expect(detail).toContain("ReceivableLedgerActions");
+    expect(detail).not.toContain("registrarRecebimentoFinanceiro");
+    expect(detail).not.toContain("conciliarRecebimentoFinanceiro");
+    expect(detail).not.toContain("estornarRecebimentoFinanceiro");
+    expect(detail).not.toContain("searchParams");
+  });
+
+  it("mantém conta, lançamentos, atos, guia e lote TISS nas camadas de segundo plano", () => {
+    const account = read("src/app/(painel)/faturamento/[contaId]/page.tsx");
+    const catalog = read("src/app/(painel)/faturamento/[contaId]/catalogo/page.tsx");
+    const acts = read("src/app/(painel)/faturamento/[contaId]/procedimentos-cirurgicos/page.tsx");
+    const guide = read("src/app/(painel)/faturamento/guias/[guiaId]/page.tsx");
+    const lot = read("src/app/(painel)/faturamento/lotes/[loteId]/page.tsx");
+    expect(account).toContain("AccountBackgroundForm");
+    expect(account).toContain("BillingItemBackgroundForm");
+    expect(account).toContain("BillingActBackgroundForm");
+    expect(account).not.toContain("salvarLancamentoConta");
+    expect(catalog).toContain("BillingItemBackgroundForm");
+    expect(catalog).not.toContain("salvarLancamentoConta");
+    expect(acts).toContain("BillingActBackgroundForm");
+    expect(acts).not.toContain("criarGrupoAto");
+    expect(guide).toContain("GuideValidationBackgroundForm");
+    expect(guide).toContain("TissGuideCommunicationForm");
+    expect(guide).toContain("TissItemComplementForm");
+    expect(guide).not.toContain("validarGuiaTiss");
+    expect(lot).toContain("TissProtocolModal");
+    expect(lot).toContain("TissDenialModal");
+    expect(lot).toContain("TissManualImportModal");
+    expect(lot).toContain("TissManualSendModal");
+    expect(lot).toContain("TissPreliminaryXmlForm");
+    expect(lot).toContain("enviarLoteWebservice");
+    expect(lot).not.toContain("registrarProtocolo.bind");
+    expect(lot).not.toContain("registrarGlosa.bind");
+  });
+
+  it("mantém geração final TISS sem redirect e só promove após XSD", () => {
+    const action = read("src/modules/tiss/mensagem-final-background-actions.ts");
+    const form = read("src/components/faturamento/tiss-final-message-form.tsx");
+    const lotForms = read("src/components/faturamento/tiss-lot-background-forms.tsx");
+    expect(action).toContain("serializeTissWireLoteGuias040300");
+    expect(action).toContain("validateTissXmlXsd");
+    expect(action).toContain("salvar_xml_candidato_tiss_operacional");
+    expect(action).toContain("registrar_validacao_xsd_tiss_operacional");
+    expect(action).not.toContain("redirect(");
+    expect(form).toContain("gerarMensagemTissFinalBackground");
+    expect(lotForms).toContain("<TissFinalMessageForm loteId={loteId} />");
   });
 });

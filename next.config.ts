@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   typedRoutes: true,
+  serverExternalPackages: ["xmllint-wasm"],
+  outputFileTracingIncludes: {
+    "/*": ["./vendor/tiss/040300/**/*"],
+  },
   async headers() {
     return [
       {

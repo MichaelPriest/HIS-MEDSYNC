@@ -7,25 +7,30 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleDollarSign,
   Database,
   FileClock,
   Handshake,
+  Layers3,
   ListFilter,
   PencilLine,
   Search,
+  ShieldCheck,
   TableProperties,
 } from "lucide-react";
 import { CadastrosWorkspaceNav, CadastroKpi } from "@/components/cadastros/cadastros-workspace-nav";
+import {
+  CommercialContractBackgroundForm,
+  CommercialNegotiationBackgroundForm,
+  CommercialTableLinkBackgroundForm,
+} from "@/components/comercial/commercial-workspace-background-forms";
 import { SectionPage } from "@/components/painel/section-page";
 import { requireAnyPermission } from "@/lib/permissions/server";
 import { criarContratoCredenciamento } from "@/modules/corporativo/actions";
 import {
-  atualizarContratoComercial,
-  atualizarNegociacaoTabela,
   criarVersaoNegociacao,
   publicarEdicaoComercial,
   salvarItemEdicaoComercial,
-  vincularTabelaContratoWorkspace,
 } from "@/modules/comercial/workspace-actions";
 
 export const dynamic = "force-dynamic";
@@ -33,13 +38,33 @@ export const revalidate = 0;
 
 const PAGE_SIZE = 100;
 const ABAS = new Set(["resumo", "negociacao", "itens", "historico"]);
+const BASE_OBRIGATORIA = new Set(["brasindice", "cmed", "simpro"]);
+const CATEGORIAS = [
+  ["geral", "Geral"],
+  ["procedimentos", "Procedimentos"],
+  ["cirurgias", "Cirurgias"],
+  ["sadt", "SADT / exames"],
+  ["honorarios", "Honorários"],
+  ["anestesia", "Anestesia"],
+  ["auxiliares", "Auxiliares"],
+  ["diarias", "Diárias"],
+  ["taxas", "Taxas"],
+  ["gases", "Gases medicinais"],
+  ["materiais", "Materiais"],
+  ["medicamentos", "Medicamentos"],
+  ["opme", "OPME"],
+  ["pacotes", "Pacotes"],
+  ["outra", "Outra"],
+] as const;
 
 type Rel<T> = T | T[] | null;
 type Convenio = { id?: string; nome_fantasia: string | null; registro_ans: string | null };
+type Plano = { id: string; convenio_id: string; codigo: string | null; nome: string; acomodacao: string | null };
 type Contrato = {
   id: string;
   convenio_id: string;
   unidade_id: string | null;
+  plano_id: string | null;
   numero_contrato: string | null;
   data_inicio: string | null;
   data_fim: string | null;
@@ -79,6 +104,8 @@ type Vinculo = {
   valor_hm: number | null;
   valor_sadt: number | null;
   valor_uco_contratual: number | null;
+  valor_filme_m2: number | null;
+  base_preco: string | null;
   regras_adicionais: Record<string, unknown> | null;
   arredondamento_casas: number;
   ativo: boolean;
@@ -156,6 +183,25 @@ function href(params: Record<string, string | number | null | undefined>): Route
   return `/comercial${qs.size ? `?${qs.toString()}` : ""}` as Route;
 }
 
+function baseLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    valor_referencia: "Valor de referência",
+    valor_fabrica: "Preço fábrica (PF)",
+    valor_pmc: "Preço máximo ao consumidor (PMC)",
+    valor_maximo: "Valor máximo",
+  };
+  return value ? labels[value] ?? value : "Conforme metodologia da tabela";
+}
+
+function sourceTypeLabel(tipo: string | undefined) {
+  if (!tipo) return "Tabela";
+  if (tipo === "cbhpm") return "CBHPM";
+  if (tipo === "brasindice") return "Brasíndice";
+  if (tipo === "simpro") return "SIMPRO";
+  if (tipo === "cmed") return "CMED";
+  return tipo.toUpperCase();
+}
+
 export default async function ComercialPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
   const { supabase, empresaId, unidadeId } = await requireAnyPermission([
@@ -166,6 +212,7 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
     "tabelas_comerciais.visualizar",
     "tabelas_comerciais.gerenciar",
   ]);
+
   const contractQ = cleanSearch(sp.contrato_q ?? "");
   const itemQ = cleanSearch(sp.item_q ?? "");
   const itemStatus = ["ativos", "inativos"].includes(sp.item_status ?? "") ? String(sp.item_status) : "todos";
@@ -175,14 +222,15 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
 
   let contractsQuery = supabase
     .from("credenciamento_contratos")
-    .select("id,convenio_id,unidade_id,numero_contrato,data_inicio,data_fim,status,prazo_pagamento_dias,reajuste_indice,data_base_reajuste,contato_comercial,email_comercial,observacoes,convenio:convenios(id,nome_fantasia,registro_ans)")
+    .select("id,convenio_id,unidade_id,plano_id,numero_contrato,data_inicio,data_fim,status,prazo_pagamento_dias,reajuste_indice,data_base_reajuste,contato_comercial,email_comercial,observacoes,convenio:convenios(id,nome_fantasia,registro_ans)")
     .eq("empresa_id", empresaId)
     .order("created_at", { ascending: false });
   if (status) contractsQuery = contractsQuery.eq("status", status);
 
-  const [contractsReq, conveniosReq, fontesReq, edicoesReq, canEditReq, canTableReq] = await Promise.all([
+  const [contractsReq, conveniosReq, planosReq, fontesReq, edicoesReq, canEditReq, canTableReq] = await Promise.all([
     contractsQuery.limit(250),
     supabase.from("convenios").select("id,nome_fantasia,registro_ans").eq("empresa_id", empresaId).eq("ativo", true).order("nome_fantasia"),
+    supabase.from("convenio_planos").select("id,convenio_id,codigo,nome,acomodacao").eq("empresa_id", empresaId).eq("ativo", true).order("nome"),
     supabase.from("tabelas_comerciais_fontes").select("id,codigo,nome,tipo,ativo").eq("empresa_id", empresaId).eq("ativo", true).order("nome"),
     supabase.from("tabelas_comerciais_edicoes").select("id,fonte_id,convenio_id,nome_edicao,referencia,status,vigencia_inicio,vigencia_fim,metodo_calculo,valor_uco,itens:tabelas_comerciais_itens(count)").order("vigencia_inicio", { ascending: false }).limit(500),
     supabase.rpc("comercial_pode_editar", { p_empresa: empresaId, p_unidade: unidadeId }),
@@ -190,16 +238,19 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
   ]);
 
   const contratos = (contractsReq.data ?? []) as unknown as Contrato[];
+  const planos = (planosReq.data ?? []) as Plano[];
   const fontes = (fontesReq.data ?? []) as Fonte[];
   const edicoes = (edicoesReq.data ?? []) as unknown as Edicao[];
   const canEdit = canEditReq.data === true && !canEditReq.error;
   const canTable = canTableReq.data === true && !canTableReq.error;
   const fonteMap = new Map(fontes.map((item) => [item.id, item]));
+  const planoMap = new Map(planos.map((item) => [item.id, item]));
 
   const filteredContracts = contratos.filter((contrato) => {
     if (!contractQ) return true;
     const convenio = one(contrato.convenio);
-    return `${convenio?.nome_fantasia ?? ""} ${convenio?.registro_ans ?? ""} ${contrato.numero_contrato ?? ""}`.toLowerCase().includes(contractQ.toLowerCase());
+    const plano = contrato.plano_id ? planoMap.get(contrato.plano_id) : null;
+    return `${convenio?.nome_fantasia ?? ""} ${convenio?.registro_ans ?? ""} ${contrato.numero_contrato ?? ""} ${plano?.nome ?? ""}`.toLowerCase().includes(contractQ.toLowerCase());
   });
   const selectedContract = contratos.find((item) => item.id === sp.contrato) ?? filteredContracts[0] ?? contratos[0] ?? null;
 
@@ -208,7 +259,7 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
   let pacotesCount = 0;
   if (selectedContract) {
     const [vincReq, regrasReq, pacotesReq] = await Promise.all([
-      supabase.from("contrato_tabelas_comerciais").select("id,contrato_id,fonte_id,edicao_fixa_id,categoria,modo_edicao,percentual_ajuste,prioridade,valor_ch,valor_hm,valor_sadt,valor_uco_contratual,regras_adicionais,arredondamento_casas,ativo,observacoes").eq("contrato_id", selectedContract.id).order("prioridade"),
+      supabase.from("contrato_tabelas_comerciais").select("id,contrato_id,fonte_id,edicao_fixa_id,categoria,modo_edicao,percentual_ajuste,prioridade,valor_ch,valor_hm,valor_sadt,valor_uco_contratual,valor_filme_m2,base_preco,regras_adicionais,arredondamento_casas,ativo,observacoes").eq("contrato_id", selectedContract.id).order("prioridade"),
       supabase.from("contrato_regras_faturamento").select("id", { count: "exact", head: true }).eq("contrato_id", selectedContract.id).eq("ativo", true),
       supabase.from("contrato_pacotes").select("id", { count: "exact", head: true }).eq("contrato_id", selectedContract.id).eq("ativo", true),
     ]);
@@ -268,9 +319,12 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
   const negociacao = contratos.filter((item) => item.status === "negociacao").length;
   const linksVazios = vinculos.filter((item) => editionCount(resolvedByLink.get(item.id)) === 0).length;
   const linksSemEdicao = vinculos.filter((item) => !resolvedByLink.get(item.id)).length;
+  const linksSemBase = vinculos.filter((item) => BASE_OBRIGATORIA.has(fonteMap.get(item.fonte_id)?.tipo ?? "") && !item.base_preco).length;
   const selectedConvenio = selectedContract ? one(selectedContract.convenio) : null;
+  const selectedPlan = selectedContract?.plano_id ? planoMap.get(selectedContract.plano_id) ?? null : null;
   const selectedItemTotal = editionCount(selectedEdition);
-  const errors = [contractsReq.error, fontesReq.error, edicoesReq.error].filter(Boolean);
+  const contractPlans = selectedContract ? planos.filter((item) => item.convenio_id === selectedContract.convenio_id) : [];
+  const errors = [contractsReq.error, planosReq.error, fontesReq.error, edicoesReq.error].filter(Boolean);
 
   const context = {
     contrato: selectedContract?.id,
@@ -280,78 +334,91 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
 
   return (
     <SectionPage
-      eyebrow="Comercial / Credenciamento"
-      title="Credenciamento, Contratos e Tabelas"
-      description="Um único workspace para revisar contrato, negociação, versões de tabela, itens e histórico. Publicações permanecem imutáveis; novas negociações são feitas por versão."
-      actions={<div className="flex flex-wrap gap-2"><Link href="/comercial/tabelas" className="ui-button-secondary"><Database className="size-4"/>Fontes e importações</Link><Link href="/comercial/regras" className="ui-button-secondary"><BookOpenCheck className="size-4"/>Regras e pacotes</Link></div>}
+      eyebrow="Comercial / Ciclo da Receita"
+      title="Contratos, tabelas e regras de cobrança"
+      description="Workspace contratual integrado ao faturamento: escolha a abrangência do contrato, vincule referências versionadas e registre exatamente a metodologia negociada, sem preços ou DePara implícitos."
+      actions={<div className="flex flex-wrap gap-2"><Link href="/comercial/tabelas" className="ui-button-secondary"><Database className="size-4"/>Fontes e importações</Link><Link href="/comercial/regras" className="ui-button-secondary"><BookOpenCheck className="size-4"/>Regras, CBHPM e pacotes</Link></div>}
     >
       <CadastrosWorkspaceNav active="/comercial" />
       {sp.sucesso ? <Notice ok text={`Operação concluída: ${sp.sucesso.replaceAll("-", " ")}.`} /> : null}
       {sp.erro ? <Notice text={decodeURIComponent(sp.erro)} /> : null}
       {errors.length ? <Notice text="Há consultas comerciais com erro. Revise RLS/permissões antes de alterar o contrato." /> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <CadastroKpi label="Contratos ativos" value={ativos} />
         <CadastroKpi label="Em negociação" value={negociacao} />
         <CadastroKpi label="Tabelas no contrato" value={vinculos.length} />
         <CadastroKpi label="Vínculos com problema" value={linksVazios} detail={linksSemEdicao ? `${linksSemEdicao} sem edição resolvida` : linksVazios ? "Tabela sem itens" : "Tudo parametrizado"} />
+        <CadastroKpi label="Base de preço pendente" value={linksSemBase} detail={linksSemBase ? "Brasíndice/CMED/SIMPRO" : "Bases explícitas quando exigidas"} />
         <CadastroKpi label="Regras / pacotes" value={`${regrasCount} / ${pacotesCount}`} />
       </section>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[330px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <section className="his-card p-4">
-            <div className="mb-3 flex items-center gap-2"><Handshake className="size-5 text-brand-700"/><div><h2 className="font-black text-slate-900">Contratos</h2><p className="text-xs text-slate-500">Selecione a operadora/contrato.</p></div></div>
+            <div className="mb-3 flex items-center gap-2"><Handshake className="size-5 text-brand-700"/><div><h2 className="font-black text-slate-900">Contratos</h2><p className="text-xs text-slate-500">Selecione operadora, plano e vigência.</p></div></div>
             <form className="mb-3 grid gap-2">
-              <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"/><input name="contrato_q" defaultValue={contractQ} className="ui-input pl-9" placeholder="Operadora, ANS ou contrato"/></div>
+              <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"/><input name="contrato_q" defaultValue={contractQ} className="ui-input pl-9" placeholder="Operadora, plano, ANS ou contrato"/></div>
               <select name="status" defaultValue={status} className="ui-input"><option value="">Todos os status</option><option value="negociacao">Negociação</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option><option value="encerrado">Encerrado</option></select>
               <button className="ui-button-secondary">Filtrar contratos</button>
             </form>
-            <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">{filteredContracts.map((contrato) => {
+            <div className="max-h-[540px] space-y-2 overflow-y-auto pr-1">{filteredContracts.map((contrato) => {
               const convenio = one(contrato.convenio);
+              const plano = contrato.plano_id ? planoMap.get(contrato.plano_id) : null;
               const selected = contrato.id === selectedContract?.id;
-              return <Link key={contrato.id} href={href({ contrato: contrato.id, aba: "resumo" })} className={`block rounded-xl border p-3 transition ${selected ? "border-brand-300 bg-brand-50" : "border-slate-100 hover:border-slate-200"}`}><div className="flex justify-between gap-2"><b className="min-w-0 truncate text-sm">{convenio?.nome_fantasia ?? "Convênio"}</b><Status status={contrato.status}/></div><p className="mt-1 text-xs text-slate-500">{contrato.numero_contrato || "Sem nº"} · ANS {convenio?.registro_ans || "—"}</p><p className="mt-1 text-[11px] text-slate-400">{contrato.data_inicio || "sem início"} → {contrato.data_fim || "vigência aberta"}</p></Link>;
+              return <Link key={contrato.id} href={href({ contrato: contrato.id, aba: "resumo" })} className={`block rounded-xl border p-3 transition ${selected ? "border-brand-300 bg-brand-50" : "border-slate-100 hover:border-slate-200"}`}><div className="flex justify-between gap-2"><b className="min-w-0 truncate text-sm">{convenio?.nome_fantasia ?? "Convênio"}</b><Status status={contrato.status}/></div><p className="mt-1 text-xs text-slate-500">{plano?.nome ?? "Todos os planos"} · {contrato.numero_contrato || "Sem nº"}</p><p className="mt-1 text-[11px] text-slate-400">ANS {convenio?.registro_ans || "—"} · {contrato.data_inicio || "sem início"} → {contrato.data_fim || "vigência aberta"}</p></Link>;
             })}{!filteredContracts.length ? <p className="py-6 text-center text-sm text-slate-500">Nenhum contrato encontrado.</p> : null}</div>
           </section>
 
-          {canEdit ? <details className="his-card p-4"><summary className="cursor-pointer text-sm font-black text-slate-800">+ Novo contrato</summary><form action={criarContratoCredenciamento} className="mt-4 grid gap-2"><select name="convenio_id" required defaultValue="" className="ui-input"><option value="">Convênio</option>{conveniosReq.data?.map((item) => <option key={item.id} value={item.id}>{item.nome_fantasia} · ANS {item.registro_ans || "—"}</option>)}</select><input name="numero_contrato" className="ui-input" placeholder="Número do contrato"/><div className="grid grid-cols-2 gap-2"><input type="date" name="data_inicio" className="ui-input"/><input type="date" name="data_fim" className="ui-input"/></div><select name="status" defaultValue="negociacao" className="ui-input"><option value="negociacao">Negociação</option><option value="ativo">Ativo</option></select><button className="ui-button-primary">Criar contrato</button></form></details> : null}
+          {canEdit ? <details className="his-card p-4"><summary className="cursor-pointer text-sm font-black text-slate-800">+ Novo contrato</summary><form action={criarContratoCredenciamento} className="mt-4 grid gap-2"><select name="convenio_id" required defaultValue="" className="ui-input"><option value="">Convênio</option>{conveniosReq.data?.map((item) => <option key={item.id} value={item.id}>{item.nome_fantasia} · ANS {item.registro_ans || "—"}</option>)}</select><input name="numero_contrato" className="ui-input" placeholder="Número do contrato"/><div className="grid grid-cols-2 gap-2"><input type="date" name="data_inicio" className="ui-input"/><input type="date" name="data_fim" className="ui-input"/></div><select name="status" defaultValue="negociacao" className="ui-input"><option value="negociacao">Negociação</option><option value="ativo">Ativo</option></select><button className="ui-button-primary">Criar contrato</button></form><p className="mt-2 text-[11px] leading-4 text-slate-400">Após criar, selecione o plano e finalize a parametrização no painel do contrato.</p></details> : null}
         </aside>
 
         <main className="min-w-0">
           {selectedContract ? <>
             <section className="his-card overflow-hidden">
               <div className="border-b border-slate-100 p-5">
-                <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-wider text-brand-600">Contrato selecionado</p><h2 className="mt-1 text-xl font-black text-slate-950">{selectedConvenio?.nome_fantasia ?? "Convênio"} · {selectedContract.numero_contrato || "Sem nº"}</h2><p className="mt-1 text-sm text-slate-500">ANS {selectedConvenio?.registro_ans || "—"} · {selectedContract.data_inicio || "—"} → {selectedContract.data_fim || "vigência aberta"}</p></div><Status status={selectedContract.status}/></div>
+                <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-wider text-brand-600">Contrato selecionado</p><h2 className="mt-1 text-xl font-black text-slate-950">{selectedConvenio?.nome_fantasia ?? "Convênio"} · {selectedContract.numero_contrato || "Sem nº"}</h2><p className="mt-1 text-sm text-slate-500">{selectedPlan?.nome ?? "Abrangência: todos os planos"} · ANS {selectedConvenio?.registro_ans || "—"} · {selectedContract.data_inicio || "—"} → {selectedContract.data_fim || "vigência aberta"}</p></div><Status status={selectedContract.status}/></div>
                 {linksVazios ? <Warning text={`${linksVazios} vínculo(s) deste contrato não possuem itens utilizáveis. A central seleciona automaticamente a primeira tabela com itens para facilitar a conferência.`}/> : null}
+                {linksSemBase ? <Warning text={`${linksSemBase} vínculo(s) de referência de preço ainda não têm base explícita. O motor não utilizará preço implícito para Brasíndice, CMED ou SIMPRO.`}/> : null}
               </div>
               <nav className="grid grid-cols-2 gap-1 bg-slate-50 p-2 lg:grid-cols-4">
-                <Tab active={aba === "resumo"} href={href({ ...context, aba: "resumo" })} label="Contrato" detail="Dados e vigência" />
-                <Tab active={aba === "negociacao"} href={href({ ...context, aba: "negociacao" })} label="Negociação" detail={`${vinculos.length} tabela(s)`} />
+                <Tab active={aba === "resumo"} href={href({ ...context, aba: "resumo" })} label="Contrato" detail="Abrangência e vigência" />
+                <Tab active={aba === "negociacao"} href={href({ ...context, aba: "negociacao" })} label="Tabelas / negociação" detail={`${vinculos.length} vínculo(s)`} />
                 <Tab active={aba === "itens"} href={href({ ...context, aba: "itens" })} label="Itens da tabela" detail={`${selectedItemTotal} item(ns)`} />
                 <Tab active={aba === "historico"} href={href({ ...context, aba: "historico" })} label="Histórico" detail={`${events.length} evento(s)`} />
               </nav>
             </section>
 
             {aba === "resumo" ? <section className="his-card mt-4 p-5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Info label="Pagamento" value={selectedContract.prazo_pagamento_dias ? `${selectedContract.prazo_pagamento_dias} dias` : "Não informado"}/><Info label="Reajuste" value={selectedContract.reajuste_indice || "Não informado"}/><Info label="Data-base" value={selectedContract.data_base_reajuste || "Não informada"}/><Info label="Contato" value={selectedContract.contato_comercial || selectedContract.email_comercial || "Não informado"}/></div>
-              <div className="mt-4 grid gap-3 md:grid-cols-3"><Info label="Tabelas vinculadas" value={String(vinculos.length)}/><Info label="Tabela selecionada" value={selectedLink ? fonteMap.get(selectedLink.fonte_id)?.nome ?? "—" : "Nenhuma"}/><Info label="Itens disponíveis" value={String(selectedItemTotal)}/></div>
-              <div className="mt-5 flex flex-wrap gap-2"><Link href={href({ ...context, aba: "negociacao" })} className="ui-button-primary"><Handshake className="size-4"/>Abrir negociação</Link><Link href={href({ ...context, aba: "itens" })} className="ui-button-secondary"><TableProperties className="size-4"/>Visualizar itens</Link><Link href="/comercial/regras" className="ui-button-secondary">Regras / pacotes</Link></div>
-              {canEdit ? <details className="mt-5 rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer font-black text-slate-800"><PencilLine className="mr-2 inline size-4"/>Editar dados do contrato</summary><form action={atualizarContratoComercial} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReturnFields contrato={selectedContract.id} aba="resumo"/><input type="hidden" name="contrato_id" value={selectedContract.id}/><input name="numero_contrato" defaultValue={selectedContract.numero_contrato ?? ""} className="ui-input" placeholder="Número"/><select name="status" defaultValue={selectedContract.status} className="ui-input"><option value="negociacao">Negociação</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option><option value="encerrado">Encerrado</option></select><input type="date" name="data_inicio" defaultValue={selectedContract.data_inicio ?? ""} className="ui-input"/><input type="date" name="data_fim" defaultValue={selectedContract.data_fim ?? ""} className="ui-input"/><input name="prazo_pagamento_dias" defaultValue={selectedContract.prazo_pagamento_dias ?? ""} className="ui-input" placeholder="Prazo pagamento (dias)"/><input name="reajuste_indice" defaultValue={selectedContract.reajuste_indice ?? ""} className="ui-input" placeholder="Índice reajuste"/><input name="data_base_reajuste" defaultValue={selectedContract.data_base_reajuste ?? ""} className="ui-input" placeholder="Data-base"/><input name="contato_comercial" defaultValue={selectedContract.contato_comercial ?? ""} className="ui-input" placeholder="Contato comercial"/><input name="email_comercial" defaultValue={selectedContract.email_comercial ?? ""} className="ui-input md:col-span-2" placeholder="E-mail comercial"/><textarea name="observacoes" defaultValue={selectedContract.observacoes ?? ""} className="ui-input min-h-20 md:col-span-2" placeholder="Observações"/><button className="ui-button-primary xl:col-span-4">Salvar contrato</button></form></details> : null}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Info label="Plano" value={selectedPlan?.nome ?? "Todos os planos"}/><Info label="Pagamento" value={selectedContract.prazo_pagamento_dias ? `${selectedContract.prazo_pagamento_dias} dias` : "Não informado"}/><Info label="Reajuste" value={selectedContract.reajuste_indice || "Não informado"}/><Info label="Data-base" value={selectedContract.data_base_reajuste || "Não informada"}/></div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Info label="Contato" value={selectedContract.contato_comercial || selectedContract.email_comercial || "Não informado"}/><Info label="Tabelas vinculadas" value={String(vinculos.length)}/><Info label="Tabela selecionada" value={selectedLink ? fonteMap.get(selectedLink.fonte_id)?.nome ?? "—" : "Nenhuma"}/><Info label="Itens disponíveis" value={String(selectedItemTotal)}/></div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <Guide icon={<Layers3 className="size-4"/>} title="Contexto contratual" text="Plano e unidade mais específicos vencem contratos gerais na data do serviço." />
+                <Guide icon={<CircleDollarSign className="size-4"/>} title="Preço explícito" text="Tabela fornece referência; contrato escolhe base, coeficientes e ajustes aplicáveis." />
+                <Guide icon={<ShieldCheck className="size-4"/>} title="Histórico protegido" text="Contas fechadas preservam o snapshot e não são recalculadas silenciosamente." />
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2"><Link href={href({ ...context, aba: "negociacao" })} className="ui-button-primary"><Handshake className="size-4"/>Abrir negociação</Link><Link href={href({ ...context, aba: "itens" })} className="ui-button-secondary"><TableProperties className="size-4"/>Visualizar itens</Link><Link href="/comercial/regras" className="ui-button-secondary">Regras / CBHPM / pacotes</Link></div>
+
+              {canEdit ? <details className="mt-5 rounded-2xl border border-slate-200 p-4"><summary className="cursor-pointer font-black text-slate-800"><PencilLine className="mr-2 inline size-4"/>Editar dados e abrangência</summary><CommercialContractBackgroundForm className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><input type="hidden" name="contrato_id" value={selectedContract.id}/><Field label="Número do contrato"><input name="numero_contrato" defaultValue={selectedContract.numero_contrato ?? ""} className="ui-input"/></Field><Field label="Status"><select name="status" defaultValue={selectedContract.status} className="ui-input"><option value="negociacao">Negociação</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option><option value="encerrado">Encerrado</option></select></Field><Field label="Plano / produto"><select name="plano_id" defaultValue={selectedContract.plano_id ?? ""} className="ui-input"><option value="">Todos os planos deste convênio</option>{contractPlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.codigo ? `${plan.codigo} · ` : ""}{plan.nome}{plan.acomodacao ? ` · ${plan.acomodacao}` : ""}</option>)}</select></Field><Field label="Prazo de pagamento"><input name="prazo_pagamento_dias" defaultValue={selectedContract.prazo_pagamento_dias ?? ""} className="ui-input" placeholder="Dias"/></Field><Field label="Início da vigência"><input type="date" name="data_inicio" defaultValue={selectedContract.data_inicio ?? ""} className="ui-input"/></Field><Field label="Fim da vigência"><input type="date" name="data_fim" defaultValue={selectedContract.data_fim ?? ""} className="ui-input"/></Field><Field label="Índice de reajuste"><input name="reajuste_indice" defaultValue={selectedContract.reajuste_indice ?? ""} className="ui-input" placeholder="Conforme contrato"/></Field><Field label="Data-base"><input name="data_base_reajuste" defaultValue={selectedContract.data_base_reajuste ?? ""} className="ui-input" placeholder="Ex.: janeiro"/></Field><Field label="Contato comercial"><input name="contato_comercial" defaultValue={selectedContract.contato_comercial ?? ""} className="ui-input"/></Field><Field label="E-mail comercial"><input name="email_comercial" defaultValue={selectedContract.email_comercial ?? ""} className="ui-input"/></Field><div className="md:col-span-2 xl:col-span-4"><Field label="Observações"><textarea name="observacoes" defaultValue={selectedContract.observacoes ?? ""} className="ui-input min-h-20"/></Field></div></CommercialContractBackgroundForm></details> : null}
             </section> : null}
 
             {aba === "negociacao" ? <section className="his-card mt-4 p-5">
-              <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-black text-slate-950">Tabelas e negociação</h2><p className="mt-1 text-sm text-slate-500">Escolha uma tabela para revisar edição, quantidade de itens e coeficientes contratados.</p></div><Link href="/comercial/tabelas" className="ui-button-secondary"><Database className="size-4"/>Fontes / importações</Link></div>
+              <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="font-black text-slate-950">Tabelas e negociação</h2><p className="mt-1 max-w-3xl text-sm text-slate-500">A prioridade define o fallback. Edição, base monetária e coeficientes são explícitos; a ausência de configuração obrigatória resulta em item sem preço contratual, nunca em valor inventado.</p></div><Link href="/comercial/tabelas" className="ui-button-secondary"><Database className="size-4"/>Fontes / importações</Link></div>
+
               <div className="mt-4 grid gap-3 lg:grid-cols-2">{vinculos.map((vinculo) => {
                 const fonte = fonteMap.get(vinculo.fonte_id);
                 const edicao = resolvedByLink.get(vinculo.id) ?? null;
                 const count = editionCount(edicao);
                 const active = selectedLink?.id === vinculo.id;
-                return <article key={vinculo.id} className={`rounded-2xl border p-4 ${active ? "border-brand-300 bg-brand-50/30" : count ? "border-slate-100" : "border-amber-200 bg-amber-50/30"}`}><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><b>{fonte?.nome ?? "Fonte"}</b><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase">{vinculo.categoria}</span></div><p className="mt-1 text-xs text-slate-500">{vinculo.modo_edicao === "edicao_fixa" ? "Edição fixa" : "Edição vigente na data"} · prioridade {vinculo.prioridade}</p></div><span className={`rounded-full px-2 py-1 text-xs font-black ${count ? "bg-emerald-50 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>{count} itens</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><Info label="Edição" value={edicao?.nome_edicao ?? "Não resolvida"}/><Info label="Ajuste" value={num(vinculo.percentual_ajuste, "%")}/><Info label="CH / HM / SADT" value={`${num(vinculo.valor_ch)} / ${num(vinculo.valor_hm)} / ${num(vinculo.valor_sadt)}`}/><Info label="Status" value={vinculo.ativo ? "Ativo" : "Inativo"}/></div><div className="mt-3 flex flex-wrap gap-2"><Link href={href({ contrato: selectedContract.id, vinculo: vinculo.id, edicao: edicao?.id, aba: "negociacao" })} className="ui-button-secondary">Editar negociação</Link>{edicao ? <Link href={href({ contrato: selectedContract.id, vinculo: vinculo.id, edicao: edicao.id, aba: "itens" })} className="ui-button-secondary">Ver itens <ArrowRight className="size-4"/></Link> : null}</div>{!edicao ? <Warning text="Nenhuma edição válida foi resolvida para este vínculo."/> : count === 0 ? <Warning text="A edição existe, mas está vazia. Importe/cadastre itens ou selecione outra versão."/> : null}</article>;
+                const missingBase = BASE_OBRIGATORIA.has(fonte?.tipo ?? "") && !vinculo.base_preco;
+                return <article key={vinculo.id} className={`rounded-2xl border p-4 ${active ? "border-brand-300 bg-brand-50/30" : missingBase || !count ? "border-amber-200 bg-amber-50/30" : "border-slate-100"}`}><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><b>{fonte?.nome ?? "Fonte"}</b><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase">{sourceTypeLabel(fonte?.tipo)}</span><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black uppercase">{vinculo.categoria}</span></div><p className="mt-1 text-xs text-slate-500">{vinculo.modo_edicao === "edicao_fixa" ? "Edição fixa" : "Edição vigente na data"} · prioridade {vinculo.prioridade}</p></div><span className={`rounded-full px-2 py-1 text-xs font-black ${count && !missingBase ? "bg-emerald-50 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>{count} itens</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><Info label="Edição" value={edicao?.nome_edicao ?? "Não resolvida"}/><Info label="Base de preço" value={baseLabel(vinculo.base_preco)}/><Info label="CH / HM / SADT" value={`${num(vinculo.valor_ch)} / ${num(vinculo.valor_hm)} / ${num(vinculo.valor_sadt)}`}/><Info label="UCO / filme m²" value={`${num(vinculo.valor_uco_contratual)} / ${num(vinculo.valor_filme_m2)}`}/></div><div className="mt-3 flex flex-wrap gap-2"><Link href={href({ contrato: selectedContract.id, vinculo: vinculo.id, edicao: edicao?.id, aba: "negociacao" })} className="ui-button-secondary">Editar negociação</Link>{edicao ? <Link href={href({ contrato: selectedContract.id, vinculo: vinculo.id, edicao: edicao.id, aba: "itens" })} className="ui-button-secondary">Ver itens <ArrowRight className="size-4"/></Link> : null}{fonte?.tipo === "cbhpm" ? <Link href="/comercial/regras" className="ui-button-secondary">Portes CBHPM</Link> : null}</div>{!edicao ? <Warning text="Nenhuma edição válida foi resolvida para este vínculo."/> : count === 0 ? <Warning text="A edição existe, mas está vazia. Importe/cadastre itens ou selecione outra versão."/> : null}{missingBase ? <Warning text="Esta fonte exige uma base de preço explícita antes de participar do cálculo contratual."/> : null}</article>;
               })}{!vinculos.length ? <Warning text="Nenhuma tabela comercial vinculada a este contrato."/> : null}</div>
 
-              {(canEdit || canTable) ? <details className="mt-5 rounded-2xl border border-slate-200 p-4"><summary className="cursor-pointer font-black text-slate-800">+ Vincular outra tabela ao contrato</summary><form action={vincularTabelaContratoWorkspace} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReturnFields contrato={selectedContract.id} aba="negociacao"/><input type="hidden" name="contrato_id" value={selectedContract.id}/><select name="fonte_id" required defaultValue="" className="ui-input"><option value="">Tabela / fonte *</option>{fontes.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.codigo} · {fonte.nome}</option>)}</select><select name="edicao_fixa_id" defaultValue="" className="ui-input"><option value="">Edição fixa</option>{edicoes.map((edicao) => <option key={edicao.id} value={edicao.id}>{fonteMap.get(edicao.fonte_id)?.codigo ?? "Tabela"} · {edicao.nome_edicao} · {editionCount(edicao)} itens</option>)}</select><select name="categoria" defaultValue="geral" className="ui-input"><option value="geral">Geral</option><option value="procedimentos">Procedimentos</option><option value="diarias_taxas">Diárias / taxas</option><option value="materiais_opme">Materiais / OPME</option><option value="medicamentos">Medicamentos</option></select><select name="modo_edicao" defaultValue="edicao_fixa" className="ui-input"><option value="edicao_fixa">Edição fixa</option><option value="vigente_na_data">Vigente na data</option></select><input name="percentual_ajuste" defaultValue="0" className="ui-input" placeholder="Ajuste %"/><input name="prioridade" defaultValue="100" className="ui-input" placeholder="Prioridade"/><input name="valor_ch" className="ui-input" placeholder="Valor CH"/><input name="valor_hm" className="ui-input" placeholder="Valor HM"/><input name="valor_sadt" className="ui-input" placeholder="Valor SADT"/><input name="valor_uco_contratual" className="ui-input" placeholder="UCO contratual"/><input name="urgencia_percentual" defaultValue="0" className="ui-input" placeholder="Urgência %"/><input name="apartamento_percentual" defaultValue="0" className="ui-input" placeholder="Apartamento %"/><input name="arredondamento_casas" defaultValue="2" className="ui-input" placeholder="Casas decimais"/><input name="horario_especial_regra" className="ui-input" placeholder="Regra de horário especial"/><textarea name="observacoes" className="ui-input min-h-20 md:col-span-2 xl:col-span-4" placeholder="Observações da negociação"/><button className="ui-button-primary md:col-span-2 xl:col-span-4">Vincular tabela</button></form></details> : null}
+              {(canEdit || canTable) ? <details className="mt-5 rounded-2xl border border-slate-200 p-4"><summary className="cursor-pointer font-black text-slate-800">+ Vincular tabela ao contrato</summary><p className="mt-2 text-xs leading-5 text-slate-500">Use uma categoria específica quando a mesma fonte tiver papéis diferentes no contrato. Para Brasíndice, CMED e SIMPRO, escolha a base monetária prevista no instrumento contratual.</p><CommercialTableLinkBackgroundForm className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><input type="hidden" name="contrato_id" value={selectedContract.id}/><Field label="Tabela / fonte"><select name="fonte_id" required defaultValue="" className="ui-input"><option value="">Selecione *</option>{fontes.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.codigo} · {fonte.nome} · {sourceTypeLabel(fonte.tipo)}</option>)}</select></Field><Field label="Categoria"><CategorySelect /></Field><Field label="Modo da edição"><select name="modo_edicao" defaultValue="vigente_na_data" className="ui-input"><option value="vigente_na_data">Vigente na data do serviço</option><option value="edicao_fixa">Edição fixa</option></select></Field><Field label="Edição fixa"><select name="edicao_fixa_id" defaultValue="" className="ui-input"><option value="">Sem edição fixa</option>{edicoes.map((edicao) => <option key={edicao.id} value={edicao.id}>{fonteMap.get(edicao.fonte_id)?.codigo ?? "Tabela"} · {edicao.nome_edicao} · {editionCount(edicao)} itens</option>)}</select></Field><Field label="Base de preço"><BasePriceSelect /></Field><Field label="Ajuste %"><input name="percentual_ajuste" defaultValue="0" className="ui-input" inputMode="decimal"/></Field><Field label="Prioridade"><input name="prioridade" defaultValue="100" className="ui-input" inputMode="numeric"/></Field><Field label="Casas decimais"><input name="arredondamento_casas" defaultValue="2" className="ui-input" inputMode="numeric"/></Field><Field label="Valor CH"><input name="valor_ch" className="ui-input" inputMode="decimal"/></Field><Field label="Valor HM"><input name="valor_hm" className="ui-input" inputMode="decimal"/></Field><Field label="Valor SADT"><input name="valor_sadt" className="ui-input" inputMode="decimal"/></Field><Field label="UCO contratual"><input name="valor_uco_contratual" className="ui-input" inputMode="decimal"/></Field><Field label="Filme radiológico / m²"><input name="valor_filme_m2" className="ui-input" inputMode="decimal"/></Field><Field label="Urgência %"><input name="urgencia_percentual" defaultValue="0" className="ui-input" inputMode="decimal"/></Field><Field label="Acomodação individual %"><input name="apartamento_percentual" defaultValue="0" className="ui-input" inputMode="decimal"/></Field><Field label="Horário especial %"><input name="horario_especial_percentual" defaultValue="0" className="ui-input" inputMode="decimal"/></Field><div className="md:col-span-2 xl:col-span-4"><Field label="Observações da negociação"><textarea name="observacoes" className="ui-input min-h-20"/></Field></div></CommercialTableLinkBackgroundForm></details> : null}
 
-              {selectedLink ? <div className="mt-5 rounded-2xl border border-brand-100 bg-brand-50/30 p-4"><div className="flex items-center gap-2"><PencilLine className="size-5 text-brand-700"/><div><h3 className="font-black">Editar negociação selecionada · {fonteMap.get(selectedLink.fonte_id)?.nome}</h3><p className="text-xs text-slate-500">Os coeficientes abaixo são os usados na resolução contratual.</p></div></div>{canEdit || canTable ? <form action={atualizarNegociacaoTabela} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><ReturnFields contrato={selectedContract.id} vinculo={selectedLink.id} edicao={selectedEdition?.id} aba="negociacao"/><input type="hidden" name="vinculo_id" value={selectedLink.id}/><select name="modo_edicao" defaultValue={selectedLink.modo_edicao} className="ui-input"><option value="vigente_na_data">Edição vigente na data</option><option value="edicao_fixa">Edição fixa</option></select><select name="edicao_fixa_id" defaultValue={selectedLink.edicao_fixa_id ?? ""} className="ui-input"><option value="">Sem edição fixa</option>{sourceEditions.map((item) => <option key={item.id} value={item.id}>{item.nome_edicao} · {item.status} · {editionCount(item)} itens</option>)}</select><input name="percentual_ajuste" defaultValue={selectedLink.percentual_ajuste ?? 0} className="ui-input" placeholder="Ajuste %"/><input name="prioridade" defaultValue={selectedLink.prioridade} className="ui-input" placeholder="Prioridade"/><input name="valor_ch" defaultValue={selectedLink.valor_ch ?? ""} className="ui-input" placeholder="Valor CH"/><input name="valor_hm" defaultValue={selectedLink.valor_hm ?? ""} className="ui-input" placeholder="Valor HM"/><input name="valor_sadt" defaultValue={selectedLink.valor_sadt ?? ""} className="ui-input" placeholder="Valor SADT"/><input name="valor_uco_contratual" defaultValue={selectedLink.valor_uco_contratual ?? ""} className="ui-input" placeholder="UCO contratual"/><input name="urgencia_percentual" defaultValue={String(selectedLink.regras_adicionais?.urgencia_percentual ?? "")} className="ui-input" placeholder="Urgência %"/><input name="apartamento_percentual" defaultValue={String(selectedLink.regras_adicionais?.apartamento_percentual ?? "")} className="ui-input" placeholder="Apartamento %"/><input name="horario_especial_regra" defaultValue={String(selectedLink.regras_adicionais?.horario_especial_regra ?? "")} className="ui-input md:col-span-2" placeholder="Regra de horário especial"/><input name="arredondamento_casas" defaultValue={selectedLink.arredondamento_casas} className="ui-input" placeholder="Casas decimais"/><label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold"><input type="checkbox" name="ativo" defaultChecked={selectedLink.ativo}/>Vínculo ativo</label><textarea name="observacoes" defaultValue={selectedLink.observacoes ?? ""} className="ui-input min-h-20 md:col-span-2" placeholder="Observações"/><button className="ui-button-primary md:col-span-2 xl:col-span-4">Salvar negociação</button></form> : <p className="mt-4 text-sm text-slate-500">Seu perfil possui leitura, mas não edição.</p>}</div> : null}
+              {selectedLink ? <div className="mt-5 rounded-2xl border border-brand-100 bg-brand-50/30 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-center gap-2"><PencilLine className="size-5 text-brand-700"/><div><h3 className="font-black">Negociação selecionada · {fonteMap.get(selectedLink.fonte_id)?.nome}</h3><p className="text-xs text-slate-500">Os campos abaixo alimentam diretamente a resolução contratual e a memória de cálculo.</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">{sourceTypeLabel(fonteMap.get(selectedLink.fonte_id)?.tipo)} · {selectedLink.categoria}</span></div>{canEdit || canTable ? <CommercialNegotiationBackgroundForm className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><input type="hidden" name="vinculo_id" value={selectedLink.id}/><Field label="Modo da edição"><select name="modo_edicao" defaultValue={selectedLink.modo_edicao} className="ui-input"><option value="vigente_na_data">Vigente na data do serviço</option><option value="edicao_fixa">Edição fixa</option></select></Field><Field label="Edição fixa"><select name="edicao_fixa_id" defaultValue={selectedLink.edicao_fixa_id ?? ""} className="ui-input"><option value="">Sem edição fixa</option>{sourceEditions.map((item) => <option key={item.id} value={item.id}>{item.nome_edicao} · {item.status} · {editionCount(item)} itens</option>)}</select></Field><Field label="Base de preço"><BasePriceSelect defaultValue={selectedLink.base_preco ?? ""}/></Field><Field label="Ajuste %"><input name="percentual_ajuste" defaultValue={selectedLink.percentual_ajuste ?? 0} className="ui-input" inputMode="decimal"/></Field><Field label="Prioridade"><input name="prioridade" defaultValue={selectedLink.prioridade} className="ui-input" inputMode="numeric"/></Field><Field label="Casas decimais"><input name="arredondamento_casas" defaultValue={selectedLink.arredondamento_casas} className="ui-input" inputMode="numeric"/></Field><Field label="Valor CH"><input name="valor_ch" defaultValue={selectedLink.valor_ch ?? ""} className="ui-input" inputMode="decimal"/></Field><Field label="Valor HM"><input name="valor_hm" defaultValue={selectedLink.valor_hm ?? ""} className="ui-input" inputMode="decimal"/></Field><Field label="Valor SADT"><input name="valor_sadt" defaultValue={selectedLink.valor_sadt ?? ""} className="ui-input" inputMode="decimal"/></Field><Field label="UCO contratual"><input name="valor_uco_contratual" defaultValue={selectedLink.valor_uco_contratual ?? ""} className="ui-input" inputMode="decimal"/></Field><Field label="Filme radiológico / m²"><input name="valor_filme_m2" defaultValue={selectedLink.valor_filme_m2 ?? ""} className="ui-input" inputMode="decimal"/></Field><Field label="Urgência %"><input name="urgencia_percentual" defaultValue={String(selectedLink.regras_adicionais?.urgencia_percentual ?? 0)} className="ui-input" inputMode="decimal"/></Field><Field label="Acomodação individual %"><input name="apartamento_percentual" defaultValue={String(selectedLink.regras_adicionais?.apartamento_percentual ?? 0)} className="ui-input" inputMode="decimal"/></Field><Field label="Horário especial %"><input name="horario_especial_percentual" defaultValue={String(selectedLink.regras_adicionais?.horario_especial_percentual ?? 0)} className="ui-input" inputMode="decimal"/></Field><label className="flex items-center gap-2 self-end rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold"><input type="checkbox" name="ativo" defaultChecked={selectedLink.ativo}/>Vínculo ativo</label><div className="md:col-span-2 xl:col-span-4"><Field label="Observações"><textarea name="observacoes" defaultValue={selectedLink.observacoes ?? ""} className="ui-input min-h-20"/></Field></div></CommercialNegotiationBackgroundForm> : <p className="mt-4 text-sm text-slate-500">Seu perfil possui leitura, mas não edição.</p>}</div> : null}
             </section> : null}
 
             {aba === "itens" ? <section className="his-card mt-4 p-5">
@@ -377,6 +444,14 @@ export default async function ComercialPage({ searchParams }: { searchParams: Pr
       </div>
     </SectionPage>
   );
+}
+
+function CategorySelect() {
+  return <select name="categoria" defaultValue="geral" className="ui-input">{CATEGORIAS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>;
+}
+
+function BasePriceSelect({ defaultValue = "" }: { defaultValue?: string }) {
+  return <select name="base_preco" defaultValue={defaultValue} className="ui-input"><option value="">Não se aplica / metodologia própria</option><option value="valor_referencia">Valor de referência</option><option value="valor_fabrica">Preço fábrica (PF)</option><option value="valor_pmc">Preço máximo ao consumidor (PMC)</option><option value="valor_maximo">Valor máximo</option></select>;
 }
 
 function ReturnFields({ contrato, vinculo, edicao, aba }: { contrato: string; vinculo?: string | null; edicao?: string | null; aba?: string | null }) {
@@ -409,12 +484,49 @@ function ItemForm({ contrato, vinculo, edicao, item }: { contrato: string; vincu
   </form>;
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="grid gap-1 text-xs font-semibold text-slate-500"><span>{label}</span>{children}</label>;
+}
+
 function Tab({ active, href: target, label, detail }: { active: boolean; href: Route; label: string; detail: string }) {
   return <Link href={target} className={`rounded-xl px-3 py-3 transition ${active ? "bg-white text-brand-800 shadow-sm ring-1 ring-brand-100" : "text-slate-600 hover:bg-white/70"}`}><span className="block text-sm font-black">{label}</span><span className="mt-0.5 block text-[11px] text-slate-400">{detail}</span></Link>;
 }
-function Status({ status }: { status: string }) { const style = status === "ativo" ? "bg-emerald-50 text-emerald-700" : status === "negociacao" ? "bg-blue-50 text-blue-700" : status === "suspenso" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"; return <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${style}`}>{status}</span>; }
-function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 break-words text-sm font-semibold text-slate-800">{value}</p></div>; }
-function Warning({ text }: { text: string }) { return <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"><AlertTriangle className="mt-0.5 size-4 shrink-0"/>{text}</div>; }
-function Notice({ ok = false, text }: { ok?: boolean; text: string }) { return <div className={`mb-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${ok ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0"/> : <AlertTriangle className="mt-0.5 size-4 shrink-0"/>}{text}</div>; }
-function JsonBlock({ title, value }: { title: string; value: Record<string, unknown> | null }) { return <div className="min-w-0 rounded-xl bg-slate-50 p-3"><p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-400">{title}</p><pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words text-[11px] text-slate-600">{value ? JSON.stringify(value, null, 2) : "—"}</pre></div>; }
-function eventLabel(type: string) { return ({ credenciamento_contratos: "Contrato", contrato_tabelas_comerciais: "Negociação / vínculo", contrato_regras_procedimentos: "Regra de procedimento", contrato_regras_faturamento: "Regra de faturamento", contrato_pacotes: "Pacote", contrato_pacote_itens: "Item de pacote", tabelas_comerciais_fontes: "Fonte comercial", tabelas_comerciais_edicoes: "Edição da tabela", tabelas_comerciais_itens: "Item da tabela" } as Record<string, string>)[type] ?? type.replaceAll("_", " "); }
+
+function Status({ status }: { status: string }) {
+  const style = status === "ativo" ? "bg-emerald-50 text-emerald-700" : status === "negociacao" ? "bg-blue-50 text-blue-700" : status === "suspenso" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600";
+  return <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${style}`}>{status}</span>;
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3"><div className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</div><div className="mt-1 text-sm font-bold text-slate-800">{value}</div></div>;
+}
+
+function Guide({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+  return <div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-center gap-2 text-sm font-semibold text-slate-950">{icon}{title}</div><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div>;
+}
+
+function Warning({ text }: { text: string }) {
+  return <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900"><AlertTriangle className="mt-0.5 size-4 shrink-0"/>{text}</div>;
+}
+
+function Notice({ text, ok = false }: { text: string; ok?: boolean }) {
+  return <div className={`mb-4 mt-4 rounded-xl border px-4 py-3 text-sm font-semibold ${ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{text}</div>;
+}
+
+function eventLabel(value: string) {
+  const labels: Record<string, string> = {
+    credenciamento_contratos: "Contrato",
+    contrato_tabelas_comerciais: "Vínculo de tabela",
+    contrato_regras_faturamento: "Regra contratual",
+    contrato_pacotes: "Pacote",
+    contrato_pacote_itens: "Item do pacote",
+    contrato_cbhpm_portes: "Porte CBHPM",
+    tabelas_comerciais_edicoes: "Edição de tabela",
+    tabelas_comerciais_itens: "Item de tabela",
+  };
+  return labels[value] ?? value;
+}
+
+function JsonBlock({ title, value }: { title: string; value: Record<string, unknown> | null }) {
+  return <div className="rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><div className="mb-2 font-black text-slate-400">{title}</div><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(value ?? {}, null, 2)}</pre></div>;
+}
