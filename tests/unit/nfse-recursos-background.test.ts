@@ -33,7 +33,7 @@ describe("NFS-e e recursos de glosa", () => {
 
   it("expõe o recurso de glosa com visão financeira e retorno por RPC transacional", () => {
     const page = read("src/app/(painel)/faturamento/recursos/[recursoId]/page.tsx");
-    const actions = read("src/modules/faturamento/recurso-retorno-background-actions.ts");
+    const actions = read("src/modules/tiss/recurso-background-actions.ts");
     const modal = read("src/components/faturamento/recurso-retorno-modal.tsx");
 
     expect(page).toContain("Resultado financeiro do recurso");
