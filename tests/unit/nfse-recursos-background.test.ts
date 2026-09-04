@@ -31,16 +31,22 @@ describe("NFS-e e recursos de glosa", () => {
     expect(page).toContain("Emitir via integração");
   });
 
-  it("expõe o recurso de glosa com visão financeira sem inventar mutação de retorno", () => {
+  it("expõe o recurso de glosa com visão financeira e retorno por RPC transacional", () => {
     const page = read("src/app/(painel)/faturamento/recursos/[recursoId]/page.tsx");
+    const actions = read("src/modules/faturamento/recurso-retorno-background-actions.ts");
+    const modal = read("src/components/faturamento/recurso-retorno-modal.tsx");
 
     expect(page).toContain("Resultado financeiro do recurso");
     expect(page).toContain("Linha do tempo");
-    expect(page).toContain("Governança do retorno e XML");
+    expect(page).toContain("Retorno financeiro transacional");
     expect(page).toContain("valor_deferido");
     expect(page).toContain("valor_indeferido");
     expect(page).toContain("Aguardando retorno");
-    expect(page).toContain("O sistema não grava retorno financeiro por DML direto");
+    expect(page).toContain("sem DML direto pela interface");
+    expect(page).toContain("RecursoRetornoModal");
+    expect(actions).toContain("registrar_retorno_recurso_glosa_transacional");
+    expect(modal).toContain("useActionState");
+    expect(modal).toContain('aria-live="polite"');
     expect(page).not.toContain('.from("tiss_recurso_itens").update(');
     expect(page).not.toContain('.from("tiss_recursos_glosa").update(');
   });
