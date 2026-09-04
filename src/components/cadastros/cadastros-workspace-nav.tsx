@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { ArrowLeftRight, BadgeCheck, BookOpenCheck, Building2, Calculator, ClipboardCheck, Handshake, ReceiptText, Scale, ShieldCheck, Stethoscope, Unlink, UsersRound } from "lucide-react";
+import { ArrowLeftRight, BadgeCheck, BookOpenCheck, Building2, Calculator, ClipboardCheck, Grid3X3, Handshake, ReceiptText, Scale, ShieldCheck, Stethoscope, Unlink, UsersRound } from "lucide-react";
 
 const items=[
   {href:"/cadastros/tiss",label:"Prontidão TISS",icon:ShieldCheck},
@@ -12,6 +12,7 @@ const items=[
   {href:"/comercial/vinculos",label:"Vínculos e histórico",icon:Unlink},
   {href:"/comercial/prontidao",label:"Prontidão comercial",icon:ClipboardCheck},
   {href:"/comercial/simulador",label:"Simulador de preço",icon:Calculator},
+  {href:"/comercial/matriz",label:"Matriz de cenários",icon:Grid3X3},
   {href:"/comercial/homologacao",label:"Homologação comercial",icon:BadgeCheck},
   {href:"/comercial/tabelas",label:"Fontes e edições",icon:ReceiptText},
   {href:"/comercial/regras",label:"Regras, CBHPM e pacotes",icon:Scale},
