@@ -2,27 +2,50 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpenCheck, CircleAlert, Search, UsersRound } from "lucide-react";
 import type { KnowledgeBaseArticle } from "@/modules/knowledge-base/articles";
 
 type Props = {
   articles: KnowledgeBaseArticle[];
   categories: string[];
+  audiences: string[];
 };
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-export function KnowledgeBaseBrowser({ articles, categories }: Props) {
+export function KnowledgeBaseBrowser({ articles, categories, audiences }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
+  const [audience, setAudience] = useState("Todos os perfis");
+
+  useEffect(() => {
+    const openContextArticle = () => {
+      const slug = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+      if (!slug) return;
+      setCategory("Todas");
+      setAudience("Todos os perfis");
+      setQuery("");
+      window.requestAnimationFrame(() => {
+        const article = document.getElementById(slug);
+        const details = article?.querySelector("details");
+        if (details instanceof HTMLDetailsElement) details.open = true;
+        article?.scrollIntoView({ block: "start" });
+      });
+    };
+
+    openContextArticle();
+    window.addEventListener("hashchange", openContextArticle);
+    return () => window.removeEventListener("hashchange", openContextArticle);
+  }, []);
 
   const filtered = useMemo(() => {
     const needle = normalize(query.trim());
     return articles.filter((article) => {
       if (category !== "Todas" && article.category !== category) return false;
+      if (audience !== "Todos os perfis" && !article.audience.includes(audience)) return false;
       if (!needle) return true;
       const haystack = normalize([
         article.title,
@@ -34,12 +57,14 @@ export function KnowledgeBaseBrowser({ articles, categories }: Props) {
       ].join(" "));
       return haystack.includes(needle);
     });
-  }, [articles, category, query]);
+  }, [articles, audience, category, query]);
+
+  const hasActiveFilters = Boolean(query.trim()) || category !== "Todas" || audience !== "Todos os perfis";
 
   return (
     <div>
       <div className="ui-card p-5">
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+        <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(12rem,18rem)_auto]">
           <label className="relative block">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -50,7 +75,20 @@ export function KnowledgeBaseBrowser({ articles, categories }: Props) {
               aria-label="Pesquisar na base de conhecimento"
             />
           </label>
-          <div className="flex max-w-full gap-2 overflow-x-auto pb-1 lg:max-w-[46rem]">
+
+          <label className="block">
+            <span className="sr-only">Filtrar por perfil operacional</span>
+            <select
+              value={audience}
+              onChange={(event) => setAudience(event.target.value)}
+              className="ui-input w-full"
+              aria-label="Filtrar por perfil operacional"
+            >
+              {audiences.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+
+          <div className="flex max-w-full gap-2 overflow-x-auto pb-1 xl:max-w-[46rem]">
             {categories.map((item) => (
               <button
                 key={item}
@@ -63,7 +101,19 @@ export function KnowledgeBaseBrowser({ articles, categories }: Props) {
             ))}
           </div>
         </div>
-        <p className="mt-3 text-xs text-slate-500">{filtered.length} artigo(s) encontrado(s). A busca considera títulos, etapas, público e palavras-chave.</p>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-slate-500">{filtered.length} artigo(s) encontrado(s). A busca considera títulos, etapas, público e palavras-chave.</p>
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              onClick={() => { setQuery(""); setCategory("Todas"); setAudience("Todos os perfis"); }}
+              className="text-xs font-black text-brand-700 hover:text-brand-900"
+            >
+              Limpar filtros
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {filtered.length ? (
@@ -118,7 +168,7 @@ export function KnowledgeBaseBrowser({ articles, categories }: Props) {
         <div className="ui-card mt-5 p-8 text-center">
           <Search className="mx-auto size-8 text-slate-300" />
           <h2 className="mt-3 font-black text-slate-800">Nenhum artigo encontrado</h2>
-          <p className="mt-1 text-sm text-slate-500">Tente outro termo ou selecione a categoria “Todas”.</p>
+          <p className="mt-1 text-sm text-slate-500">Tente outro termo, outro perfil ou selecione a categoria “Todas”.</p>
         </div>
       )}
     </div>

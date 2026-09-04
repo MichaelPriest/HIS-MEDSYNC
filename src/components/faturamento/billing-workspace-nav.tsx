@@ -38,8 +38,18 @@ const items: BillingWorkspaceItem[] = [
   { href: "/financeiro", label: "Financeiro", detail: "Conciliação e caixa", icon: Banknote, exact: true },
 ];
 
+function helpHrefFor(pathname: string) {
+  if (pathname.startsWith("/faturamento/recursos")) return "/manual#faturamento-recurso-glosa-retorno";
+  if (pathname.startsWith("/faturamento/glosas")) return "/manual#faturamento-glosa-analise";
+  if (pathname.startsWith("/faturamento/guias") || pathname.startsWith("/faturamento/lotes")) return "/manual#faturamento-tiss-guia-lote";
+  if (pathname.startsWith("/financeiro/recebiveis") || pathname.startsWith("/financeiro/notas-fiscais") || pathname === "/financeiro") return "/manual#financeiro-recebiveis-nfse";
+  if (pathname.includes("procedimentos-cirurgicos")) return "/manual#faturamento-equipe-cirurgica-amb-cbhpm";
+  return "/manual#faturamento-conta-producao";
+}
+
 export function BillingWorkspaceNav() {
   const pathname = usePathname();
+  const helpHref = helpHrefFor(pathname) as Route;
 
   return <div className="border-b border-slate-200 bg-white/95 backdrop-blur">
     <div className="mx-auto w-full max-w-[1680px] px-4 py-3 sm:px-6 lg:px-8">
@@ -49,7 +59,7 @@ export function BillingWorkspaceNav() {
           <p className="mt-0.5 text-sm font-black text-slate-900">Faturamento hospitalar</p>
           <p className="text-xs font-semibold text-slate-500">Conta → produção → TISS → glosa → recebimento</p>
         </div>
-        <Link href="/manual" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-brand-700 shadow-sm transition hover:border-brand-200 hover:bg-brand-50">Ajuda do módulo</Link>
+        <Link href={helpHref} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-brand-700 shadow-sm transition hover:border-brand-200 hover:bg-brand-50">Ajuda desta etapa</Link>
       </div>
       <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Navegação do ciclo da receita">
         {items.map((item) => {
