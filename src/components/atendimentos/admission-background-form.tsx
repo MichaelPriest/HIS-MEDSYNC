@@ -2,7 +2,7 @@
 
 import type { ComponentProps, FormEvent } from "react";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, CircleCheck, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CircleAlert, CircleCheck, ExternalLink, Loader2, ShieldCheck, TriangleAlert } from "lucide-react";
 import { AdmissionForm } from "@/components/atendimentos/admission-form";
 import {
   INITIAL_BACKGROUND_ACTION_STATE,
@@ -34,6 +34,8 @@ type AdmissionReadiness = {
 };
 
 type ReadinessStatus = "idle" | "checking" | "ready" | "blocked" | "unavailable";
+type ReadinessContext = Record<string, string | boolean>;
+type ReadinessAction = { href: string; label: string };
 
 const READINESS_FIELDS = [
   "paciente_id",
@@ -62,6 +64,22 @@ const READINESS_FIELDS = [
   "indicacao_clinica",
   "identificacao_metodo",
 ] as const;
+
+const PROFESSIONAL_SOURCE_CODES = new Set([
+  "ADMISSAO_CONSELHO_INCOMPLETO",
+  "ADMISSAO_CBO_AUSENTE",
+  "ADMISSAO_PROFISSIONAL_REVISAR_HABILITACAO",
+]);
+
+const CONVENIO_SOURCE_CODES = new Set([
+  "ADMISSAO_REGISTRO_ANS_AUSENTE",
+  "ADMISSAO_CONFIG_CARTEIRINHA_REGEX_INVALIDA",
+]);
+
+const TISS_SOURCE_CODES = new Set([
+  "ADMISSAO_CNES_AUSENTE",
+  "ADMISSAO_TUSS_NAO_CADASTRADO",
+]);
 
 const FRIENDLY_ACTION_ERRORS: Record<string, string> = {
   "campos-obrigatorios": "Complete os dados obrigatórios do paciente e do atendimento.",
@@ -92,7 +110,7 @@ function text(formData: FormData, key: string) {
 
 function readinessInput(form: HTMLFormElement) {
   const formData = new FormData(form);
-  const payload: Record<string, string | boolean> = {};
+  const payload: ReadinessContext = {};
 
   for (const field of READINESS_FIELDS) payload[field] = text(formData, field);
 
@@ -115,6 +133,35 @@ function normalizeReadiness(value: unknown): AdmissionReadiness | null {
   };
 }
 
+function contextText(context: ReadinessContext, key: string) {
+  const value = context[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readinessAction(issue: ReadinessIssue, context: ReadinessContext): ReadinessAction | null {
+  const patientId = contextText(context, "paciente_id");
+  const professionalId = contextText(context, "profissional_id");
+  const convenioId = contextText(context, "convenio_id");
+
+  if (issue.codigo === "ADMISSAO_CAMPOS_OBRIGATORIOS" && patientId) {
+    return { href: `/pacientes/${encodeURIComponent(patientId)}`, label: "Corrigir paciente" };
+  }
+
+  if (PROFESSIONAL_SOURCE_CODES.has(issue.codigo) && professionalId) {
+    return { href: `/profissionais/${encodeURIComponent(professionalId)}`, label: "Corrigir profissional" };
+  }
+
+  if (CONVENIO_SOURCE_CODES.has(issue.codigo) && convenioId) {
+    return { href: `/convenios/${encodeURIComponent(convenioId)}`, label: "Corrigir convênio" };
+  }
+
+  if (TISS_SOURCE_CODES.has(issue.codigo)) {
+    return { href: "/cadastros/tiss", label: "Abrir cadastros TISS" };
+  }
+
+  return null;
+}
+
 export function AdmissionBackgroundForm({ action, ...props }: Props) {
   const [state, formAction, pending] = useActionState(
     action,
@@ -126,6 +173,7 @@ export function AdmissionBackgroundForm({ action, ...props }: Props) {
   const requestRef = useRef(0);
   const checkedSignatureRef = useRef<string | null>(null);
   const [readiness, setReadiness] = useState<AdmissionReadiness | null>(null);
+  const [readinessContext, setReadinessContext] = useState<ReadinessContext>({});
   const [readinessStatus, setReadinessStatus] = useState<ReadinessStatus>("idle");
 
   const validateCurrent = useCallback(async () => {
@@ -157,6 +205,7 @@ export function AdmissionBackgroundForm({ action, ...props }: Props) {
     }
 
     checkedSignatureRef.current = signature;
+    setReadinessContext(payload);
     setReadiness(result);
     setReadinessStatus(result.pronto ? "ready" : "blocked");
   }, [props.unidadeId, supabase]);
@@ -172,6 +221,20 @@ export function AdmissionBackgroundForm({ action, ...props }: Props) {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
       requestRef.current += 1;
+    };
+  }, [queueCheck]);
+
+  useEffect(() => {
+    const recheckOnFocus = () => queueCheck();
+    const recheckWhenVisible = () => {
+      if (document.visibilityState === "visible") queueCheck();
+    };
+
+    window.addEventListener("focus", recheckOnFocus);
+    document.addEventListener("visibilitychange", recheckWhenVisible);
+    return () => {
+      window.removeEventListener("focus", recheckOnFocus);
+      document.removeEventListener("visibilitychange", recheckWhenVisible);
     };
   }, [queueCheck]);
 
@@ -207,7 +270,7 @@ export function AdmissionBackgroundForm({ action, ...props }: Props) {
         ) : null}
       </div>
 
-      <ReadinessPanel status={readinessStatus} readiness={readiness} />
+      <ReadinessPanel status={readinessStatus} readiness={readiness} context={readinessContext} />
 
       <div
         ref={containerRef}
@@ -223,7 +286,15 @@ export function AdmissionBackgroundForm({ action, ...props }: Props) {
   );
 }
 
-function ReadinessPanel({ status, readiness }: { status: ReadinessStatus; readiness: AdmissionReadiness | null }) {
+function ReadinessPanel({
+  status,
+  readiness,
+  context,
+}: {
+  status: ReadinessStatus;
+  readiness: AdmissionReadiness | null;
+  context: ReadinessContext;
+}) {
   if (status === "idle" || status === "checking") {
     return (
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700" aria-live="polite">
@@ -246,7 +317,7 @@ function ReadinessPanel({ status, readiness }: { status: ReadinessStatus; readin
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" aria-live="polite">
         <div className="flex items-start gap-3"><CircleCheck className="mt-0.5 size-5 shrink-0" /><div><strong>Pronto para abrir o atendimento.</strong><p className="mt-0.5 text-xs text-emerald-800">Os dados essenciais estão consistentes para seguir no fluxo.</p></div></div>
-        {readiness.alertas.length ? <IssueList title={`${readiness.total_alertas} alerta(s) para revisão`} issues={readiness.alertas} tone="amber" /> : null}
+        {readiness.alertas.length ? <IssueList title={`${readiness.total_alertas} alerta(s) para revisão`} issues={readiness.alertas} tone="amber" context={context} /> : null}
       </div>
     );
   }
@@ -255,8 +326,8 @@ function ReadinessPanel({ status, readiness }: { status: ReadinessStatus; readin
     return (
       <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900" aria-live="polite">
         <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-5 shrink-0" /><div><strong>{readiness.total_bloqueios} pendência(s) impedem a abertura.</strong><p className="mt-0.5 text-xs text-rose-800">Corrija os itens abaixo; a conferência será refeita automaticamente.</p></div></div>
-        <IssueList title="Corrigir antes de abrir" issues={readiness.bloqueios} tone="rose" />
-        {readiness.alertas.length ? <IssueList title="Alertas adicionais" issues={readiness.alertas} tone="amber" /> : null}
+        <IssueList title="Corrigir antes de abrir" issues={readiness.bloqueios} tone="rose" context={context} />
+        {readiness.alertas.length ? <IssueList title="Alertas adicionais" issues={readiness.alertas} tone="amber" context={context} /> : null}
       </div>
     );
   }
@@ -264,13 +335,42 @@ function ReadinessPanel({ status, readiness }: { status: ReadinessStatus; readin
   return null;
 }
 
-function IssueList({ title, issues, tone }: { title: string; issues: ReadinessIssue[]; tone: "rose" | "amber" }) {
+function IssueList({
+  title,
+  issues,
+  tone,
+  context,
+}: {
+  title: string;
+  issues: ReadinessIssue[];
+  tone: "rose" | "amber";
+  context: ReadinessContext;
+}) {
   const classes = tone === "rose" ? "border-rose-200 bg-white/70 text-rose-900" : "border-amber-200 bg-amber-50 text-amber-900";
   return (
     <div className={`mt-3 rounded-xl border px-3 py-2 ${classes}`}>
       <p className="text-xs font-black uppercase tracking-wide">{title}</p>
-      <ul className="mt-1.5 space-y-1 text-xs">
-        {issues.map((issue, index) => <li key={`${issue.codigo}-${index}`}>• {issue.mensagem}</li>)}
+      <ul className="mt-1.5 space-y-2 text-xs">
+        {issues.map((issue, index) => {
+          const action = readinessAction(issue, context);
+          return (
+            <li key={`${issue.codigo}-${index}`} className="flex flex-wrap items-start justify-between gap-2">
+              <span className="min-w-0 flex-1">• {issue.mensagem}</span>
+              {action ? (
+                <a
+                  href={action.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-current/20 bg-white/70 px-2 py-1 font-bold underline-offset-2 hover:underline"
+                  title="Abre em nova aba para preservar os dados já preenchidos na admissão"
+                >
+                  {action.label}
+                  <ExternalLink className="size-3" />
+                </a>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

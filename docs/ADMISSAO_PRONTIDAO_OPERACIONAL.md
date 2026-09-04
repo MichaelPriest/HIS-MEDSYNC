@@ -16,6 +16,19 @@ A tela de admissão mostra um cartão de conferência automática enquanto o usu
 
 Os códigos técnicos que sustentam as validações permanecem internos ao HIS.
 
+## Pendências acionáveis
+
+Quando o bloqueio pertence a um cadastro de origem conhecido, o cartão oferece um atalho contextual:
+
+- **Corrigir paciente** para identificação, contato ou endereço que precisam ser saneados no cadastro do paciente;
+- **Corrigir profissional** para conselho, CBO ou habilitação regulatória do profissional;
+- **Corrigir convênio** para Registro ANS ou configuração estrutural da carteirinha;
+- **Abrir cadastros TISS** para CNES da unidade ou procedimento ausente no catálogo operacional.
+
+Esses atalhos abrem em uma nova aba. A admissão em andamento permanece aberta e com os dados já preenchidos. Quando o usuário volta para a aba da admissão, a conferência é refeita automaticamente para reconhecer a correção feita no cadastro de origem.
+
+Pendências que pertencem ao próprio episódio — como selecionar plano, preencher carteirinha, indicar o procedimento ou informar justificativa clínica — continuam sendo corrigidas diretamente na tela de admissão e não recebem atalhos externos.
+
 ## O que é conferido
 
 - paciente ativo e selecionado;
@@ -58,3 +71,5 @@ Quando a abertura é concluída, o número gerado para o atendimento continua se
 ## Manutenção
 
 Quando uma nova regra obrigatória for adicionada à abertura transacional, a prontidão deve ser atualizada para sinalizar a mesma condição antes do clique final. A RPC preventiva nunca deve criar uma regra mais permissiva do que a transação definitiva.
+
+Atalhos de correção devem apontar somente para rotas internas existentes e nunca transportar dados clínicos, token, biometria ou outras informações sensíveis por query string.

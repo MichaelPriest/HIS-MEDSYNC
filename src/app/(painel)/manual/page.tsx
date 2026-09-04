@@ -6,11 +6,13 @@ import { admissionReadinessKnowledgeBaseArticles } from "@/modules/knowledge-bas
 import { commercialKnowledgeBaseArticles } from "@/modules/knowledge-base/comercial-articles";
 import { commercialLinkKnowledgeBaseArticles } from "@/modules/knowledge-base/commercial-link-articles";
 import { surgicalBillingKnowledgeBaseArticles } from "@/modules/knowledge-base/faturamento-equipe-cirurgica-articles";
+import { receptionCockpitKnowledgeBaseArticles } from "@/modules/knowledge-base/recepcao-cockpit-articles";
 
 export default function ManualPage() {
   const articles = [
     ...knowledgeBaseArticles,
     ...admissionReadinessKnowledgeBaseArticles,
+    ...receptionCockpitKnowledgeBaseArticles,
     ...commercialKnowledgeBaseArticles,
     ...commercialLinkKnowledgeBaseArticles,
     ...surgicalBillingKnowledgeBaseArticles,
@@ -35,7 +37,7 @@ export default function ManualPage() {
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Search className="size-5" /></span>
           <div>
             <h2 className="font-black text-slate-900">Procure pela tarefa que precisa executar</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “triagem”, “dispensação”, “laudo”, “glosa”, “contrato”, “CBHPM” ou “NFS-e”. Cada guia informa a sequência de uso, cuidados e atalhos para as telas relacionadas.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “recepção”, “triagem”, “dispensação”, “laudo”, “glosa”, “contrato”, “CBHPM” ou “NFS-e”. Cada guia informa a sequência de uso, cuidados e atalhos para as telas relacionadas.</p>
           </div>
         </div>
       </section>
