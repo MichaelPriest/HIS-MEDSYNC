@@ -57,4 +57,17 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     expect(browser).toContain("Limpar filtros");
     expect(browser).toContain('setAudience("Todos os perfis")');
   });
+
+  it("herda ajuda contextual nas rotas assistenciais sem inventar artigo inexistente", () => {
+    const layout = read("src/app/(painel)/assistencial/layout.tsx");
+    const help = read("src/components/manual/assistencial-context-help.tsx");
+    expect(layout).toContain("AssistencialContextHelp");
+    expect(help).toContain("/manual#enfermagem-administracao");
+    expect(help).toContain("/manual#farmacia-fefo");
+    expect(help).toContain("/manual#laboratorio-lis");
+    expect(help).toContain("/manual#imagem-ris-pacs");
+    expect(help).toContain("/manual#faturamento-equipe-cirurgica-amb-cbhpm");
+    expect(help).toContain('const href = current?.href ?? "/manual"');
+    expect(help).toContain("Ajuda desta etapa");
+  });
 });
