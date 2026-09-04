@@ -20,7 +20,7 @@ export default function ManualPage() {
     ...billingTissKnowledgeBaseArticles,
   ];
   const categories = ["Todas", ...Array.from(new Set(articles.map((article) => article.category)))];
-  const audiences = new Set(articles.flatMap((article) => article.audience));
+  const audiences = ["Todos os perfis", ...Array.from(new Set(articles.flatMap((article) => article.audience))).sort((a, b) => a.localeCompare(b, "pt-BR"))];
 
   return (
     <SectionPage
@@ -31,7 +31,7 @@ export default function ManualPage() {
       <section className="grid gap-3 sm:grid-cols-3">
         <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Guias disponíveis</p><BookOpenCheck className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{articles.length}</p></div>
         <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Categorias</p><Layers3 className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{categories.length - 1}</p></div>
-        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Perfis orientados</p><UsersRound className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{audiences.size}</p></div>
+        <div className="his-kpi"><div className="flex items-center justify-between"><p className="text-xs font-black uppercase tracking-wider text-slate-400">Perfis orientados</p><UsersRound className="size-5 text-brand-600" /></div><p className="mt-2 text-3xl font-black text-brand-950">{audiences.length - 1}</p></div>
       </section>
 
       <section className="ui-card my-5 p-5">
@@ -39,7 +39,7 @@ export default function ManualPage() {
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Search className="size-5" /></span>
           <div>
             <h2 className="font-black text-slate-900">Procure pela tarefa que precisa executar</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “recepção”, “triagem”, “dispensação”, “laudo”, “glosa”, “recurso”, “TISS”, “contrato”, “CBHPM” ou “NFS-e”. Cada guia informa a sequência de uso, cuidados e atalhos para as telas relacionadas.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “recepção”, “triagem”, “dispensação”, “laudo”, “glosa”, “recurso”, “TISS”, “contrato”, “CBHPM” ou “NFS-e”. Também é possível filtrar pelo perfil operacional para ver somente os guias do seu setor.</p>
           </div>
         </div>
       </section>
@@ -49,7 +49,7 @@ export default function ManualPage() {
         <p className="mt-1 text-sm leading-6 text-amber-800">Os guias ensinam o comportamento atualmente implementado, mas não substituem protocolos institucionais, treinamento assistencial, regras contratuais ou homologações externas. Integrações com operadoras, diagnóstico por imagem e emissão fiscal devem refletir a infraestrutura real da instituição.</p>
       </div>
 
-      <KnowledgeBaseBrowser articles={articles} categories={categories} />
+      <KnowledgeBaseBrowser articles={articles} categories={categories} audiences={audiences} />
     </SectionPage>
   );
 }
