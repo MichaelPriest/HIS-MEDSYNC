@@ -10,6 +10,11 @@ const contextualHelp: Array<{ prefix: string; href: string; label: string }> = [
   { prefix: "/assistencial/laboratorio", href: "/manual#laboratorio-lis", label: "Laboratório / LIS" },
   { prefix: "/assistencial/imagem", href: "/manual#imagem-ris-pacs", label: "Imagem / RIS e PACS" },
   { prefix: "/assistencial/centro-cirurgico", href: "/manual#faturamento-equipe-cirurgica-amb-cbhpm", label: "Centro Cirúrgico e faturamento" },
+  { prefix: "/assistencial/urgencia", href: "/manual#urgencia-emergencia-reavaliacao", label: "Urgência e Emergência" },
+  { prefix: "/assistencial/uti", href: "/manual#uti-acompanhamento-episodio", label: "UTI e episódio internado" },
+  { prefix: "/assistencial/sae", href: "/manual#sae-processo-enfermagem", label: "SAE e processo de enfermagem" },
+  { prefix: "/assistencial/cme", href: "/manual#cme-rastreabilidade-processamento", label: "CME e rastreabilidade" },
+  { prefix: "/assistencial/dialise", href: "/manual#dialise-sessao-integrada", label: "Diálise integrada" },
 ];
 
 export function AssistencialContextHelp() {
