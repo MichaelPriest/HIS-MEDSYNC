@@ -3,6 +3,7 @@ import { KnowledgeBaseBrowser } from "@/components/manual/knowledge-base-browser
 import { SectionPage } from "@/components/painel/section-page";
 import { knowledgeBaseArticles } from "@/modules/knowledge-base/articles";
 import { admissionReadinessKnowledgeBaseArticles } from "@/modules/knowledge-base/admissao-prontidao-articles";
+import { assistencialOperationalKnowledgeBaseArticles } from "@/modules/knowledge-base/assistencial-operacional-articles";
 import { billingTissKnowledgeBaseArticles } from "@/modules/knowledge-base/faturamento-tiss-articles";
 import { commercialKnowledgeBaseArticles } from "@/modules/knowledge-base/comercial-articles";
 import { commercialLinkKnowledgeBaseArticles } from "@/modules/knowledge-base/commercial-link-articles";
@@ -18,6 +19,7 @@ export default function ManualPage() {
     ...commercialLinkKnowledgeBaseArticles,
     ...surgicalBillingKnowledgeBaseArticles,
     ...billingTissKnowledgeBaseArticles,
+    ...assistencialOperationalKnowledgeBaseArticles,
   ];
   const categories = ["Todas", ...Array.from(new Set(articles.map((article) => article.category)))];
   const audiences = ["Todos os perfis", ...Array.from(new Set(articles.flatMap((article) => article.audience))).sort((a, b) => a.localeCompare(b, "pt-BR"))];
@@ -39,7 +41,7 @@ export default function ManualPage() {
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Search className="size-5" /></span>
           <div>
             <h2 className="font-black text-slate-900">Procure pela tarefa que precisa executar</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “recepção”, “triagem”, “dispensação”, “laudo”, “glosa”, “recurso”, “TISS”, “contrato”, “CBHPM” ou “NFS-e”. Também é possível filtrar pelo perfil operacional para ver somente os guias do seu setor.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “recepção”, “triagem”, “dispensação”, “laudo”, “glosa”, “recurso”, “TISS”, “contrato”, “CBHPM”, “urgência”, “UTI”, “CME”, “SAE”, “diálise” ou “NFS-e”. Também é possível filtrar pelo perfil operacional para ver somente os guias do seu setor.</p>
           </div>
         </div>
       </section>
