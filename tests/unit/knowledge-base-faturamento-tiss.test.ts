@@ -65,6 +65,8 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     const help = read("src/components/manual/assistencial-context-help.tsx");
     const articles = read("src/modules/knowledge-base/assistencial-operacional-articles.ts");
     expect(layout).toContain("AssistencialContextHelp");
+    expect(help).toContain('import type { Route } from "next"');
+    expect(help).toContain("href: Route");
     for (const slug of [
       "urgencia-emergencia-reavaliacao",
       "uti-acompanhamento-episodio",
@@ -80,7 +82,7 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     expect(help).toContain("/manual#laboratorio-lis");
     expect(help).toContain("/manual#imagem-ris-pacs");
     expect(help).toContain("/manual#faturamento-equipe-cirurgica-amb-cbhpm");
-    expect(help).toContain('const href = current?.href ?? "/manual"');
+    expect(help).toContain('const href: Route = current?.href ?? "/manual"');
     expect(help).toContain("Ajuda desta etapa");
   });
 });
