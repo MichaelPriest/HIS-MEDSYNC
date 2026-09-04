@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 const teamMigration = read("supabase/migrations/20260903182654_faturamento_equipe_cirurgica_origem_integrada.sql");
 const typeMigration = read("supabase/migrations/20260903182902_faturamento_separacao_tipo_atendimento.sql");
-const dischargeMigration = read("supabase/migrations/20260903184500_faturamento_reclassificar_tipo_na_alta.sql");
+const dischargeMigration = read("supabase/migrations/20260903183947_faturamento_reclassificar_tipo_na_alta.sql");
 
 describe("integração Centro Cirúrgico → Faturamento", () => {
   it("usa a mesma cirurgia_equipe e marca complemento do faturamento sem falsificar confirmação clínica", () => {
