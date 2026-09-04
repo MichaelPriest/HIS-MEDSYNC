@@ -6,10 +6,11 @@ import {
   CircleDollarSign,
   Clock3,
   FileText,
-  ShieldAlert,
+  ShieldCheck,
   XCircle,
 } from "lucide-react";
 import { notFound } from "next/navigation";
+import { RecursoRetornoModal } from "@/components/faturamento/recurso-retorno-modal";
 import { SectionPage } from "@/components/painel/section-page";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,12 +35,22 @@ export default async function RecursoPage({params}:{params:Promise<{recursoId:st
   const totalIndeferido=rows.reduce((sum,item)=>sum+Number(item.valor_indeferido??0),0);
   const totalPendente=Math.max(totalRecursado-totalDeferido-totalIndeferido,0);
   const percentualAnalisado=totalRecursado>0?Math.min(100,((totalDeferido+totalIndeferido)/totalRecursado)*100):0;
+  const retornoItems=rows.map((item,index)=>{
+    const glosa=one(item.glosa);
+    return {
+      id:item.id,
+      label:`${glosa?.codigo_glosa??`Item ${index+1}`} · ${glosa?.descricao_glosa??"Glosa"}`,
+      valorRecursado:Number(item.valor_recursado??0),
+      valorDeferido:Number(item.valor_deferido??0),
+      valorIndeferido:Number(item.valor_indeferido??0),
+    };
+  }).filter((item)=>item.valorRecursado>item.valorDeferido+item.valorIndeferido);
 
   return <SectionPage
     eyebrow="Ciclo da receita / Glosas / Recurso"
     title={`Recurso ${recurso.numero_recurso}`}
     description={`${conv?.nome_fantasia??"Convênio"} · ANS ${conv?.registro_ans??"—"}`}
-    actions={<Link href="/faturamento/recursos" className="ui-button-secondary"><ArrowLeft className="size-4"/>Voltar aos recursos</Link>}
+    actions={<div className="flex flex-wrap gap-2">{retornoItems.length?<RecursoRetornoModal recursoId={recursoId} items={retornoItems}/>:null}<Link href="/faturamento/recursos" className="ui-button-secondary"><ArrowLeft className="size-4"/>Voltar aos recursos</Link></div>}
   >
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <Info label="Status" value={String(recurso.status).replaceAll("_"," ")} detail={`${rows.length} item(ns)`}/>
@@ -75,7 +86,7 @@ export default async function RecursoPage({params}:{params:Promise<{recursoId:st
     </section>
 
     <section className="ui-card mt-5 p-5">
-      <div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 size-5 text-amber-600"/><div><h2 className="font-semibold text-slate-900">Governança do retorno e XML</h2><p className="mt-1 text-sm text-slate-600">A criação do recurso é transacional. O registro manual de deferimento/indeferimento e a geração/envio do XML permanecem somente leitura nesta tela até existir RPC transacional e validação XSD oficial da mensagem de Recurso de Glosa. O sistema não grava retorno financeiro por DML direto.</p></div></div>
+      <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-5 text-emerald-600"/><div><h2 className="font-semibold text-slate-900">Retorno financeiro transacional</h2><p className="mt-1 text-sm text-slate-600">Deferimento e indeferimento são registrados exclusivamente pela RPC transacional. Ela valida escopo/permissão, impede valores acima do recursado ou da glosa, atualiza o status de cada glosa e recalcula o recebível do lote sem DML direto pela interface. A geração/envio XML do Recurso de Glosa continua condicionada à validação regulatória específica.</p></div></div>
     </section>
 
     <section className="ui-card mt-6 overflow-hidden">
