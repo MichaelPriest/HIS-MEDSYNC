@@ -26,6 +26,8 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     const page = read("src/app/(painel)/manual/page.tsx");
     expect(page).toContain("billingTissKnowledgeBaseArticles");
     expect(page).toContain("...billingTissKnowledgeBaseArticles");
+    expect(page).toContain("assistencialOperationalKnowledgeBaseArticles");
+    expect(page).toContain("...assistencialOperationalKnowledgeBaseArticles");
     expect(page).toContain("audiences={audiences}");
     expect(page).toContain("Todos os perfis");
   });
@@ -58,10 +60,21 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     expect(browser).toContain('setAudience("Todos os perfis")');
   });
 
-  it("herda ajuda contextual nas rotas assistenciais sem inventar artigo inexistente", () => {
+  it("herda ajuda contextual nas rotas assistenciais e mapeia os módulos operacionais", () => {
     const layout = read("src/app/(painel)/assistencial/layout.tsx");
     const help = read("src/components/manual/assistencial-context-help.tsx");
+    const articles = read("src/modules/knowledge-base/assistencial-operacional-articles.ts");
     expect(layout).toContain("AssistencialContextHelp");
+    for (const slug of [
+      "urgencia-emergencia-reavaliacao",
+      "uti-acompanhamento-episodio",
+      "sae-processo-enfermagem",
+      "cme-rastreabilidade-processamento",
+      "dialise-sessao-integrada",
+    ]) {
+      expect(articles).toContain(`slug: "${slug}"`);
+      expect(help).toContain(`/manual#${slug}`);
+    }
     expect(help).toContain("/manual#enfermagem-administracao");
     expect(help).toContain("/manual#farmacia-fefo");
     expect(help).toContain("/manual#laboratorio-lis");
