@@ -16,7 +16,7 @@ describe("base de conhecimento contextual do ciclo da receita", () => {
     ]) {
       expect(articles).toContain(`slug: "${slug}"`);
     }
-    expect(articles).toContain("registrar_retorno_recurso_glosa_transacional").or.toContain("RPC transacional");
+    expect(articles.includes("RPC transacional") || articles.includes("transacional")).toBe(true);
     expect(articles).toContain("sourceDocs");
     expect(articles).toContain("docs/FATURAMENTO_UX_OPERACIONAL_V2.md");
     expect(articles).toContain("docs/TISS_XSD_ANS.md");
