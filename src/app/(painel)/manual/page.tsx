@@ -3,6 +3,7 @@ import { KnowledgeBaseBrowser } from "@/components/manual/knowledge-base-browser
 import { SectionPage } from "@/components/painel/section-page";
 import { knowledgeBaseArticles } from "@/modules/knowledge-base/articles";
 import { admissionReadinessKnowledgeBaseArticles } from "@/modules/knowledge-base/admissao-prontidao-articles";
+import { billingTissKnowledgeBaseArticles } from "@/modules/knowledge-base/faturamento-tiss-articles";
 import { commercialKnowledgeBaseArticles } from "@/modules/knowledge-base/comercial-articles";
 import { commercialLinkKnowledgeBaseArticles } from "@/modules/knowledge-base/commercial-link-articles";
 import { surgicalBillingKnowledgeBaseArticles } from "@/modules/knowledge-base/faturamento-equipe-cirurgica-articles";
@@ -16,6 +17,7 @@ export default function ManualPage() {
     ...commercialKnowledgeBaseArticles,
     ...commercialLinkKnowledgeBaseArticles,
     ...surgicalBillingKnowledgeBaseArticles,
+    ...billingTissKnowledgeBaseArticles,
   ];
   const categories = ["Todas", ...Array.from(new Set(articles.map((article) => article.category)))];
   const audiences = new Set(articles.flatMap((article) => article.audience));
@@ -37,7 +39,7 @@ export default function ManualPage() {
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Search className="size-5" /></span>
           <div>
             <h2 className="font-black text-slate-900">Procure pela tarefa que precisa executar</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “recepção”, “triagem”, “dispensação”, “laudo”, “glosa”, “contrato”, “CBHPM” ou “NFS-e”. Cada guia informa a sequência de uso, cuidados e atalhos para as telas relacionadas.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Você pode buscar por módulo, ação ou dúvida, como “recepção”, “triagem”, “dispensação”, “laudo”, “glosa”, “recurso”, “TISS”, “contrato”, “CBHPM” ou “NFS-e”. Cada guia informa a sequência de uso, cuidados e atalhos para as telas relacionadas.</p>
           </div>
         </div>
       </section>
